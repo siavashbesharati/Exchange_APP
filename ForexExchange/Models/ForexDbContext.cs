@@ -411,6 +411,9 @@ namespace ForexExchange.Models
                       .HasDatabaseName("IX_CustomerBalanceHistory_Reference");
                 entity.HasIndex(e => e.TransactionDate)
                       .HasDatabaseName("IX_CustomerBalanceHistory_Date");
+                // PERFORMANCE OPTIMIZATION: Index for filtering by TransactionType and IsDeleted (used in rebuild)
+                entity.HasIndex(e => new { e.TransactionType, e.IsDeleted })
+                      .HasDatabaseName("IX_CustomerBalanceHistory_Type_Deleted");
 
                 // Foreign key to Customer
                 entity.HasOne(e => e.Customer)
@@ -439,6 +442,9 @@ namespace ForexExchange.Models
                       .HasDatabaseName("IX_CurrencyPoolHistory_Reference");
                 entity.HasIndex(e => e.TransactionDate)
                       .HasDatabaseName("IX_CurrencyPoolHistory_Date");
+                // PERFORMANCE OPTIMIZATION: Index for filtering by TransactionType and IsDeleted (used in rebuild)
+                entity.HasIndex(e => new { e.TransactionType, e.IsDeleted })
+                      .HasDatabaseName("IX_CurrencyPoolHistory_Type_Deleted");
             });
 
             // BankAccountBalanceHistory configurations
@@ -459,6 +465,9 @@ namespace ForexExchange.Models
                       .HasDatabaseName("IX_BankAccountBalanceHistory_Reference");
                 entity.HasIndex(e => e.TransactionDate)
                       .HasDatabaseName("IX_BankAccountBalanceHistory_Date");
+                // PERFORMANCE OPTIMIZATION: Index for filtering by TransactionType and IsDeleted (used in rebuild)
+                entity.HasIndex(e => new { e.TransactionType, e.IsDeleted })
+                      .HasDatabaseName("IX_BankAccountBalanceHistory_Type_Deleted");
 
                 // Foreign key to BankAccount
                 entity.HasOne(e => e.BankAccount)

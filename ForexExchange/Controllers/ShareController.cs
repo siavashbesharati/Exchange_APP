@@ -66,13 +66,46 @@ namespace ForexExchange.Controllers
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync();
             
-            // Get accounting documents (where customer is payer or receiver)
+            // Get accounting documents (where customer is payer or receiver) - exclude FileData to prevent memory leak
             var documents = await _context.AccountingDocuments
                 .Include(a => a.PayerCustomer)
                 .Include(a => a.ReceiverCustomer)
                 .Include(a => a.PayerBankAccount)
                 .Include(a => a.ReceiverBankAccount)
                 .Where(a => a.PayerCustomerId == customer.Id || a.ReceiverCustomerId == customer.Id)
+                .Select(a => new AccountingDocument
+                {
+                    Id = a.Id,
+                    Type = a.Type,
+                    PayerType = a.PayerType,
+                    PayerCustomerId = a.PayerCustomerId,
+                    PayerBankAccountId = a.PayerBankAccountId,
+                    ReceiverType = a.ReceiverType,
+                    ReceiverCustomerId = a.ReceiverCustomerId,
+                    ReceiverBankAccountId = a.ReceiverBankAccountId,
+                    Amount = a.Amount,
+                    CurrencyCode = a.CurrencyCode,
+                    Title = a.Title,
+                    Description = a.Description,
+                    DocumentDate = a.DocumentDate,
+                    CreatedAt = a.CreatedAt,
+                    IsVerified = a.IsVerified,
+                    VerifiedAt = a.VerifiedAt,
+                    VerifiedBy = a.VerifiedBy,
+                    ReferenceNumber = a.ReferenceNumber,
+                    FileName = a.FileName,
+                    ContentType = a.ContentType,
+                    // FileData is excluded to prevent memory leak
+                    Notes = a.Notes,
+                    IsDeleted = a.IsDeleted,
+                    DeletedAt = a.DeletedAt,
+                    DeletedBy = a.DeletedBy,
+                    IsFrozen = a.IsFrozen,
+                    PayerCustomer = a.PayerCustomer,
+                    ReceiverCustomer = a.ReceiverCustomer,
+                    PayerBankAccount = a.PayerBankAccount,
+                    ReceiverBankAccount = a.ReceiverBankAccount
+                })
                 .OrderByDescending(a => a.DocumentDate)
                 .ToListAsync();
 

@@ -72,12 +72,12 @@ namespace ForexExchange.Controllers
             ViewData["TypeFilter"] = typeFilter;
             ViewData["StatusFilter"] = statusFilter;
 
-            var documents = from d in _context.AccountingDocuments
+            var documents = _context.AccountingDocuments
                            .Include(d => d.PayerCustomer)
                            .Include(d => d.ReceiverCustomer)
                            .Include(d => d.PayerBankAccount)
                            .Include(d => d.ReceiverBankAccount)
-                           select d;
+                           .AsQueryable();
 
             // Apply filters
             if (!String.IsNullOrEmpty(searchString))
@@ -170,8 +170,41 @@ namespace ForexExchange.Controllers
             // Get total count before pagination
             int totalItems = await documents.CountAsync();
             
-            // Apply pagination
+            // Apply pagination and exclude FileData to prevent memory leak
             var pagedDocuments = await documents
+                .Select(d => new AccountingDocument
+                {
+                    Id = d.Id,
+                    Type = d.Type,
+                    PayerType = d.PayerType,
+                    PayerCustomerId = d.PayerCustomerId,
+                    PayerBankAccountId = d.PayerBankAccountId,
+                    ReceiverType = d.ReceiverType,
+                    ReceiverCustomerId = d.ReceiverCustomerId,
+                    ReceiverBankAccountId = d.ReceiverBankAccountId,
+                    Amount = d.Amount,
+                    CurrencyCode = d.CurrencyCode,
+                    Title = d.Title,
+                    Description = d.Description,
+                    DocumentDate = d.DocumentDate,
+                    CreatedAt = d.CreatedAt,
+                    IsVerified = d.IsVerified,
+                    VerifiedAt = d.VerifiedAt,
+                    VerifiedBy = d.VerifiedBy,
+                    ReferenceNumber = d.ReferenceNumber,
+                    FileName = d.FileName,
+                    ContentType = d.ContentType,
+                    // FileData is excluded to prevent memory leak
+                    Notes = d.Notes,
+                    IsDeleted = d.IsDeleted,
+                    DeletedAt = d.DeletedAt,
+                    DeletedBy = d.DeletedBy,
+                    IsFrozen = d.IsFrozen,
+                    PayerCustomer = d.PayerCustomer,
+                    ReceiverCustomer = d.ReceiverCustomer,
+                    PayerBankAccount = d.PayerBankAccount,
+                    ReceiverBankAccount = d.ReceiverBankAccount
+                })
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -207,11 +240,45 @@ namespace ForexExchange.Controllers
                 return NotFound();
             }
 
+            // Exclude FileData to prevent memory leak - use GetFile action to download file
             var accountingDocument = await _context.AccountingDocuments
                 .Include(a => a.PayerCustomer)
                 .Include(a => a.ReceiverCustomer)
                 .Include(a => a.PayerBankAccount)
                 .Include(a => a.ReceiverBankAccount)
+                .Select(a => new AccountingDocument
+                {
+                    Id = a.Id,
+                    Type = a.Type,
+                    PayerType = a.PayerType,
+                    PayerCustomerId = a.PayerCustomerId,
+                    PayerBankAccountId = a.PayerBankAccountId,
+                    ReceiverType = a.ReceiverType,
+                    ReceiverCustomerId = a.ReceiverCustomerId,
+                    ReceiverBankAccountId = a.ReceiverBankAccountId,
+                    Amount = a.Amount,
+                    CurrencyCode = a.CurrencyCode,
+                    Title = a.Title,
+                    Description = a.Description,
+                    DocumentDate = a.DocumentDate,
+                    CreatedAt = a.CreatedAt,
+                    IsVerified = a.IsVerified,
+                    VerifiedAt = a.VerifiedAt,
+                    VerifiedBy = a.VerifiedBy,
+                    ReferenceNumber = a.ReferenceNumber,
+                    FileName = a.FileName,
+                    ContentType = a.ContentType,
+                    // FileData is excluded to prevent memory leak - use GetFile action to download
+                    Notes = a.Notes,
+                    IsDeleted = a.IsDeleted,
+                    DeletedAt = a.DeletedAt,
+                    DeletedBy = a.DeletedBy,
+                    IsFrozen = a.IsFrozen,
+                    PayerCustomer = a.PayerCustomer,
+                    ReceiverCustomer = a.ReceiverCustomer,
+                    PayerBankAccount = a.PayerBankAccount,
+                    ReceiverBankAccount = a.ReceiverBankAccount
+                })
                 .FirstOrDefaultAsync(m => m.Id == id);
 
             if (accountingDocument == null)
@@ -238,13 +305,46 @@ namespace ForexExchange.Controllers
                 return NotFound();
             }
 
-            // Get all accounting documents for this customer
+            // Get all accounting documents for this customer (excluding FileData to prevent memory leak)
             var documents = await _context.AccountingDocuments
                 .Include(a => a.PayerCustomer)
                 .Include(a => a.ReceiverCustomer)
                 .Include(a => a.PayerBankAccount)
                 .Include(a => a.ReceiverBankAccount)
                 .Where(a => a.PayerCustomerId == customerId || a.ReceiverCustomerId == customerId)
+                .Select(a => new AccountingDocument
+                {
+                    Id = a.Id,
+                    Type = a.Type,
+                    PayerType = a.PayerType,
+                    PayerCustomerId = a.PayerCustomerId,
+                    PayerBankAccountId = a.PayerBankAccountId,
+                    ReceiverType = a.ReceiverType,
+                    ReceiverCustomerId = a.ReceiverCustomerId,
+                    ReceiverBankAccountId = a.ReceiverBankAccountId,
+                    Amount = a.Amount,
+                    CurrencyCode = a.CurrencyCode,
+                    Title = a.Title,
+                    Description = a.Description,
+                    DocumentDate = a.DocumentDate,
+                    CreatedAt = a.CreatedAt,
+                    IsVerified = a.IsVerified,
+                    VerifiedAt = a.VerifiedAt,
+                    VerifiedBy = a.VerifiedBy,
+                    ReferenceNumber = a.ReferenceNumber,
+                    FileName = a.FileName,
+                    ContentType = a.ContentType,
+                    // FileData is excluded to prevent memory leak
+                    Notes = a.Notes,
+                    IsDeleted = a.IsDeleted,
+                    DeletedAt = a.DeletedAt,
+                    DeletedBy = a.DeletedBy,
+                    IsFrozen = a.IsFrozen,
+                    PayerCustomer = a.PayerCustomer,
+                    ReceiverCustomer = a.ReceiverCustomer,
+                    PayerBankAccount = a.PayerBankAccount,
+                    ReceiverBankAccount = a.ReceiverBankAccount
+                })
                 .OrderByDescending(a => a.DocumentDate)
                 .ToListAsync();
 
@@ -662,11 +762,45 @@ namespace ForexExchange.Controllers
             
             try
             {
+                // Exclude FileData to prevent memory leak - only load when needed in GetFile action
                 var accountingDocument = await _context.AccountingDocuments
                     .Include(a => a.PayerCustomer)
                     .Include(a => a.ReceiverCustomer)
                     .Include(a => a.PayerBankAccount)
                     .Include(a => a.ReceiverBankAccount)
+                    .Select(a => new AccountingDocument
+                    {
+                        Id = a.Id,
+                        Type = a.Type,
+                        PayerType = a.PayerType,
+                        PayerCustomerId = a.PayerCustomerId,
+                        PayerBankAccountId = a.PayerBankAccountId,
+                        ReceiverType = a.ReceiverType,
+                        ReceiverCustomerId = a.ReceiverCustomerId,
+                        ReceiverBankAccountId = a.ReceiverBankAccountId,
+                        Amount = a.Amount,
+                        CurrencyCode = a.CurrencyCode,
+                        Title = a.Title,
+                        Description = a.Description,
+                        DocumentDate = a.DocumentDate,
+                        CreatedAt = a.CreatedAt,
+                        IsVerified = a.IsVerified,
+                        VerifiedAt = a.VerifiedAt,
+                        VerifiedBy = a.VerifiedBy,
+                        ReferenceNumber = a.ReferenceNumber,
+                        FileName = a.FileName,
+                        ContentType = a.ContentType,
+                        // FileData is excluded to prevent memory leak
+                        Notes = a.Notes,
+                        IsDeleted = a.IsDeleted,
+                        DeletedAt = a.DeletedAt,
+                        DeletedBy = a.DeletedBy,
+                        IsFrozen = a.IsFrozen,
+                        PayerCustomer = a.PayerCustomer,
+                        ReceiverCustomer = a.ReceiverCustomer,
+                        PayerBankAccount = a.PayerBankAccount,
+                        ReceiverBankAccount = a.ReceiverBankAccount
+                    })
                     .FirstOrDefaultAsync(a => a.Id == id);
                     
                 if (accountingDocument == null)
@@ -713,34 +847,48 @@ namespace ForexExchange.Controllers
                 // Only process if not already verified
                 if (!accountingDocument.IsVerified)
                 {
-                    accountingDocument.IsVerified = true;
-                    accountingDocument.VerifiedAt = DateTime.Now;
-                    accountingDocument.VerifiedBy = User.Identity?.Name ?? "System";
-
-                    // Update balances through centralized service (includes history recording)
-                    // This will now use the CORRECTED logic: Payer = +amount, Receiver = -amount
-                    await _centralFinancialService.ProcessAccountingDocumentAsync(accountingDocument, User.Identity?.Name ?? "System");
-                 
-                    _context.Update(accountingDocument);
-                    await _context.SaveChangesAsync();
-
-                    // Send notifications through central hub
-                    var currentUser = await _userManager.GetUserAsync(User);
-                    if (currentUser != null)
+                    try
                     {
-                        await _notificationHub.SendAccountingDocumentNotificationAsync(accountingDocument, NotificationEventType.AccountingDocumentVerified, currentUser.Id);
-                    }
+                        accountingDocument.IsVerified = true;
+                        accountingDocument.VerifiedAt = DateTime.Now;
+                        accountingDocument.VerifiedBy = User.Identity?.Name ?? "System";
 
-                    if (isAjax)
-                    {
-                        return Json(new { 
-                            success = true, 
-                            message = "سند حسابداری با موفقیت تأیید شد و ترازها بروزرسانی گردید.",
-                            documentId = id,
-                            verifiedAt = accountingDocument.VerifiedAt?.ToPersianDateTextify()
-                        });
+                        // Update balances through centralized service (includes history recording)
+                        // This will now use the CORRECTED logic: Payer = +amount, Receiver = -amount
+                        await _centralFinancialService.ProcessAccountingDocumentAsync(accountingDocument, User.Identity?.Name ?? "System");
+                     
+                        _context.Update(accountingDocument);
+                        await _context.SaveChangesAsync();
+
+                        // Send notifications through central hub
+                        var currentUser = await _userManager.GetUserAsync(User);
+                        if (currentUser != null)
+                        {
+                            await _notificationHub.SendAccountingDocumentNotificationAsync(accountingDocument, NotificationEventType.AccountingDocumentVerified, currentUser.Id);
+                        }
+
+                        if (isAjax)
+                        {
+                            return Json(new { 
+                                success = true, 
+                                message = "سند حسابداری با موفقیت تأیید شد و موجودی‌ها بازمحاسبه شدند.",
+                                documentId = id,
+                                verifiedAt = accountingDocument.VerifiedAt?.ToPersianDateTextify()
+                            });
+                        }
+                        TempData["SuccessMessage"] = "سند حسابداری با موفقیت تأیید شد و موجودی‌ها بازمحاسبه شدند.";
                     }
-                    TempData["SuccessMessage"] = "سند حسابداری با موفقیت تأیید شد و ترازها بروزرسانی گردید.";
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Error verifying document {accountingDocument.Id}: {ex.Message}");
+                        
+                        if (isAjax)
+                        {
+                            return Json(new { success = false, message = $"خطا در تایید سند: {ex.Message}" });
+                        }
+                        
+                        TempData["ErrorMessage"] = $"خطا در تایید سند: {ex.Message}";
+                    }
                 }
                 else
                 {
@@ -775,12 +923,46 @@ namespace ForexExchange.Controllers
         {
             try
             {
+                // Exclude FileData to prevent memory leak
                 var unverifiedDocuments = await _context.AccountingDocuments
                     .Include(a => a.PayerCustomer)
                     .Include(a => a.ReceiverCustomer)
                     .Include(a => a.PayerBankAccount)
                     .Include(a => a.ReceiverBankAccount)
                     .Where(a => !a.IsVerified)
+                    .Select(a => new AccountingDocument
+                    {
+                        Id = a.Id,
+                        Type = a.Type,
+                        PayerType = a.PayerType,
+                        PayerCustomerId = a.PayerCustomerId,
+                        PayerBankAccountId = a.PayerBankAccountId,
+                        ReceiverType = a.ReceiverType,
+                        ReceiverCustomerId = a.ReceiverCustomerId,
+                        ReceiverBankAccountId = a.ReceiverBankAccountId,
+                        Amount = a.Amount,
+                        CurrencyCode = a.CurrencyCode,
+                        Title = a.Title,
+                        Description = a.Description,
+                        DocumentDate = a.DocumentDate,
+                        CreatedAt = a.CreatedAt,
+                        IsVerified = a.IsVerified,
+                        VerifiedAt = a.VerifiedAt,
+                        VerifiedBy = a.VerifiedBy,
+                        ReferenceNumber = a.ReferenceNumber,
+                        FileName = a.FileName,
+                        ContentType = a.ContentType,
+                        // FileData is excluded to prevent memory leak
+                        Notes = a.Notes,
+                        IsDeleted = a.IsDeleted,
+                        DeletedAt = a.DeletedAt,
+                        DeletedBy = a.DeletedBy,
+                        IsFrozen = a.IsFrozen,
+                        PayerCustomer = a.PayerCustomer,
+                        ReceiverCustomer = a.ReceiverCustomer,
+                        PayerBankAccount = a.PayerBankAccount,
+                        ReceiverBankAccount = a.ReceiverBankAccount
+                    })
                     .OrderBy(a => a.DocumentDate)
                     .ToListAsync();
 
@@ -1018,11 +1200,45 @@ namespace ForexExchange.Controllers
         {
             try
             {
+                // Exclude FileData to prevent memory leak - only load when needed in GetFile action
                 var document = await _context.AccountingDocuments
                     .Include(a => a.PayerCustomer)
                     .Include(a => a.ReceiverCustomer)
                     .Include(a => a.PayerBankAccount)
                     .Include(a => a.ReceiverBankAccount)
+                    .Select(a => new AccountingDocument
+                    {
+                        Id = a.Id,
+                        Type = a.Type,
+                        PayerType = a.PayerType,
+                        PayerCustomerId = a.PayerCustomerId,
+                        PayerBankAccountId = a.PayerBankAccountId,
+                        ReceiverType = a.ReceiverType,
+                        ReceiverCustomerId = a.ReceiverCustomerId,
+                        ReceiverBankAccountId = a.ReceiverBankAccountId,
+                        Amount = a.Amount,
+                        CurrencyCode = a.CurrencyCode,
+                        Title = a.Title,
+                        Description = a.Description,
+                        DocumentDate = a.DocumentDate,
+                        CreatedAt = a.CreatedAt,
+                        IsVerified = a.IsVerified,
+                        VerifiedAt = a.VerifiedAt,
+                        VerifiedBy = a.VerifiedBy,
+                        ReferenceNumber = a.ReferenceNumber,
+                        FileName = a.FileName,
+                        ContentType = a.ContentType,
+                        // FileData is excluded to prevent memory leak
+                        Notes = a.Notes,
+                        IsDeleted = a.IsDeleted,
+                        DeletedAt = a.DeletedAt,
+                        DeletedBy = a.DeletedBy,
+                        IsFrozen = a.IsFrozen,
+                        PayerCustomer = a.PayerCustomer,
+                        ReceiverCustomer = a.ReceiverCustomer,
+                        PayerBankAccount = a.PayerBankAccount,
+                        ReceiverBankAccount = a.ReceiverBankAccount
+                    })
                     .FirstOrDefaultAsync(a => a.Id == id);
 
                 if (document == null)

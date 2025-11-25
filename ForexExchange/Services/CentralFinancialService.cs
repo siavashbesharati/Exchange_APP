@@ -623,47 +623,24 @@ namespace ForexExchange.Services
                 return;
             }
             
-            // Save order first
-            _context.Add(order);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation($"Order {order.Id} saved successfully. Starting background balance rebuild...");
-
-            // Run balance rebuild in background to prevent HTTP timeout (especially on nginx)
-            // Fire and forget - rebuild will complete asynchronously without blocking the HTTP response
-            _ = Task.Run(async () =>
+            try
             {
-                try
-                {
-                    // Create a new scope for background operation to avoid DbContext disposal issues
-                    using var scope = _serviceProvider.CreateScope();
-                    var backgroundContext = scope.ServiceProvider.GetRequiredService<ForexDbContext>();
-                    var backgroundLogger = scope.ServiceProvider.GetRequiredService<ILogger<CentralFinancialService>>();
-                    var backgroundNotificationHub = scope.ServiceProvider.GetRequiredService<INotificationHub>();
-                    var backgroundCurrencyPoolService = scope.ServiceProvider.GetRequiredService<ICurrencyPoolService>();
-                    var backgroundServiceProvider = scope.ServiceProvider;
-                    
-                    // Create a new instance of the service with the background scope's dependencies
-                    var backgroundService = new CentralFinancialService(
-                        backgroundContext,
-                        backgroundLogger,
-                        backgroundNotificationHub,
-                        backgroundCurrencyPoolService,
-                        backgroundServiceProvider
-                    );
-                    
-                    backgroundLogger.LogInformation($"Background balance rebuild started for Order {order.Id}");
-                    await backgroundService.RebuildAllFinancialBalancesAsync(performedBy);
-                    backgroundLogger.LogInformation($"Background balance rebuild completed for Order {order.Id}");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, $"Error in background balance rebuild for Order {order.Id}: {ex.Message}");
-                    // Optionally: Send notification to admins about rebuild failure
-                }
-            });
+                // Save order first
+                _context.Add(order);
+                await _context.SaveChangesAsync();
 
-            _logger.LogInformation($"Order {order.Id} processing initiated - balance rebuild running in background");
+                _logger.LogInformation($"Order {order.Id} saved successfully. Starting balance rebuild...");
+
+                // Run balance rebuild synchronously in main thread to ensure user gets feedback
+                await RebuildAllFinancialBalancesAsync(performedBy);
+
+                _logger.LogInformation($"Order {order.Id} processing completed - balance rebuild finished successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error processing order creation for Order {order.Id}: {ex.Message}");
+                throw; // Re-throw to let controller handle it and inform user
+            }
         }
 
         /// <summary>
@@ -691,50 +668,27 @@ namespace ForexExchange.Services
         {
             _logger.LogInformation($"Processing accounting document ID: {document.Id}");
             
-            // Save document first (if not already saved)
-            if (_context.Entry(document).State == Microsoft.EntityFrameworkCore.EntityState.Detached)
+            try
             {
-                _context.Add(document);
+                // Save document if not already saved
+                if (document.Id == 0)
+                {
+                    _context.Add(document);
+                    await _context.SaveChangesAsync();
+                }
+
+                _logger.LogInformation($"Document {document.Id} saved successfully. Starting balance rebuild...");
+
+                // Run balance rebuild synchronously in main thread to ensure user gets feedback
+                await RebuildAllFinancialBalancesAsync(performedBy);
+
+                _logger.LogInformation($"Document {document.Id} processing completed - balance rebuild finished successfully");
             }
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation($"Document {document.Id} saved successfully. Starting background balance rebuild...");
-
-            // Run balance rebuild in background to prevent HTTP timeout (especially on nginx)
-            // Fire and forget - rebuild will complete asynchronously without blocking the HTTP response
-            _ = Task.Run(async () =>
+            catch (Exception ex)
             {
-                try
-                {
-                    // Create a new scope for background operation to avoid DbContext disposal issues
-                    using var scope = _serviceProvider.CreateScope();
-                    var backgroundContext = scope.ServiceProvider.GetRequiredService<ForexDbContext>();
-                    var backgroundLogger = scope.ServiceProvider.GetRequiredService<ILogger<CentralFinancialService>>();
-                    var backgroundNotificationHub = scope.ServiceProvider.GetRequiredService<INotificationHub>();
-                    var backgroundCurrencyPoolService = scope.ServiceProvider.GetRequiredService<ICurrencyPoolService>();
-                    var backgroundServiceProvider = scope.ServiceProvider;
-                    
-                    // Create a new instance of the service with the background scope's dependencies
-                    var backgroundService = new CentralFinancialService(
-                        backgroundContext,
-                        backgroundLogger,
-                        backgroundNotificationHub,
-                        backgroundCurrencyPoolService,
-                        backgroundServiceProvider
-                    );
-                    
-                    backgroundLogger.LogInformation($"Background balance rebuild started for Document {document.Id}");
-                    await backgroundService.RebuildAllFinancialBalancesAsync(performedBy);
-                    backgroundLogger.LogInformation($"Background balance rebuild completed for Document {document.Id}");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, $"Error in background balance rebuild for Document {document.Id}: {ex.Message}");
-                    // Optionally: Send notification to admins about rebuild failure
-                }
-            });
-
-            _logger.LogInformation($"Document {document.Id} processing initiated - balance rebuild running in background");
+                _logger.LogError(ex, $"Error processing accounting document for Document {document.Id}: {ex.Message}");
+                throw; // Re-throw to let controller handle it and inform user
+            }
         }
 
 
@@ -832,21 +786,73 @@ namespace ForexExchange.Services
                 logMessages.Add($"All manual records saved in memory: Customer={manualCustomerRecords.Count}, BankAccount={manualBankAccountRecords.Count}, Pool={manualPoolRecords.Count}");
                 _logger.LogInformation($"Manual records loaded: Customer={manualCustomerRecords.Count}, BankAccount={manualBankAccountRecords.Count}, Pool={manualPoolRecords.Count}");
 
+                // PERFORMANCE OPTIMIZATION: Configure SQLite for faster bulk operations
+                // NOTE: PRAGMA statements must be executed BEFORE starting a transaction
+                // SQLite doesn't allow changing safety level inside a transaction
+                await _context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = NORMAL;"); // Faster than FULL, still safe
+                await _context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = WAL;"); // Ensure WAL mode
+                await _context.Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000;"); // 64MB cache for better performance
+
                 using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
                 // STEP 1: Clear all history tables and reset balances to zero
                 logMessages.Add("STEP 1: Clearing all history tables and resetting balances...");
 
-                // Clear pool history (will be rebuilt)
-                await _context.Database.ExecuteSqlRawAsync("DELETE FROM CurrencyPoolHistory");
+                // PERFORMANCE OPTIMIZATION: Get counts before deletion to avoid separate queries
+                var remainingManualPoolCount = await _context.CurrencyPoolHistory.CountAsync(h => h.TransactionType == CurrencyPoolTransactionType.ManualEdit && !h.IsDeleted);
+                var remainingManualBankCount = await _context.BankAccountBalanceHistory.CountAsync(h => h.TransactionType == BankAccountTransactionType.ManualEdit && !h.IsDeleted);
+                var remainingManualCount = await _context.CustomerBalanceHistory.CountAsync(h => h.TransactionType == CustomerBalanceTransactionType.Manual && !h.IsDeleted);
 
-                // Clear bank account balance history (will be rebuilt)
-                await _context.Database.ExecuteSqlRawAsync("DELETE FROM BankAccountBalanceHistory");
+                // Clear pool history (will be rebuilt) - PRESERVE manual records to prevent duplicates
+                // Using parameterized query for better performance and safety
+                var deletedPoolCount = await _context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM CurrencyPoolHistory WHERE TransactionType != {0} AND IsDeleted = 0", 
+                    (int)CurrencyPoolTransactionType.ManualEdit);
+                logMessages.Add($"✓ Cleared {deletedPoolCount} non-manual pool history records, preserved {remainingManualPoolCount} manual records");
 
-                // Clear customer balance history (will be rebuilt)
-                var deletedHistoryCount = await _context.Database.ExecuteSqlRawAsync("DELETE FROM CustomerBalanceHistory");
-                var remainingManualCount = await _context.CustomerBalanceHistory.CountAsync(h => h.TransactionType == CustomerBalanceTransactionType.Manual);
-                logMessages.Add($"✓ Cleared non-manual customer balance history, preserved {remainingManualCount} manual records");
+                // Clear bank account balance history (will be rebuilt) - PRESERVE manual records to prevent duplicates
+                var deletedBankCount = await _context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM BankAccountBalanceHistory WHERE TransactionType != {0} AND IsDeleted = 0", 
+                    (int)BankAccountTransactionType.ManualEdit);
+                logMessages.Add($"✓ Cleared {deletedBankCount} non-manual bank account history records, preserved {remainingManualBankCount} manual records");
+
+                // Clear customer balance history (will be rebuilt) - PRESERVE manual records to prevent duplicates
+                var deletedHistoryCount = await _context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM CustomerBalanceHistory WHERE TransactionType != {0} AND IsDeleted = 0", 
+                    (int)CustomerBalanceTransactionType.Manual);
+                logMessages.Add($"✓ Cleared {deletedHistoryCount} non-manual customer balance history records, preserved {remainingManualCount} manual records");
+
+                // PERFORMANCE OPTIMIZATION: Load all existing manual records from database once and cache them
+                // This eliminates N+1 queries in loops below
+                _logger.LogInformation("Loading existing manual records from database for cache...");
+                var existingManualPoolRecordsCache = (await _context.CurrencyPoolHistory
+                    .Where(h => h.TransactionType == CurrencyPoolTransactionType.ManualEdit && !h.IsDeleted)
+                    .ToListAsync())
+                    .GroupBy(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim())
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.ToDictionary(h => h.Id)
+                    );
+
+                var existingManualBankRecordsCache = (await _context.BankAccountBalanceHistory
+                    .Where(h => h.TransactionType == BankAccountTransactionType.ManualEdit && !h.IsDeleted)
+                    .ToListAsync())
+                    .GroupBy(h => h.BankAccountId)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.ToDictionary(h => h.Id)
+                    );
+
+                var existingManualCustomerRecordsCache = (await _context.CustomerBalanceHistory
+                    .Where(h => h.TransactionType == CustomerBalanceTransactionType.Manual && !h.IsDeleted)
+                    .ToListAsync())
+                    .GroupBy(h => (h.CustomerId, CurrencyCode: (h.CurrencyCode ?? "").ToUpperInvariant().Trim()))
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.ToDictionary(h => h.Id)
+                    );
+
+                _logger.LogInformation($"Cached existing manual records: Pool={existingManualPoolRecordsCache.Count} currencies, Bank={existingManualBankRecordsCache.Count} accounts, Customer={existingManualCustomerRecordsCache.Count} customer-currency combinations");
 
                 // Reset balances efficiently using bulk updates
                 var resetTimestamp = DateTime.UtcNow;
@@ -899,8 +905,9 @@ namespace ForexExchange.Services
                     poolTransactionItems.Add((toCurrencyCode, o.CreatedAt, "Order", o.Id, -o.ToAmount, "Sell", o.Notes ?? ""));
                 }
 
-                // Add manual pool records as transactions
-                // IMPORTANT: Normalize currency codes to UPPERCASE for consistency
+                // Add manual pool records as transactions for balance calculation
+                // IMPORTANT: These will be used for balance calculation but we'll check for duplicates before creating new records
+                // Normalize currency codes to UPPERCASE for consistency
                 foreach (var manual in manualPoolRecords)
                 {
                     var currencyCode = (manual.CurrencyCode ?? "").ToUpperInvariant().Trim();
@@ -908,12 +915,13 @@ namespace ForexExchange.Services
                         currencyCode,
                         manual.TransactionDate,
                         "Manual",
-                        (int?)manual.Id,
+                        (int?)manual.Id, // Use existing ID to identify duplicates
                         manual.TransactionAmount,
                         "Manual",
                         manual.Description ?? "Manual adjustment"
                     ));
                 }
+                logMessages.Add($"Added {manualPoolRecords.Count} manual pool records to transaction items for balance calculation");
 
                 // Group by currency code (now normalized to uppercase) to create coherent history per currency
                 var currencyGroups = poolTransactionItems
@@ -921,7 +929,8 @@ namespace ForexExchange.Services
                     .ToList();
 
                 // Process pool transactions in batches for better performance
-                const int batchSize = 1000;
+                // PERFORMANCE OPTIMIZATION: Increased batch size from 1000 to 5000 to reduce database round trips
+                const int batchSize = 5000;
                 var poolHistoryRecords = new List<CurrencyPoolHistory>();
                 var poolBalanceUpdates = new Dictionary<string, (decimal Balance, int BuyCount, int SellCount, decimal TotalBought, decimal TotalSold)>();
 
@@ -937,6 +946,15 @@ namespace ForexExchange.Services
                     int buyCount = 0, sellCount = 0;
                     decimal totalBought = 0, totalSold = 0;
 
+                    // Normalize currency code for comparison (client-side)
+                    var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
+
+                    // PERFORMANCE OPTIMIZATION: Use cached manual records instead of querying database
+                    // This eliminates N+1 query problem
+                    var existingManualPoolRecords = existingManualPoolRecordsCache.TryGetValue(normalizedCurrencyCode, out var poolRecords)
+                        ? poolRecords
+                        : new Dictionary<long, CurrencyPoolHistory>();
+
                     foreach (var transaction in currencyTransactions)
                     {
                         var transactionType = transaction.TransactionType switch
@@ -946,6 +964,21 @@ namespace ForexExchange.Services
                             _ => CurrencyPoolTransactionType.Order
                         };
 
+                        // For manual records, check if they already exist in database
+                        if (transactionType == CurrencyPoolTransactionType.ManualEdit && 
+                            transaction.ReferenceId.HasValue &&
+                            existingManualPoolRecords.ContainsKey(transaction.ReferenceId.Value))
+                        {
+                            // Update existing manual record with correct balance
+                            var existingRecord = existingManualPoolRecords[transaction.ReferenceId.Value];
+                            existingRecord.BalanceBefore = runningBalance;
+                            existingRecord.BalanceAfter = runningBalance + transaction.Amount;
+                            runningBalance = existingRecord.BalanceAfter;
+                            // Don't create new record - just update the existing one
+                            continue;
+                        }
+
+                        // For non-manual or new manual records, create new history record
                         poolHistoryRecords.Add(new CurrencyPoolHistory
                         {
                             CurrencyCode = currencyCode,
@@ -985,6 +1018,8 @@ namespace ForexExchange.Services
                             await _context.CurrencyPoolHistory.AddRangeAsync(poolHistoryRecords);
                             await _context.SaveChangesAsync();
                             poolHistoryRecords.Clear();
+                            // PERFORMANCE OPTIMIZATION: Clear ChangeTracker to free memory
+                            _context.ChangeTracker.Clear();
                         }
                     }
 
@@ -1090,7 +1125,8 @@ namespace ForexExchange.Services
                     }
                 }
 
-                // Add manual bank account records as transactions
+                // Add manual bank account records as transactions for balance calculation
+                // IMPORTANT: These will be used for balance calculation but we'll check for duplicates before creating new records
                 foreach (var manual in manualBankAccountRecords)
                 {
                     bankAccountTransactionItems.Add((
@@ -1098,11 +1134,12 @@ namespace ForexExchange.Services
                         "N/A", // Bank accounts don't have currency codes in the same way
                         manual.TransactionDate,
                         "Manual",
-                        (int?)manual.Id,
+                        (int?)manual.Id, // Use existing ID to identify duplicates
                         manual.TransactionAmount,
                         manual.Description ?? "Manual adjustment"
                     ));
                 }
+                logMessages.Add($"Added {manualBankAccountRecords.Count} manual bank account records to transaction items for balance calculation");
 
                 // Group by bank account to create coherent history
                 var bankAccountGroups = bankAccountTransactionItems
@@ -1123,6 +1160,12 @@ namespace ForexExchange.Services
                     // Process transactions chronologically for this bank account
                     decimal runningBalance = 0;
 
+                    // PERFORMANCE OPTIMIZATION: Use cached manual records instead of querying database
+                    // This eliminates N+1 query problem
+                    var existingManualBankRecords = existingManualBankRecordsCache.TryGetValue(bankAccountId, out var bankRecords)
+                        ? bankRecords
+                        : new Dictionary<long, BankAccountBalanceHistory>();
+
                     foreach (var transaction in bankTransactions)
                     {
                         var transactionType = transaction.TransactionType switch
@@ -1132,6 +1175,21 @@ namespace ForexExchange.Services
                             _ => BankAccountTransactionType.Document
                         };
 
+                        // For manual records, check if they already exist in database
+                        if (transactionType == BankAccountTransactionType.ManualEdit && 
+                            transaction.ReferenceId.HasValue &&
+                            existingManualBankRecords.ContainsKey(transaction.ReferenceId.Value))
+                        {
+                            // Update existing manual record with correct balance
+                            var existingRecord = existingManualBankRecords[transaction.ReferenceId.Value];
+                            existingRecord.BalanceBefore = runningBalance;
+                            existingRecord.BalanceAfter = runningBalance + transaction.Amount;
+                            runningBalance = existingRecord.BalanceAfter;
+                            // Don't create new record - just update the existing one
+                            continue;
+                        }
+
+                        // For non-manual or new manual records, create new history record
                         bankHistoryRecords.Add(new BankAccountBalanceHistory
                         {
                             BankAccountId = bankAccountId,
@@ -1155,6 +1213,8 @@ namespace ForexExchange.Services
                             await _context.BankAccountBalanceHistory.AddRangeAsync(bankHistoryRecords);
                             await _context.SaveChangesAsync();
                             bankHistoryRecords.Clear();
+                            // PERFORMANCE OPTIMIZATION: Clear ChangeTracker to free memory
+                            _context.ChangeTracker.Clear();
                         }
                     }
 
@@ -1264,11 +1324,12 @@ namespace ForexExchange.Services
                     customerTransactionItems.Add((o.CustomerId, toCurrencyCode, o.CreatedAt, "Order", string.Empty, o.Id, o.ToAmount, o.Notes ?? string.Empty));
                 }
 
-                logMessages.Add($"start adding  [{manualCustomerRecords.Count}] manual customer records");
-                logMessages.Add($"customerTransactionItems is [{customerTransactionItems.Count}]");
+                logMessages.Add($"Manual customer records in database: [{manualCustomerRecords.Count}]");
+                logMessages.Add($"Customer transaction items before adding manual: [{customerTransactionItems.Count}]");
 
-                // Add manual customer records as transactions
-                // IMPORTANT: Normalize currency codes to UPPERCASE for consistency
+                // Add manual customer records as transactions for balance calculation
+                // IMPORTANT: These will be used for balance calculation but we'll check for duplicates before creating new records
+                // Normalize currency codes to UPPERCASE for consistency
                 foreach (var manual in manualCustomerRecords)
                 {
                     var currencyCode = (manual.CurrencyCode ?? "").ToUpperInvariant().Trim();
@@ -1278,12 +1339,12 @@ namespace ForexExchange.Services
                         manual.TransactionDate,
                         "Manual",
                         string.Empty,
-                        (int?)manual.Id,
+                        (int?)manual.Id, // Use existing ID to identify duplicates
                         manual.TransactionAmount,
                         manual.Description ?? "Manual adjustment"
                     ));
                 }
-                logMessages.Add($"customerTransactionItems is [{customerTransactionItems.Count}]");
+                logMessages.Add($"Customer transaction items after adding manual: [{customerTransactionItems.Count}]");
 
                 // Group by customer + currency and create coherent history (process in chunks for memory efficiency)
                 // Normalize currency codes to uppercase before grouping for case-insensitive matching
@@ -1329,6 +1390,16 @@ namespace ForexExchange.Services
                         // Process transactions chronologically for this customer + currency
                         decimal runningBalance = 0;
 
+                        // Normalize currency code for comparison (client-side)
+                        var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
+
+                        // PERFORMANCE OPTIMIZATION: Use cached manual records instead of querying database
+                        // This eliminates N+1 query problem
+                        var cacheKey = (customerId, CurrencyCode: normalizedCurrencyCode);
+                        var existingManualRecords = existingManualCustomerRecordsCache.TryGetValue(cacheKey, out var customerRecords)
+                            ? customerRecords
+                            : new Dictionary<long, CustomerBalanceHistory>();
+
                         foreach (var transaction in orderedTransactions)
                         {
                             var transactionType = transaction.TransactionType switch
@@ -1338,6 +1409,22 @@ namespace ForexExchange.Services
                                 "Manual" => CustomerBalanceTransactionType.Manual,
                                 _ => CustomerBalanceTransactionType.AccountingDocument
                             };
+
+                            // For manual records, check if they already exist in database
+                            if (transactionType == CustomerBalanceTransactionType.Manual && 
+                                transaction.ReferenceId.HasValue &&
+                                existingManualRecords.ContainsKey(transaction.ReferenceId.Value))
+                            {
+                                // Update existing manual record with correct balance
+                                var existingRecord = existingManualRecords[transaction.ReferenceId.Value];
+                                existingRecord.BalanceBefore = runningBalance;
+                                existingRecord.BalanceAfter = runningBalance + transaction.Amount;
+                                runningBalance = existingRecord.BalanceAfter;
+                                // Don't create new record - just update the existing one
+                                continue;
+                            }
+
+                            // For non-manual or new manual records, create new history record
                             var note = $"{transactionType} - مبلغ: {transaction.Amount} {transaction.CurrencyCode}";
                             if (!string.IsNullOrEmpty(transaction.transactionCode))
                                 note += $" - شناسه تراکنش: {transaction.transactionCode}";
@@ -1368,6 +1455,8 @@ namespace ForexExchange.Services
                                 await _context.CustomerBalanceHistory.AddRangeAsync(customerHistoryRecords);
                                 await _context.SaveChangesAsync();
                                 customerHistoryRecords.Clear();
+                                // PERFORMANCE OPTIMIZATION: Clear ChangeTracker to free memory
+                                _context.ChangeTracker.Clear();
                             }
                         }
 
@@ -1424,7 +1513,8 @@ namespace ForexExchange.Services
                     }
                     await _context.SaveChangesAsync();
 
-                    // Clear memory for next chunk
+                    // PERFORMANCE OPTIMIZATION: Clear ChangeTracker to free memory between chunks
+                    _context.ChangeTracker.Clear();
                     customerBalanceUpdates.Clear();
                 }
                 logMessages.Add($"✓ Rebuilt coherent customer balance history for {customerGroups.Count} customer + currency combinations from {allValidDocuments.Count} documents and {allValidOrders.Count} orders (manual records were preserved)");

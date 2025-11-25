@@ -546,12 +546,46 @@ namespace ForexExchange.Controllers
         {
             try
             {
+                // Exclude FileData to prevent memory leak - only load when needed in GetFile action
                 var document = await _context.AccountingDocuments
                     .Include(ad => ad.PayerCustomer)
                     .Include(ad => ad.ReceiverCustomer)
                     .Include(ad => ad.PayerBankAccount)
                     .Include(ad => ad.ReceiverBankAccount)
                     .Where(ad => ad.Id == id)
+                    .Select(ad => new AccountingDocument
+                    {
+                        Id = ad.Id,
+                        Type = ad.Type,
+                        PayerType = ad.PayerType,
+                        PayerCustomerId = ad.PayerCustomerId,
+                        PayerBankAccountId = ad.PayerBankAccountId,
+                        ReceiverType = ad.ReceiverType,
+                        ReceiverCustomerId = ad.ReceiverCustomerId,
+                        ReceiverBankAccountId = ad.ReceiverBankAccountId,
+                        Amount = ad.Amount,
+                        CurrencyCode = ad.CurrencyCode,
+                        Title = ad.Title,
+                        Description = ad.Description,
+                        DocumentDate = ad.DocumentDate,
+                        CreatedAt = ad.CreatedAt,
+                        IsVerified = ad.IsVerified,
+                        VerifiedAt = ad.VerifiedAt,
+                        VerifiedBy = ad.VerifiedBy,
+                        ReferenceNumber = ad.ReferenceNumber,
+                        FileName = ad.FileName,
+                        ContentType = ad.ContentType,
+                        // FileData is excluded to prevent memory leak
+                        Notes = ad.Notes,
+                        IsDeleted = ad.IsDeleted,
+                        DeletedAt = ad.DeletedAt,
+                        DeletedBy = ad.DeletedBy,
+                        IsFrozen = ad.IsFrozen,
+                        PayerCustomer = ad.PayerCustomer,
+                        ReceiverCustomer = ad.ReceiverCustomer,
+                        PayerBankAccount = ad.PayerBankAccount,
+                        ReceiverBankAccount = ad.ReceiverBankAccount
+                    })
                     .FirstOrDefaultAsync();
 
                 if (document == null)

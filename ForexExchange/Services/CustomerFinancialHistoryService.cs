@@ -193,12 +193,41 @@ namespace ForexExchange.Services
                 .Where(o => o.CustomerId == customerId && o.CreatedAt <= asOfDate)
                 .ToListAsync();
 
-            // Get all accounting documents up to the specified date
+            // Get all accounting documents up to the specified date (excluding FileData to prevent memory leak)
             var documents = await _context.AccountingDocuments
                 .AsNoTracking()
                 .Where(d => (d.PayerCustomerId == customerId || d.ReceiverCustomerId == customerId) &&
                            d.DocumentDate <= asOfDate &&
                            d.IsVerified)
+                .Select(d => new AccountingDocument
+                {
+                    Id = d.Id,
+                    Type = d.Type,
+                    PayerType = d.PayerType,
+                    PayerCustomerId = d.PayerCustomerId,
+                    PayerBankAccountId = d.PayerBankAccountId,
+                    ReceiverType = d.ReceiverType,
+                    ReceiverCustomerId = d.ReceiverCustomerId,
+                    ReceiverBankAccountId = d.ReceiverBankAccountId,
+                    Amount = d.Amount,
+                    CurrencyCode = d.CurrencyCode,
+                    Title = d.Title,
+                    Description = d.Description,
+                    DocumentDate = d.DocumentDate,
+                    CreatedAt = d.CreatedAt,
+                    IsVerified = d.IsVerified,
+                    VerifiedAt = d.VerifiedAt,
+                    VerifiedBy = d.VerifiedBy,
+                    ReferenceNumber = d.ReferenceNumber,
+                    FileName = d.FileName,
+                    ContentType = d.ContentType,
+                    // FileData is excluded to prevent memory leak
+                    Notes = d.Notes,
+                    IsDeleted = d.IsDeleted,
+                    DeletedAt = d.DeletedAt,
+                    DeletedBy = d.DeletedBy,
+                    IsFrozen = d.IsFrozen
+                })
                 .ToListAsync();
 
             _logger.LogInformation($"Found {orders.Count} orders and {documents.Count} documents up to {asOfDate:yyyy-MM-dd}");

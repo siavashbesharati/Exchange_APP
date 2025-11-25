@@ -445,35 +445,38 @@ namespace ForexExchange.Controllers
 
             if (ModelState.IsValid)
             {
-
-
-
-
-                // Update customer balances and currency pools for the order
-                await _centralFinancialService.ProcessOrderCreationAsync(order);
-
-                // Load related entities for notification
-                await _context.Entry(order).Reference(o => o.Customer).LoadAsync();
-                await _context.Entry(order).Reference(o => o.FromCurrency).LoadAsync();
-                await _context.Entry(order).Reference(o => o.ToCurrency).LoadAsync();
-
-
-                _logger.LogInformation("Completed ProcessOrderCreationAsync for Order {OrderId}", order.Id);
-                _logger.LogInformation($"Order currency : {order.FromCurrency.PersianName}");
-                // Log admin activity and send notifications
-                var currentUser = await _userManager.GetUserAsync(User);
-                if (currentUser != null)
+                try
                 {
-                    await _adminActivityService.LogOrderCreatedAsync(order, currentUser.Id, currentUser.UserName ?? "Unknown");
+                    // Update customer balances and currency pools for the order
+                    await _centralFinancialService.ProcessOrderCreationAsync(order);
+
+                    // Load related entities for notification
+                    await _context.Entry(order).Reference(o => o.Customer).LoadAsync();
+                    await _context.Entry(order).Reference(o => o.FromCurrency).LoadAsync();
+                    await _context.Entry(order).Reference(o => o.ToCurrency).LoadAsync();
+
+                    _logger.LogInformation("Completed ProcessOrderCreationAsync for Order {OrderId}", order.Id);
+                    _logger.LogInformation($"Order currency : {order.FromCurrency.PersianName}");
                     
-                    // Send notifications through central hub (replaces individual notification calls)
-                    await _notificationHub.SendOrderNotificationAsync(order, NotificationEventType.OrderCreated, currentUser.Id);
+                    // Log admin activity and send notifications
+                    var currentUser = await _userManager.GetUserAsync(User);
+                    if (currentUser != null)
+                    {
+                        await _adminActivityService.LogOrderCreatedAsync(order, currentUser.Id, currentUser.UserName ?? "Unknown");
+                        
+                        // Send notifications through central hub (replaces individual notification calls)
+                        await _notificationHub.SendOrderNotificationAsync(order, NotificationEventType.OrderCreated, currentUser.Id);
+                    }
+
+                    _logger.LogInformation($"Order created successfully - Id: {order.Id}, Rate: {order.Rate} , Total: {order.ToAmount}");
+
+                    return Json(new { success = true, message = "سفارش با موفقیت ثبت شد و موجودی‌ها بازمحاسبه شدند", redirectUrl = Url.Action(nameof(Details), new { id = order.Id }) });
                 }
-
-                _logger.LogInformation($"Order created successfully - Id: {order.Id}, Rate: {order.Rate} , Total: {order.ToAmount}");
-
-
-                return Json(new { success = true, redirectUrl = Url.Action(nameof(Details), new { id = order.Id }) });
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Error creating order: {ex.Message}");
+                    return Json(new { success = false, message = $"خطا در ثبت سفارش: {ex.Message}" });
+                }
             }
             else
             {
