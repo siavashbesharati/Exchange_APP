@@ -749,23 +749,40 @@ namespace ForexExchange.Services
                 }
             }
 
-            // Create customer history record for FromCurrency
-            var customerHistoryFrom = new CustomerBalanceHistory
+            // Check if record already exists for this order (to avoid duplicates)
+            var existingCustomerHistoryFrom = sameDateCustomerHistoryFrom
+                .FirstOrDefault(h => h.ReferenceId == order.Id && 
+                    (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == fromCurrencyCode);
+
+            if (existingCustomerHistoryFrom != null)
             {
-                CustomerId = order.CustomerId,
-                CurrencyCode = fromCurrencyCode,
-                TransactionType = CustomerBalanceTransactionType.Order,
-                ReferenceId = order.Id,
-                BalanceBefore = customerBalanceBeforeFrom,
-                TransactionAmount = -order.FromAmount,
-                BalanceAfter = customerBalanceAfterFrom,
-                Description = order.Notes ?? $"Order #{order.Id}",
-                TransactionDate = order.CreatedAt,
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = performedBy,
-                IsDeleted = false
-            };
-            _context.CustomerBalanceHistory.Add(customerHistoryFrom);
+                // Update existing record
+                existingCustomerHistoryFrom.BalanceBefore = customerBalanceBeforeFrom;
+                existingCustomerHistoryFrom.TransactionAmount = -order.FromAmount;
+                existingCustomerHistoryFrom.BalanceAfter = customerBalanceAfterFrom;
+                existingCustomerHistoryFrom.Description = order.Notes ?? $"Order #{order.Id}";
+                existingCustomerHistoryFrom.TransactionDate = order.CreatedAt;
+            }
+            else
+            {
+                // Create new customer history record for FromCurrency
+                var customerHistoryFrom = new CustomerBalanceHistory
+                {
+                    CustomerId = order.CustomerId,
+                    CurrencyCode = fromCurrencyCode,
+                    TransactionType = CustomerBalanceTransactionType.Order,
+                    ReferenceId = order.Id,
+                    BalanceBefore = customerBalanceBeforeFrom,
+                    TransactionAmount = -order.FromAmount,
+                    BalanceAfter = customerBalanceAfterFrom,
+                    Description = order.Notes ?? $"Order #{order.Id}",
+                    TransactionDate = order.CreatedAt,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = performedBy,
+                    IsDeleted = false
+                };
+                _context.CustomerBalanceHistory.Add(customerHistoryFrom);
+            }
 
             // Get all records on the same date for ToCurrency
             var sameDateCustomerHistoryTo = (await _context.CustomerBalanceHistory
@@ -828,23 +845,40 @@ namespace ForexExchange.Services
                 }
             }
 
-            // Create customer history record for ToCurrency
-            var customerHistoryTo = new CustomerBalanceHistory
+            // Check if record already exists for this order (to avoid duplicates)
+            var existingCustomerHistoryTo = sameDateCustomerHistoryTo
+                .FirstOrDefault(h => h.ReferenceId == order.Id && 
+                    (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == toCurrencyCode);
+
+            if (existingCustomerHistoryTo != null)
             {
-                CustomerId = order.CustomerId,
-                CurrencyCode = toCurrencyCode,
-                TransactionType = CustomerBalanceTransactionType.Order,
-                ReferenceId = order.Id,
-                BalanceBefore = customerBalanceBeforeTo,
-                TransactionAmount = order.ToAmount,
-                BalanceAfter = customerBalanceAfterTo,
-                Description = order.Notes ?? $"Order #{order.Id}",
-                TransactionDate = order.CreatedAt,
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = performedBy,
-                IsDeleted = false
-            };
-            _context.CustomerBalanceHistory.Add(customerHistoryTo);
+                // Update existing record
+                existingCustomerHistoryTo.BalanceBefore = customerBalanceBeforeTo;
+                existingCustomerHistoryTo.TransactionAmount = order.ToAmount;
+                existingCustomerHistoryTo.BalanceAfter = customerBalanceAfterTo;
+                existingCustomerHistoryTo.Description = order.Notes ?? $"Order #{order.Id}";
+                existingCustomerHistoryTo.TransactionDate = order.CreatedAt;
+            }
+            else
+            {
+                // Create new customer history record for ToCurrency
+                var customerHistoryTo = new CustomerBalanceHistory
+                {
+                    CustomerId = order.CustomerId,
+                    CurrencyCode = toCurrencyCode,
+                    TransactionType = CustomerBalanceTransactionType.Order,
+                    ReferenceId = order.Id,
+                    BalanceBefore = customerBalanceBeforeTo,
+                    TransactionAmount = order.ToAmount,
+                    BalanceAfter = customerBalanceAfterTo,
+                    Description = order.Notes ?? $"Order #{order.Id}",
+                    TransactionDate = order.CreatedAt,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = performedBy,
+                    IsDeleted = false
+                };
+                _context.CustomerBalanceHistory.Add(customerHistoryTo);
+            }
 
             // Update customer balances
             customerBalanceFrom.Balance = customerBalanceAfterFrom;
@@ -913,23 +947,41 @@ namespace ForexExchange.Services
                 }
             }
 
-            // Create pool history record for FromCurrency
-            var poolHistoryFrom = new CurrencyPoolHistory
+            // Check if record already exists for this order (to avoid duplicates)
+            var existingPoolHistoryFrom = sameDatePoolHistoryFrom
+                .FirstOrDefault(h => h.ReferenceId == order.Id && 
+                    (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == fromCurrencyCode);
+
+            if (existingPoolHistoryFrom != null)
             {
-                CurrencyCode = fromCurrencyCode,
-                TransactionType = CurrencyPoolTransactionType.Order,
-                ReferenceId = order.Id,
-                BalanceBefore = balanceBeforeFrom,
-                TransactionAmount = order.FromAmount,
-                BalanceAfter = balanceAfterFrom,
-                PoolTransactionType = "Buy",
-                Description = order.Notes ?? $"Order #{order.Id}",
-                TransactionDate = order.CreatedAt,
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = performedBy,
-                IsDeleted = false
-            };
-            _context.CurrencyPoolHistory.Add(poolHistoryFrom);
+                // Update existing record
+                existingPoolHistoryFrom.BalanceBefore = balanceBeforeFrom;
+                existingPoolHistoryFrom.TransactionAmount = order.FromAmount;
+                existingPoolHistoryFrom.BalanceAfter = balanceAfterFrom;
+                existingPoolHistoryFrom.PoolTransactionType = "Buy";
+                existingPoolHistoryFrom.Description = order.Notes ?? $"Order #{order.Id}";
+                existingPoolHistoryFrom.TransactionDate = order.CreatedAt;
+            }
+            else
+            {
+                // Create new pool history record for FromCurrency
+                var poolHistoryFrom = new CurrencyPoolHistory
+                {
+                    CurrencyCode = fromCurrencyCode,
+                    TransactionType = CurrencyPoolTransactionType.Order,
+                    ReferenceId = order.Id,
+                    BalanceBefore = balanceBeforeFrom,
+                    TransactionAmount = order.FromAmount,
+                    BalanceAfter = balanceAfterFrom,
+                    PoolTransactionType = "Buy",
+                    Description = order.Notes ?? $"Order #{order.Id}",
+                    TransactionDate = order.CreatedAt,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = performedBy,
+                    IsDeleted = false
+                };
+                _context.CurrencyPoolHistory.Add(poolHistoryFrom);
+            }
 
             // Get all records on the same date for ToCurrency
             var sameDatePoolHistoryTo = (await _context.CurrencyPoolHistory
@@ -984,29 +1036,54 @@ namespace ForexExchange.Services
                 else
                 {
                     // Update existing record
+                    // IMPORTANT: For ToCurrency (Sell), TransactionAmount should be negative (decrease)
+                    // If it's positive, we need to use it as negative for proper chain calculation
+                    var transactionAmount = item.Record.TransactionAmount;
+                    if (item.Record.PoolTransactionType == "Sell" && transactionAmount > 0)
+                    {
+                        transactionAmount = -transactionAmount; // Ensure negative for Sell transactions
+                    }
                     item.Record.BalanceBefore = runningPoolBalanceTo;
-                    item.Record.BalanceAfter = runningPoolBalanceTo + item.Record.TransactionAmount;
+                    item.Record.BalanceAfter = runningPoolBalanceTo + transactionAmount;
                     runningPoolBalanceTo = item.Record.BalanceAfter;
                 }
             }
 
-            // Create pool history record for ToCurrency
-            var poolHistoryTo = new CurrencyPoolHistory
+            // Check if record already exists for this order (to avoid duplicates)
+            var existingPoolHistoryTo = sameDatePoolHistoryTo
+                .FirstOrDefault(h => h.ReferenceId == order.Id && 
+                    (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == toCurrencyCode);
+
+            if (existingPoolHistoryTo != null)
             {
-                CurrencyCode = toCurrencyCode,
-                TransactionType = CurrencyPoolTransactionType.Order,
-                ReferenceId = order.Id,
-                BalanceBefore = balanceBeforeTo,
-                TransactionAmount = -order.ToAmount,
-                BalanceAfter = balanceAfterTo,
-                PoolTransactionType = "Sell",
-                Description = order.Notes ?? $"Order #{order.Id}",
-                TransactionDate = order.CreatedAt,
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = performedBy,
-                IsDeleted = false
-            };
-            _context.CurrencyPoolHistory.Add(poolHistoryTo);
+                // Update existing record
+                existingPoolHistoryTo.BalanceBefore = balanceBeforeTo;
+                existingPoolHistoryTo.TransactionAmount = -order.ToAmount;
+                existingPoolHistoryTo.BalanceAfter = balanceAfterTo;
+                existingPoolHistoryTo.PoolTransactionType = "Sell";
+                existingPoolHistoryTo.Description = order.Notes ?? $"Order #{order.Id}";
+                existingPoolHistoryTo.TransactionDate = order.CreatedAt;
+            }
+            else
+            {
+                // Create new pool history record for ToCurrency
+                var poolHistoryTo = new CurrencyPoolHistory
+                {
+                    CurrencyCode = toCurrencyCode,
+                    TransactionType = CurrencyPoolTransactionType.Order,
+                    ReferenceId = order.Id,
+                    BalanceBefore = balanceBeforeTo,
+                    TransactionAmount = -order.ToAmount,
+                    BalanceAfter = balanceAfterTo,
+                    PoolTransactionType = "Sell",
+                    Description = order.Notes ?? $"Order #{order.Id}",
+                    TransactionDate = order.CreatedAt,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = performedBy,
+                    IsDeleted = false
+                };
+                _context.CurrencyPoolHistory.Add(poolHistoryTo);
+            }
 
             // Update pool balances
             poolBalanceFrom.Balance = balanceAfterFrom;
