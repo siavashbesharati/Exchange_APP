@@ -66,6 +66,11 @@ namespace ForexExchange.Models
         [Required]
         [Display(Name = "Is Frozen - منجمد شده")]
         public bool IsFrozen { get; set; } = false;
+
+        // PERFORMANCE OPTIMIZATION: Track when this order was last included in a rebuild
+        // Used for incremental rebuild to only process changed records
+        [Display(Name = "Last Rebuild Timestamp - آخرین زمان بازسازی")]
+        public DateTime? LastRebuildTimestamp { get; set; }
         
         /// <summary>
         /// Cross-currency pair identifier (e.g., "USD/EUR", "AED/TRY")

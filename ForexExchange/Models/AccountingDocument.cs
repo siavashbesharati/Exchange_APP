@@ -128,6 +128,11 @@ namespace ForexExchange.Models
         [Display(Name = "Is Frozen - منجمد شده")]
         public bool IsFrozen { get; set; } = false;
 
+        // PERFORMANCE OPTIMIZATION: Track when this document was last included in a rebuild
+        // Used for incremental rebuild to only process changed records
+        [Display(Name = "Last Rebuild Timestamp - آخرین زمان بازسازی")]
+        public DateTime? LastRebuildTimestamp { get; set; }
+
         // Navigation properties
         [Display(Name = "Payer Customer - مشتری پرداخت کننده")]
         public Customer? PayerCustomer { get; set; }

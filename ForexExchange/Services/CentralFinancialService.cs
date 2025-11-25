@@ -583,6 +583,557 @@ namespace ForexExchange.Services
 
         #endregion Preview
 
+        #region Fast Balance Update (Coherence System)
+
+        /// <summary>
+        /// **FAST BALANCE UPDATE** - Updates balances directly without full rebuild.
+        /// 
+        /// This method uses the same calculation logic as PreviewOrderEffectsAsync() but actually
+        /// updates the balances in the database. Since the coherence system (history tables) is already
+        /// updated, we only need to update the current balance values.
+        /// 
+        /// **Performance**: Much faster than full rebuild, suitable for real-time order processing.
+        /// **Use Case**: When order/document is created and history is already coherent.
+        /// </summary>
+        /// <param name="order">Order to process</param>
+        /// <param name="performedBy">Identifier of who processed the order</param>
+        private async Task UpdateBalancesForOrderAsync(Order order, string performedBy = "System")
+        {
+            _logger.LogInformation($"Fast balance update for Order ID: {order.Id}");
+
+            if (order.IsFrozen)
+            {
+                _logger.LogInformation($"Order {order.Id} is frozen - skipping balance updates");
+                return;
+            }
+
+            // Normalize currency codes
+            var fromCurrencyCode = (order.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
+            var toCurrencyCode = (order.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
+
+            // Load customer balances
+            var customerBalances = await _context.CustomerBalances
+                .Where(cb => cb.CustomerId == order.CustomerId)
+                .ToListAsync();
+
+            var customerBalanceFrom = customerBalances.FirstOrDefault(cb =>
+                (cb.CurrencyCode ?? "").ToUpperInvariant().Trim() == fromCurrencyCode);
+
+            if (customerBalanceFrom == null)
+            {
+                customerBalanceFrom = new CustomerBalance
+                {
+                    CustomerId = order.CustomerId,
+                    CurrencyCode = fromCurrencyCode,
+                    Balance = 0,
+                    LastUpdated = DateTime.UtcNow
+                };
+                _context.CustomerBalances.Add(customerBalanceFrom);
+            }
+
+            var customerBalanceTo = customerBalances.FirstOrDefault(cb =>
+                (cb.CurrencyCode ?? "").ToUpperInvariant().Trim() == toCurrencyCode);
+
+            if (customerBalanceTo == null)
+            {
+                customerBalanceTo = new CustomerBalance
+                {
+                    CustomerId = order.CustomerId,
+                    CurrencyCode = toCurrencyCode,
+                    Balance = 0,
+                    LastUpdated = DateTime.UtcNow
+                };
+                _context.CustomerBalances.Add(customerBalanceTo);
+            }
+
+            // Load pool balances
+            var poolBalanceFrom = await _context.CurrencyPools
+                .FirstOrDefaultAsync(p => p.CurrencyId == order.FromCurrencyId);
+            
+            if (poolBalanceFrom == null)
+            {
+                await _currencyPoolService.CreatePoolAsync(order.FromCurrencyId);
+                poolBalanceFrom = await _context.CurrencyPools
+                    .FirstOrDefaultAsync(p => p.CurrencyId == order.FromCurrencyId);
+            }
+
+            var poolBalanceTo = await _context.CurrencyPools
+                .FirstOrDefaultAsync(p => p.CurrencyId == order.ToCurrencyId);
+            
+            if (poolBalanceTo == null)
+            {
+                await _currencyPoolService.CreatePoolAsync(order.ToCurrencyId);
+                poolBalanceTo = await _context.CurrencyPools
+                    .FirstOrDefaultAsync(p => p.CurrencyId == order.ToCurrencyId);
+            }
+
+            // Calculate new balances using same logic as preview
+            var (newCustomerBalanceFrom, newCustomerBalanceTo) = CalculateCustomerBalanceEffects(
+                currentFromBalance: customerBalanceFrom.Balance,
+                currentToBalance: customerBalanceTo.Balance,
+                fromAmount: order.FromAmount,
+                toAmount: order.ToAmount
+            );
+
+            var (newPoolBalanceFrom, newPoolBalanceTo) = CalculateCurrencyPoolEffects(
+                currentFromPool: poolBalanceFrom.Balance,
+                currentToPool: poolBalanceTo.Balance,
+                fromAmount: order.FromAmount,
+                toAmount: order.ToAmount
+            );
+
+            // STEP 2: Update Customer Balance History
+            // Get the last balance before this order's date for FromCurrency
+            // PERFORMANCE: Load into memory first, then filter (ToUpperInvariant can't be translated to SQL)
+            var lastCustomerHistoryFrom = (await _context.CustomerBalanceHistory
+                .Where(h => h.CustomerId == order.CustomerId && 
+                    !h.IsDeleted &&
+                    h.TransactionDate <= order.CreatedAt)
+                .ToListAsync())
+                .Where(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == fromCurrencyCode)
+                .OrderByDescending(h => h.TransactionDate)
+                .ThenByDescending(h => h.Id)
+                .FirstOrDefault();
+
+            decimal customerBalanceBeforeFrom = lastCustomerHistoryFrom?.BalanceAfter ?? customerBalanceFrom.Balance;
+            // If we have history but it doesn't match current balance, use current balance (more reliable)
+            if (lastCustomerHistoryFrom != null && Math.Abs(customerBalanceBeforeFrom - customerBalanceFrom.Balance) > 0.01m)
+            {
+                _logger.LogWarning($"Customer history balance ({customerBalanceBeforeFrom}) doesn't match current balance ({customerBalanceFrom.Balance}) for customer {order.CustomerId} {fromCurrencyCode}. Using current balance.");
+                customerBalanceBeforeFrom = customerBalanceFrom.Balance;
+            }
+            decimal customerBalanceAfterFrom = customerBalanceBeforeFrom - order.FromAmount; // Customer pays (negative)
+
+            // Create customer history record for FromCurrency
+            var customerHistoryFrom = new CustomerBalanceHistory
+            {
+                CustomerId = order.CustomerId,
+                CurrencyCode = fromCurrencyCode,
+                TransactionType = CustomerBalanceTransactionType.Order,
+                ReferenceId = order.Id,
+                BalanceBefore = customerBalanceBeforeFrom,
+                TransactionAmount = -order.FromAmount,
+                BalanceAfter = customerBalanceAfterFrom,
+                Description = order.Notes ?? $"Order #{order.Id}",
+                TransactionDate = order.CreatedAt,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = performedBy,
+                IsDeleted = false
+            };
+            _context.CustomerBalanceHistory.Add(customerHistoryFrom);
+
+            // Get the last balance before this order's date for ToCurrency
+            // PERFORMANCE: Load into memory first, then filter (ToUpperInvariant can't be translated to SQL)
+            var lastCustomerHistoryTo = (await _context.CustomerBalanceHistory
+                .Where(h => h.CustomerId == order.CustomerId && 
+                    !h.IsDeleted &&
+                    h.TransactionDate <= order.CreatedAt)
+                .ToListAsync())
+                .Where(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == toCurrencyCode)
+                .OrderByDescending(h => h.TransactionDate)
+                .ThenByDescending(h => h.Id)
+                .FirstOrDefault();
+
+            decimal customerBalanceBeforeTo = lastCustomerHistoryTo?.BalanceAfter ?? customerBalanceTo.Balance;
+            // If we have history but it doesn't match current balance, use current balance (more reliable)
+            if (lastCustomerHistoryTo != null && Math.Abs(customerBalanceBeforeTo - customerBalanceTo.Balance) > 0.01m)
+            {
+                _logger.LogWarning($"Customer history balance ({customerBalanceBeforeTo}) doesn't match current balance ({customerBalanceTo.Balance}) for customer {order.CustomerId} {toCurrencyCode}. Using current balance.");
+                customerBalanceBeforeTo = customerBalanceTo.Balance;
+            }
+            decimal customerBalanceAfterTo = customerBalanceBeforeTo + order.ToAmount; // Customer receives (positive)
+
+            // Create customer history record for ToCurrency
+            var customerHistoryTo = new CustomerBalanceHistory
+            {
+                CustomerId = order.CustomerId,
+                CurrencyCode = toCurrencyCode,
+                TransactionType = CustomerBalanceTransactionType.Order,
+                ReferenceId = order.Id,
+                BalanceBefore = customerBalanceBeforeTo,
+                TransactionAmount = order.ToAmount,
+                BalanceAfter = customerBalanceAfterTo,
+                Description = order.Notes ?? $"Order #{order.Id}",
+                TransactionDate = order.CreatedAt,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = performedBy,
+                IsDeleted = false
+            };
+            _context.CustomerBalanceHistory.Add(customerHistoryTo);
+
+            // Update customer balances
+            customerBalanceFrom.Balance = customerBalanceAfterFrom;
+            customerBalanceFrom.LastUpdated = DateTime.UtcNow;
+            customerBalanceTo.Balance = customerBalanceAfterTo;
+            customerBalanceTo.LastUpdated = DateTime.UtcNow;
+
+            // STEP 1: Update Pool Balance History
+            // Get the last balance before this order's date for FromCurrency
+            // PERFORMANCE: Load into memory first, then filter (ToUpperInvariant can't be translated to SQL)
+            var lastPoolHistoryFrom = (await _context.CurrencyPoolHistory
+                .Where(h => !h.IsDeleted &&
+                    h.TransactionDate <= order.CreatedAt)
+                .ToListAsync())
+                .Where(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == fromCurrencyCode)
+                .OrderByDescending(h => h.TransactionDate)
+                .ThenByDescending(h => h.Id)
+                .FirstOrDefault();
+
+            // Use last history balance if available and matches current balance, otherwise use current balance
+            // This handles cases where history might be out of sync
+            decimal balanceBeforeFrom = lastPoolHistoryFrom?.BalanceAfter ?? poolBalanceFrom.Balance;
+            // If we have history but it doesn't match current balance, use current balance (more reliable)
+            if (lastPoolHistoryFrom != null && Math.Abs(balanceBeforeFrom - poolBalanceFrom.Balance) > 0.01m)
+            {
+                _logger.LogWarning($"Pool history balance ({balanceBeforeFrom}) doesn't match current balance ({poolBalanceFrom.Balance}) for {fromCurrencyCode}. Using current balance.");
+                balanceBeforeFrom = poolBalanceFrom.Balance;
+            }
+            decimal balanceAfterFrom = balanceBeforeFrom + order.FromAmount; // Institution receives (positive)
+
+            // Create pool history record for FromCurrency
+            var poolHistoryFrom = new CurrencyPoolHistory
+            {
+                CurrencyCode = fromCurrencyCode,
+                TransactionType = CurrencyPoolTransactionType.Order,
+                ReferenceId = order.Id,
+                BalanceBefore = balanceBeforeFrom,
+                TransactionAmount = order.FromAmount,
+                BalanceAfter = balanceAfterFrom,
+                PoolTransactionType = "Buy",
+                Description = order.Notes ?? $"Order #{order.Id}",
+                TransactionDate = order.CreatedAt,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = performedBy,
+                IsDeleted = false
+            };
+            _context.CurrencyPoolHistory.Add(poolHistoryFrom);
+
+            // Get the last balance before this order's date for ToCurrency
+            // PERFORMANCE: Load into memory first, then filter (ToUpperInvariant can't be translated to SQL)
+            var lastPoolHistoryTo = (await _context.CurrencyPoolHistory
+                .Where(h => !h.IsDeleted &&
+                    h.TransactionDate <= order.CreatedAt)
+                .ToListAsync())
+                .Where(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == toCurrencyCode)
+                .OrderByDescending(h => h.TransactionDate)
+                .ThenByDescending(h => h.Id)
+                .FirstOrDefault();
+
+            decimal balanceBeforeTo = lastPoolHistoryTo?.BalanceAfter ?? poolBalanceTo.Balance;
+            // If we have history but it doesn't match current balance, use current balance (more reliable)
+            if (lastPoolHistoryTo != null && Math.Abs(balanceBeforeTo - poolBalanceTo.Balance) > 0.01m)
+            {
+                _logger.LogWarning($"Pool history balance ({balanceBeforeTo}) doesn't match current balance ({poolBalanceTo.Balance}) for {toCurrencyCode}. Using current balance.");
+                balanceBeforeTo = poolBalanceTo.Balance;
+            }
+            decimal balanceAfterTo = balanceBeforeTo - order.ToAmount; // Institution pays (negative)
+
+            // Create pool history record for ToCurrency
+            var poolHistoryTo = new CurrencyPoolHistory
+            {
+                CurrencyCode = toCurrencyCode,
+                TransactionType = CurrencyPoolTransactionType.Order,
+                ReferenceId = order.Id,
+                BalanceBefore = balanceBeforeTo,
+                TransactionAmount = -order.ToAmount,
+                BalanceAfter = balanceAfterTo,
+                PoolTransactionType = "Sell",
+                Description = order.Notes ?? $"Order #{order.Id}",
+                TransactionDate = order.CreatedAt,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = performedBy,
+                IsDeleted = false
+            };
+            _context.CurrencyPoolHistory.Add(poolHistoryTo);
+
+            // Update pool balances
+            poolBalanceFrom.Balance = balanceAfterFrom;
+            poolBalanceFrom.LastUpdated = DateTime.UtcNow;
+            if (order.FromAmount > 0)
+            {
+                poolBalanceFrom.ActiveBuyOrderCount++;
+                poolBalanceFrom.TotalBought += order.FromAmount;
+            }
+            
+            poolBalanceTo.Balance = balanceAfterTo;
+            poolBalanceTo.LastUpdated = DateTime.UtcNow;
+            if (order.ToAmount > 0)
+            {
+                poolBalanceTo.ActiveSellOrderCount++;
+                poolBalanceTo.TotalSold += order.ToAmount;
+            }
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation($"Fast balance update completed for Order {order.Id} - Pool and Customer history updated");
+        }
+
+        /// <summary>
+        /// **FAST BALANCE UPDATE** - Updates balances directly for accounting document without full rebuild.
+        /// 
+        /// This method uses the same calculation logic as PreviewAccountingDocumentEffectsAsync() but actually
+        /// updates the balances in the database. Since the coherence system (history tables) is already
+        /// updated, we only need to update the current balance values.
+        /// </summary>
+        /// <param name="document">Accounting document to process</param>
+        /// <param name="performedBy">Identifier of who processed the document</param>
+        private async Task UpdateBalancesForDocumentAsync(AccountingDocument document, string performedBy = "System")
+        {
+            _logger.LogInformation($"Fast balance update for Document ID: {document.Id}");
+
+            if (document.IsFrozen)
+            {
+                _logger.LogInformation($"Document {document.Id} is frozen - skipping balance updates");
+                return;
+            }
+
+            var currencyCode = (document.CurrencyCode ?? "").ToUpperInvariant().Trim();
+            var documentDate = document.DocumentDate;
+
+            // STEP 1: Update Customer Balance History
+            if (document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue)
+            {
+                // PERFORMANCE: Load into memory first, then filter (ToUpperInvariant can't be translated to SQL)
+                var payerBalance = (await _context.CustomerBalances
+                    .Where(cb => cb.CustomerId == document.PayerCustomerId.Value)
+                    .ToListAsync())
+                    .FirstOrDefault(cb => (cb.CurrencyCode ?? "").ToUpperInvariant().Trim() == currencyCode);
+
+                if (payerBalance == null)
+                {
+                    payerBalance = new CustomerBalance
+                    {
+                        CustomerId = document.PayerCustomerId.Value,
+                        CurrencyCode = currencyCode,
+                        Balance = 0,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    _context.CustomerBalances.Add(payerBalance);
+                }
+
+                // Get the last balance before this document's date for payer customer
+                var lastPayerHistory = (await _context.CustomerBalanceHistory
+                    .Where(h => h.CustomerId == document.PayerCustomerId.Value && 
+                        !h.IsDeleted &&
+                        h.TransactionDate <= documentDate)
+                    .ToListAsync())
+                    .Where(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == currencyCode)
+                    .OrderByDescending(h => h.TransactionDate)
+                    .ThenByDescending(h => h.Id)
+                    .FirstOrDefault();
+
+                decimal payerBalanceBefore = lastPayerHistory?.BalanceAfter ?? payerBalance.Balance;
+                // If we have history but it doesn't match current balance, use current balance (more reliable)
+                if (lastPayerHistory != null && Math.Abs(payerBalanceBefore - payerBalance.Balance) > 0.01m)
+                {
+                    _logger.LogWarning($"Customer history balance ({payerBalanceBefore}) doesn't match current balance ({payerBalance.Balance}) for payer customer {document.PayerCustomerId.Value} {currencyCode}. Using current balance.");
+                    payerBalanceBefore = payerBalance.Balance;
+                }
+                decimal payerBalanceAfter = payerBalanceBefore + document.Amount; // Payer receives (positive)
+
+                // Create customer history record for payer
+                var payerHistory = new CustomerBalanceHistory
+                {
+                    CustomerId = document.PayerCustomerId.Value,
+                    CurrencyCode = currencyCode,
+                    TransactionType = CustomerBalanceTransactionType.AccountingDocument,
+                    ReferenceId = document.Id,
+                    BalanceBefore = payerBalanceBefore,
+                    TransactionAmount = document.Amount,
+                    BalanceAfter = payerBalanceAfter,
+                    Description = document.Description ?? $"Document #{document.Id}",
+                    TransactionNumber = document.ReferenceNumber,
+                    TransactionDate = documentDate,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = performedBy,
+                    IsDeleted = false
+                };
+                _context.CustomerBalanceHistory.Add(payerHistory);
+
+                payerBalance.Balance = payerBalanceAfter;
+                payerBalance.LastUpdated = DateTime.UtcNow;
+            }
+
+            if (document.ReceiverType == ReceiverType.Customer && document.ReceiverCustomerId.HasValue)
+            {
+                // PERFORMANCE: Load into memory first, then filter (ToUpperInvariant can't be translated to SQL)
+                var receiverBalance = (await _context.CustomerBalances
+                    .Where(cb => cb.CustomerId == document.ReceiverCustomerId.Value)
+                    .ToListAsync())
+                    .FirstOrDefault(cb => (cb.CurrencyCode ?? "").ToUpperInvariant().Trim() == currencyCode);
+
+                if (receiverBalance == null)
+                {
+                    receiverBalance = new CustomerBalance
+                    {
+                        CustomerId = document.ReceiverCustomerId.Value,
+                        CurrencyCode = currencyCode,
+                        Balance = 0,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    _context.CustomerBalances.Add(receiverBalance);
+                }
+
+                // Get the last balance before this document's date for receiver customer
+                var lastReceiverHistory = (await _context.CustomerBalanceHistory
+                    .Where(h => h.CustomerId == document.ReceiverCustomerId.Value && 
+                        !h.IsDeleted &&
+                        h.TransactionDate <= documentDate)
+                    .ToListAsync())
+                    .Where(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == currencyCode)
+                    .OrderByDescending(h => h.TransactionDate)
+                    .ThenByDescending(h => h.Id)
+                    .FirstOrDefault();
+
+                decimal receiverBalanceBefore = lastReceiverHistory?.BalanceAfter ?? receiverBalance.Balance;
+                // If we have history but it doesn't match current balance, use current balance (more reliable)
+                if (lastReceiverHistory != null && Math.Abs(receiverBalanceBefore - receiverBalance.Balance) > 0.01m)
+                {
+                    _logger.LogWarning($"Customer history balance ({receiverBalanceBefore}) doesn't match current balance ({receiverBalance.Balance}) for receiver customer {document.ReceiverCustomerId.Value} {currencyCode}. Using current balance.");
+                    receiverBalanceBefore = receiverBalance.Balance;
+                }
+                decimal receiverBalanceAfter = receiverBalanceBefore - document.Amount; // Receiver pays (negative)
+
+                // Create customer history record for receiver
+                var receiverHistory = new CustomerBalanceHistory
+                {
+                    CustomerId = document.ReceiverCustomerId.Value,
+                    CurrencyCode = currencyCode,
+                    TransactionType = CustomerBalanceTransactionType.AccountingDocument,
+                    ReferenceId = document.Id,
+                    BalanceBefore = receiverBalanceBefore,
+                    TransactionAmount = -document.Amount,
+                    BalanceAfter = receiverBalanceAfter,
+                    Description = document.Description ?? $"Document #{document.Id}",
+                    TransactionNumber = document.ReferenceNumber,
+                    TransactionDate = documentDate,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = performedBy,
+                    IsDeleted = false
+                };
+                _context.CustomerBalanceHistory.Add(receiverHistory);
+
+                receiverBalance.Balance = receiverBalanceAfter;
+                receiverBalance.LastUpdated = DateTime.UtcNow;
+            }
+
+            // STEP 2: Update Bank Account Balance History
+            // Note: PayerType.System means bank account is payer, ReceiverType.System means bank account is receiver
+            if (document.PayerType == PayerType.System && document.PayerBankAccountId.HasValue)
+            {
+                var payerBankBalance = await _context.BankAccountBalances
+                    .FirstOrDefaultAsync(b => b.BankAccountId == document.PayerBankAccountId.Value);
+
+                if (payerBankBalance == null)
+                {
+                    payerBankBalance = new BankAccountBalance
+                    {
+                        BankAccountId = document.PayerBankAccountId.Value,
+                        Balance = 0,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    _context.BankAccountBalances.Add(payerBankBalance);
+                }
+
+                // Get the last balance before this document's date for payer bank account
+                var lastPayerBankHistory = await _context.BankAccountBalanceHistory
+                    .Where(h => h.BankAccountId == document.PayerBankAccountId.Value && 
+                        !h.IsDeleted &&
+                        h.TransactionDate <= documentDate)
+                    .OrderByDescending(h => h.TransactionDate)
+                    .ThenByDescending(h => h.Id)
+                    .FirstOrDefaultAsync();
+
+                decimal payerBankBalanceBefore = lastPayerBankHistory?.BalanceAfter ?? payerBankBalance.Balance;
+                // If we have history but it doesn't match current balance, use current balance (more reliable)
+                if (lastPayerBankHistory != null && Math.Abs(payerBankBalanceBefore - payerBankBalance.Balance) > 0.01m)
+                {
+                    _logger.LogWarning($"Bank history balance ({payerBankBalanceBefore}) doesn't match current balance ({payerBankBalance.Balance}) for payer bank account {document.PayerBankAccountId.Value}. Using current balance.");
+                    payerBankBalanceBefore = payerBankBalance.Balance;
+                }
+                decimal payerBankBalanceAfter = payerBankBalanceBefore + document.Amount; // Bank pays out (positive)
+
+                // Create bank account history record for payer
+                var payerBankHistory = new BankAccountBalanceHistory
+                {
+                    BankAccountId = document.PayerBankAccountId.Value,
+                    TransactionType = BankAccountTransactionType.Document,
+                    ReferenceId = document.Id,
+                    BalanceBefore = payerBankBalanceBefore,
+                    TransactionAmount = document.Amount,
+                    BalanceAfter = payerBankBalanceAfter,
+                    Description = document.Description ?? $"Document #{document.Id}",
+                    TransactionDate = documentDate,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = performedBy,
+                    IsDeleted = false
+                };
+                _context.BankAccountBalanceHistory.Add(payerBankHistory);
+
+                payerBankBalance.Balance = payerBankBalanceAfter;
+                payerBankBalance.LastUpdated = DateTime.UtcNow;
+            }
+
+            if (document.ReceiverType == ReceiverType.System && document.ReceiverBankAccountId.HasValue)
+            {
+                var receiverBankBalance = await _context.BankAccountBalances
+                    .FirstOrDefaultAsync(b => b.BankAccountId == document.ReceiverBankAccountId.Value);
+
+                if (receiverBankBalance == null)
+                {
+                    receiverBankBalance = new BankAccountBalance
+                    {
+                        BankAccountId = document.ReceiverBankAccountId.Value,
+                        Balance = 0,
+                        LastUpdated = DateTime.UtcNow
+                    };
+                    _context.BankAccountBalances.Add(receiverBankBalance);
+                }
+
+                // Get the last balance before this document's date for receiver bank account
+                var lastReceiverBankHistory = await _context.BankAccountBalanceHistory
+                    .Where(h => h.BankAccountId == document.ReceiverBankAccountId.Value && 
+                        !h.IsDeleted &&
+                        h.TransactionDate <= documentDate)
+                    .OrderByDescending(h => h.TransactionDate)
+                    .ThenByDescending(h => h.Id)
+                    .FirstOrDefaultAsync();
+
+                decimal receiverBankBalanceBefore = lastReceiverBankHistory?.BalanceAfter ?? receiverBankBalance.Balance;
+                // If we have history but it doesn't match current balance, use current balance (more reliable)
+                if (lastReceiverBankHistory != null && Math.Abs(receiverBankBalanceBefore - receiverBankBalance.Balance) > 0.01m)
+                {
+                    _logger.LogWarning($"Bank history balance ({receiverBankBalanceBefore}) doesn't match current balance ({receiverBankBalance.Balance}) for receiver bank account {document.ReceiverBankAccountId.Value}. Using current balance.");
+                    receiverBankBalanceBefore = receiverBankBalance.Balance;
+                }
+                decimal receiverBankBalanceAfter = receiverBankBalanceBefore - document.Amount; // Bank receives (negative)
+
+                // Create bank account history record for receiver
+                var receiverBankHistory = new BankAccountBalanceHistory
+                {
+                    BankAccountId = document.ReceiverBankAccountId.Value,
+                    TransactionType = BankAccountTransactionType.Document,
+                    ReferenceId = document.Id,
+                    BalanceBefore = receiverBankBalanceBefore,
+                    TransactionAmount = -document.Amount,
+                    BalanceAfter = receiverBankBalanceAfter,
+                    Description = document.Description ?? $"Document #{document.Id}",
+                    TransactionDate = documentDate,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = performedBy,
+                    IsDeleted = false
+                };
+                _context.BankAccountBalanceHistory.Add(receiverBankHistory);
+
+                receiverBankBalance.Balance = receiverBankBalanceAfter;
+                receiverBankBalance.LastUpdated = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation($"Fast balance update completed for Document {document.Id} - Customer and Bank Account history updated");
+        }
+
+        #endregion Fast Balance Update (Coherence System)
+
 
 
         #region Create reocrds
@@ -629,12 +1180,13 @@ namespace ForexExchange.Services
                 _context.Add(order);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"Order {order.Id} saved successfully. Starting balance rebuild...");
+                _logger.LogInformation($"Order {order.Id} saved successfully. Starting fast balance update...");
 
-                // Run balance rebuild synchronously in main thread to ensure user gets feedback
-                await RebuildAllFinancialBalancesAsync(performedBy);
+                // PERFORMANCE OPTIMIZATION: Use fast balance update instead of full rebuild
+                // Since coherence system (history) is already updated, we only need to update current balances
+                await UpdateBalancesForOrderAsync(order, performedBy);
 
-                _logger.LogInformation($"Order {order.Id} processing completed - balance rebuild finished successfully");
+                _logger.LogInformation($"Order {order.Id} processing completed - fast balance update finished successfully");
             }
             catch (Exception ex)
             {
@@ -677,12 +1229,13 @@ namespace ForexExchange.Services
                     await _context.SaveChangesAsync();
                 }
 
-                _logger.LogInformation($"Document {document.Id} saved successfully. Starting balance rebuild...");
+                _logger.LogInformation($"Document {document.Id} saved successfully. Starting fast balance update...");
 
-                // Run balance rebuild synchronously in main thread to ensure user gets feedback
-                await RebuildAllFinancialBalancesAsync(performedBy);
+                // PERFORMANCE OPTIMIZATION: Use fast balance update instead of full rebuild
+                // Since coherence system (history) is already updated, we only need to update current balances
+                await UpdateBalancesForDocumentAsync(document, performedBy);
 
-                _logger.LogInformation($"Document {document.Id} processing completed - balance rebuild finished successfully");
+                _logger.LogInformation($"Document {document.Id} processing completed - fast balance update finished successfully");
             }
             catch (Exception ex)
             {
