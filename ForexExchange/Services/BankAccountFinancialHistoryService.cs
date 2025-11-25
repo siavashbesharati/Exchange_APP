@@ -37,6 +37,7 @@ namespace ForexExchange.Services
             query = query.Where(h => h.TransactionDate >= fromDate && h.TransactionDate <= toDate);
 
             var historyRecords = await query
+                .AsNoTracking()
                 .Include(h => h.BankAccount)
                 .OrderBy(h => h.TransactionDate)
                 .ThenBy(h => h.Id)
@@ -90,6 +91,7 @@ namespace ForexExchange.Services
 
             // Get current balance from latest record for each bank account
             var latestBalances = await _context.BankAccountBalanceHistory
+                .AsNoTracking()
                 .Where(h => !h.IsDeleted && (!bankAccountId.HasValue || h.BankAccountId == bankAccountId.Value))
                 .Include(h => h.BankAccount)
                 .GroupBy(h => h.BankAccountId)

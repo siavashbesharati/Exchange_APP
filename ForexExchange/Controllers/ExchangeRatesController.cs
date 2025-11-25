@@ -88,7 +88,6 @@ namespace ForexExchange.Controllers
                 .ToListAsync();
 
             ViewBag.Currencies = await _context.Currencies
-                .AsNoTracking()
                 .Where(c => c.IsActive && c.Code != "OMR")
                 .OrderBy(c => c.DisplayOrder)
                 .Select(c => new { c.Id, c.Code, c.PersianName })

@@ -700,6 +700,7 @@ namespace ForexExchange.Controllers
 
                 // Get all active currencies with their RatePriority
                 var currencies = await _context.Currencies
+                    .AsNoTracking()
                     .Where(c => c.IsActive)
                     .OrderBy(c => c.DisplayOrder)
                     .ToListAsync();
@@ -710,6 +711,7 @@ namespace ForexExchange.Controllers
                 {
                     // Get latest balance at end of day
                     var latestHistory = await _context.CurrencyPoolHistory
+                        .AsNoTracking()
                         .Where(h => h.CurrencyCode == currency.Code && h.TransactionDate <= endOfDay)
                         .OrderByDescending(h => h.TransactionDate)
                         .ThenByDescending(h => h.Id)
@@ -719,6 +721,7 @@ namespace ForexExchange.Controllers
 
                     // Get all transactions for the day
                     var transactionsRaw = await _context.CurrencyPoolHistory
+                        .AsNoTracking()
                         .Where(h => h.CurrencyCode == currency.Code &&
                                    h.TransactionDate >= startOfDay &&
                                    h.TransactionDate <= endOfDay)
@@ -909,6 +912,7 @@ namespace ForexExchange.Controllers
                 {
                     // Get latest balance at end of day for this currency
                     var latestHistory = await _context.CurrencyPoolHistory
+                        .AsNoTracking()
                         .Where(h => h.CurrencyCode == currency.Code && h.TransactionDate <= endOfDay)
                         .OrderByDescending(h => h.TransactionDate)
                         .ThenByDescending(h => h.Id)
@@ -918,6 +922,7 @@ namespace ForexExchange.Controllers
 
                     // Get all transactions for the day
                     var transactionsRaw = await _context.CurrencyPoolHistory
+                        .AsNoTracking()
                         .Where(h => h.CurrencyCode == currency.Code &&
                                    h.TransactionDate >= startOfDay &&
                                    h.TransactionDate <= endOfDay)
@@ -3617,6 +3622,7 @@ namespace ForexExchange.Controllers
 
                 // Get the latest balance history for each bank account on or before the specified date
                 var latestBalances = await _context.BankAccountBalanceHistory
+                    .AsNoTracking()
                     .Where(h => !h.IsDeleted && h.TransactionDate <= date)
                     .Include(h => h.BankAccount)
                         .ThenInclude(ba => ba.Customer)
@@ -3640,6 +3646,7 @@ namespace ForexExchange.Controllers
 
                     // Get currency info for Persian name
                     var currencyInfo = await _context.Currencies
+                        .AsNoTracking()
                         .Where(c => c.Code == currencyCode)
                         .FirstOrDefaultAsync();
 

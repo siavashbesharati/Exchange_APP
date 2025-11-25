@@ -61,6 +61,7 @@ namespace ForexExchange.Services
                 }
 
                 var historyRecords = await historyQuery
+                    .AsNoTracking()
                     .OrderBy(h => h.TransactionDate)
                     .ThenBy(h => h.Id)
                     .ToListAsync();
@@ -186,6 +187,7 @@ namespace ForexExchange.Services
 
             // Get all orders up to the specified date
             var orders = await _context.Orders
+                .AsNoTracking()
                 .Include(o => o.FromCurrency)
                 .Include(o => o.ToCurrency)
                 .Where(o => o.CustomerId == customerId && o.CreatedAt <= asOfDate)
@@ -193,6 +195,7 @@ namespace ForexExchange.Services
 
             // Get all accounting documents up to the specified date
             var documents = await _context.AccountingDocuments
+                .AsNoTracking()
                 .Where(d => (d.PayerCustomerId == customerId || d.ReceiverCustomerId == customerId) &&
                            d.DocumentDate <= asOfDate &&
                            d.IsVerified)

@@ -120,7 +120,6 @@ namespace ForexExchange.Services
         private decimal? GetActiveRate(int fromCurrencyId, int toCurrencyId)
         {
             var rate = _context.ExchangeRates
-                .AsNoTracking()
                 .Where(r => r.FromCurrencyId == fromCurrencyId && r.ToCurrencyId == toCurrencyId && r.IsActive)
                 .Select(r => (decimal?)r.Rate)
                 .FirstOrDefault();

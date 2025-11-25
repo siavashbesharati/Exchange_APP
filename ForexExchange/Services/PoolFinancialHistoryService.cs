@@ -38,6 +38,7 @@ namespace ForexExchange.Services
 
             // Get history records ordered by date then id (oldest first)
             var historyRecords = await query
+                .AsNoTracking()
                 .OrderBy(h => h.TransactionDate)
                 .ThenBy(h => h.Id)
                 .ToListAsync();
@@ -88,6 +89,7 @@ namespace ForexExchange.Services
 
             // Get current balance from latest record for each currency
             var latestBalances = await _context.CurrencyPoolHistory
+                .AsNoTracking()
                 .Where(h => !h.IsDeleted && (string.IsNullOrEmpty(currencyCode) || h.CurrencyCode == currencyCode))
                 .GroupBy(h => h.CurrencyCode)
                 .Select(g => new

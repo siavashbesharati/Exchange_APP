@@ -564,7 +564,7 @@ namespace ForexExchange.Controllers
                 var user = await _userManager.GetUserAsync(User);
                 var performedBy = user?.UserName ?? "Admin";
 
-                var (ordersFrozen, documentsFrozen) = await _centralFinancialService.FreezeAllOrdersAndDocumentsAsync(performedBy);
+                var ordersFrozen = await _centralFinancialService.FreezeAllOrdersAndDocumentsAsync(performedBy);
 
                 var freezeTimestamp = DateTime.UtcNow;
 
@@ -584,7 +584,6 @@ namespace ForexExchange.Controllers
                     success = true,
                     message = successMessage,
                     ordersFrozen,
-                    documentsFrozen,
                     manualPoolSoftDeleted
                 });
             }
@@ -665,6 +664,162 @@ namespace ForexExchange.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        /// <summary>
+        /// حذف رکوردهای تکراری در BankAccountBalanceHistory و CustomerBalanceHistory
+        /// معیار تکراری بودن: TransactionAmount, TransactionDate, TransactionType
+        /// فقط اولین رکورد (با کمترین Id) باقی می‌ماند
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RemoveDuplicateHistoryRecords()
+        {
+            try
+            {
+                var user = await _userManager.GetUserAsync(User);
+                var performedBy = user?.UserName ?? "Admin";
+                var logMessages = new List<string>();
+                var deletedTimestamp = DateTime.UtcNow;
+
+                logMessages.Add("=== حذف رکوردهای تکراری تاریخچه ===");
+                logMessages.Add($"شروع: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                logMessages.Add($"اجرا شده توسط: {performedBy}");
+                logMessages.Add("");
+
+                using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+                // ============================================================
+                // 1. حذف تکراری‌های BankAccountBalanceHistory
+                // معیار: TransactionAmount, TransactionDate, TransactionType
+                // ============================================================
+                logMessages.Add("مرحله 1: بررسی BankAccountBalanceHistory...");
+
+                // بارگذاری تمام رکوردهای غیرحذف‌شده
+                var allBankRecords = await _context.BankAccountBalanceHistory
+                    .Where(h => !h.IsDeleted)
+                    .OrderBy(h => h.Id)
+                    .ToListAsync();
+
+                // گروه‌بندی و پیدا کردن تکراری‌ها
+                var bankGroups = allBankRecords
+                    .GroupBy(h => new
+                    {
+                        h.TransactionAmount,
+                        h.TransactionDate,
+                        h.TransactionType
+                    })
+                    .Where(g => g.Count() > 1)
+                    .ToList();
+
+                int bankDeletedCount = 0;
+                foreach (var group in bankGroups)
+                {
+                    // نگه داشتن اولین رکورد (با کمترین Id) و حذف بقیه
+                    var recordsToDelete = group.OrderBy(r => r.Id).Skip(1).ToList();
+                    
+                    foreach (var record in recordsToDelete)
+                    {
+                        record.IsDeleted = true;
+                        record.DeletedAt = deletedTimestamp;
+                        record.DeletedBy = performedBy;
+                        bankDeletedCount++;
+                    }
+                }
+
+                if (bankDeletedCount > 0)
+                {
+                    await _context.SaveChangesAsync();
+                    logMessages.Add($"✓ {bankDeletedCount} رکورد تکراری از BankAccountBalanceHistory حذف شد");
+                }
+                else
+                {
+                    logMessages.Add("✓ هیچ رکورد تکراری در BankAccountBalanceHistory یافت نشد");
+                }
+
+                // ============================================================
+                // 2. حذف تکراری‌های CustomerBalanceHistory
+                // معیار: TransactionAmount, TransactionDate, TransactionType
+                // ============================================================
+                logMessages.Add("");
+                logMessages.Add("مرحله 2: بررسی CustomerBalanceHistory...");
+
+                // بارگذاری تمام رکوردهای غیرحذف‌شده
+                var allCustomerRecords = await _context.CustomerBalanceHistory
+                    .Where(h => !h.IsDeleted)
+                    .OrderBy(h => h.Id)
+                    .ToListAsync();
+
+                // گروه‌بندی و پیدا کردن تکراری‌ها
+                var customerGroups = allCustomerRecords
+                    .GroupBy(h => new
+                    {
+                        h.TransactionAmount,
+                        h.TransactionDate,
+                        h.TransactionType
+                    })
+                    .Where(g => g.Count() > 1)
+                    .ToList();
+
+                int customerDeletedCount = 0;
+                foreach (var group in customerGroups)
+                {
+                    // نگه داشتن اولین رکورد (با کمترین Id) و حذف بقیه
+                    var recordsToDelete = group.OrderBy(r => r.Id).Skip(1).ToList();
+                    
+                    foreach (var record in recordsToDelete)
+                    {
+                        record.IsDeleted = true;
+                        record.DeletedAt = deletedTimestamp;
+                        record.DeletedBy = performedBy;
+                        customerDeletedCount++;
+                    }
+                }
+
+                if (customerDeletedCount > 0)
+                {
+                    await _context.SaveChangesAsync();
+                    logMessages.Add($"✓ {customerDeletedCount} رکورد تکراری از CustomerBalanceHistory حذف شد");
+                }
+                else
+                {
+                    logMessages.Add("✓ هیچ رکورد تکراری در CustomerBalanceHistory یافت نشد");
+                }
+
+                await dbTransaction.CommitAsync();
+
+                logMessages.Add("");
+                logMessages.Add("=== عملیات با موفقیت انجام شد ===");
+                logMessages.Add($"مجموع رکوردهای حذف شده: {bankDeletedCount + customerDeletedCount}");
+                logMessages.Add($"  - BankAccountBalanceHistory: {bankDeletedCount}");
+                logMessages.Add($"  - CustomerBalanceHistory: {customerDeletedCount}");
+
+                // Check if this is an AJAX request
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    return Json(new
+                    {
+                        success = true,
+                        message = $"حذف تکراری‌ها با موفقیت انجام شد. {bankDeletedCount + customerDeletedCount} رکورد حذف شد.",
+                        bankDeletedCount,
+                        customerDeletedCount,
+                        totalDeleted = bankDeletedCount + customerDeletedCount
+                    });
+                }
+
+                TempData["Success"] = string.Join("<br/>", logMessages);
+            }
+            catch (Exception ex)
+            {
+                // Check if this is an AJAX request
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    return Json(new { success = false, error = $"خطا در حذف تکراری‌ها: {ex.Message}" });
+                }
+
+                TempData["Error"] = $"خطا در حذف تکراری‌ها: {ex.Message}";
+            }
+
+            return RedirectToAction("Index");
+        }
 
     }
 }
