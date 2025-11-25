@@ -124,7 +124,7 @@ namespace ForexExchange.Services
     /// Sets IsFrozen=true for all orders and accounting documents to exclude them from future balance calculations.
     /// Returns the number of entities that were updated during the operation.
     /// </summary>
-    Task<(int OrdersFrozen, int DocumentsFrozen)> FreezeAllOrdersAndDocumentsAsync(string performedBy = "System");
+    Task<int> FreezeAllOrdersAndDocumentsAsync(string performedBy = "System");
 
 
 

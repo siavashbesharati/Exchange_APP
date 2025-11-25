@@ -1455,7 +1455,7 @@ namespace ForexExchange.Services
 
         }
 
-        public async Task<(int OrdersFrozen, int DocumentsFrozen)> FreezeAllOrdersAndDocumentsAsync(string performedBy = "System")
+        public async Task<int> FreezeAllOrdersAndDocumentsAsync(string performedBy = "System")
         {
             _logger.LogInformation("FreezeAllOrdersAndDocumentsAsync initiated by {PerformedBy}", performedBy);
 
@@ -1480,8 +1480,8 @@ namespace ForexExchange.Services
 
                 await transaction.CommitAsync();
 
-                _logger.LogInformation("Freeze operation completed. Orders frozen: {Orders}, Documents frozen: {Documents}", ordersFrozen, documentsFrozen);
-                return (ordersFrozen, documentsFrozen);
+                _logger.LogInformation("Freeze operation completed. Orders frozen: {Orders}, Documents frozen: {Documents}", ordersFrozen);
+                return (ordersFrozen);
             }
             catch (Exception ex)
             {
