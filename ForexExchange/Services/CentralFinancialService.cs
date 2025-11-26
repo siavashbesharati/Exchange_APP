@@ -2304,61 +2304,448 @@ namespace ForexExchange.Services
 
 
 
-
-        #region Smart Delete Operations with History Soft Delete and Recalculation
+        #region Delete Operations
 
         /// <summary>
-        /// Safely delete an order by soft-deleting its history records and recalculating balances
+        /// Safely deletes an order by reversing its financial impacts
         /// </summary>
         public async Task DeleteOrderAsync(Order order, string performedBy = "Admin")
         {
             try
             {
-                _logger.LogInformation($"Starting smart order deletion: Order {order.Id} by {performedBy}");
+                _logger.LogInformation($"Deleting order: Order {order.Id} by {performedBy}");
 
+                if (order.IsFrozen)
+                {
+                    _logger.LogInformation($"Order {order.Id} is frozen - skipping deletion");
+                    return;
+                }
 
-                order.IsDeleted = true;
-                order.DeletedAt = DateTime.UtcNow;
-                order.DeletedBy = performedBy;
-                await _context.SaveChangesAsync();
+                using var transaction = await _context.Database.BeginTransactionAsync();
 
-                // Rebuild all financial balances after order deletion to ensure coherence
-                await RebuildAllFinancialBalancesAsync(performedBy);
+                try
+                {
+                    // 1. Soft delete the order
+                    order.IsDeleted = true;
+                    order.DeletedAt = DateTime.UtcNow;
+                    order.DeletedBy = performedBy;
 
-                _logger.LogInformation($"Smart order deletion completed: Order {order.Id}");
+                    // 2. Soft delete related history records
+                    await SoftDeleteOrderHistoryRecords(order.Id, performedBy);
+
+                    // 3. Rebuild balance chains without the deleted records
+                    await RebuildBalanceChainsForOrderDeletion(order);
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    _logger.LogInformation($"Order deletion completed: Order {order.Id}");
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in smart order deletion {order.Id}: {ex.Message}");
+                _logger.LogError(ex, $"Error deleting order {order.Id}: {ex.Message}");
                 throw;
             }
         }
 
         /// <summary>
-        /// Safely delete an accounting document by soft-deleting its history records and recalculating balances
+        /// Safely deletes an accounting document by reversing its financial impacts
         /// </summary>
         public async Task DeleteAccountingDocumentAsync(AccountingDocument document, string performedBy = "Admin")
         {
             try
             {
-                document.IsDeleted = true;
-                document.DeletedAt = DateTime.UtcNow;
-                document.DeletedBy = performedBy;
-                await _context.SaveChangesAsync();
+                _logger.LogInformation($"Deleting document: Document {document.Id} by {performedBy}");
 
-                // Rebuild all financial balances after document deletion to ensure coherence
-                await RebuildAllFinancialBalancesAsync(performedBy);
+                if (document.IsFrozen)
+                {
+                    _logger.LogInformation($"Document {document.Id} is frozen - skipping deletion");
+                    return;
+                }
 
-                _logger.LogInformation($"Smart document deletion completed: Document {document.Id}");
+                using var transaction = await _context.Database.BeginTransactionAsync();
+
+                try
+                {
+                    // 1. Soft delete the document
+                    document.IsDeleted = true;
+                    document.DeletedAt = DateTime.UtcNow;
+                    document.DeletedBy = performedBy;
+
+                    // 2. Soft delete related history records
+                    await SoftDeleteDocumentHistoryRecords(document.Id, performedBy);
+
+                    // 3. Rebuild balance chains without the deleted records
+                    await RebuildBalanceChainsForDocumentDeletion(document);
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    _logger.LogInformation($"Document deletion completed: Document {document.Id}");
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in smart document deletion {document.Id}: {ex.Message}");
+                _logger.LogError(ex, $"Error deleting document {document.Id}: {ex.Message}");
                 throw;
             }
         }
 
+        #endregion
 
+        #region Helper Methods for Order Deletion
+
+        /// <summary>
+        /// Soft deletes all history records related to an order
+        /// </summary>
+        private async Task SoftDeleteOrderHistoryRecords(long orderId, string performedBy)
+        {
+            var timestamp = DateTime.UtcNow;
+
+            // Soft delete customer balance history
+            var customerHistoryRecords = await _context.CustomerBalanceHistory
+                .Where(h => h.ReferenceId == orderId &&
+                           h.TransactionType == CustomerBalanceTransactionType.Order &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            foreach (var record in customerHistoryRecords)
+            {
+                record.IsDeleted = true;
+                record.DeletedAt = timestamp;
+                record.DeletedBy = performedBy;
+            }
+
+            // Soft delete pool history
+            var poolHistoryRecords = await _context.CurrencyPoolHistory
+                .Where(h => h.ReferenceId == orderId &&
+                           h.TransactionType == CurrencyPoolTransactionType.Order &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            foreach (var record in poolHistoryRecords)
+            {
+                record.IsDeleted = true;
+                record.DeletedAt = timestamp;
+                record.DeletedBy = performedBy;
+            }
+
+            _logger.LogInformation($"Soft-deleted {customerHistoryRecords.Count} customer and {poolHistoryRecords.Count} pool history records for order {orderId}");
+        }
+
+        /// <summary>
+        /// Rebuilds balance chains after order deletion
+        /// </summary>
+        private async Task RebuildBalanceChainsForOrderDeletion(Order order)
+        {
+            // Rebuild customer balance chains for both currencies
+            await RebuildCustomerBalanceChainForOrder(order.CustomerId, order.FromCurrency?.Code);
+            await RebuildCustomerBalanceChainForOrder(order.CustomerId, order.ToCurrency?.Code);
+
+            // Rebuild pool balance chains for both currencies
+            await RebuildPoolBalanceChainForOrder(order.FromCurrency?.Code);
+            await RebuildPoolBalanceChainForOrder(order.ToCurrency?.Code);
+
+            // Update pool statistics
+            await UpdatePoolStatisticsForOrderDeletion(order);
+        }
+
+        /// <summary>
+        /// Rebuilds customer balance chain for a specific currency after order deletion
+        /// </summary>
+        private async Task RebuildCustomerBalanceChainForOrder(int customerId, string currencyCode)
+        {
+            if (string.IsNullOrEmpty(currencyCode)) return;
+
+            // Get all non-deleted transactions for this customer and currency
+            var allTransactions = await _context.CustomerBalanceHistory
+                .Where(h => h.CustomerId == customerId &&
+                           !h.IsDeleted &&
+                           h.CurrencyCode == currencyCode)
+                .OrderBy(h => h.TransactionDate)
+                .ThenBy(h => h.Id)
+                .ToListAsync();
+
+            // Rebuild the chain
+            decimal currentBalance = 0;
+            foreach (var transaction in allTransactions)
+            {
+                transaction.BalanceBefore = currentBalance;
+                transaction.BalanceAfter = currentBalance + transaction.TransactionAmount;
+                currentBalance = transaction.BalanceAfter;
+            }
+
+            // Update customer balance
+            var customerBalance = await _context.CustomerBalances
+                .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyCode == currencyCode);
+
+            if (customerBalance != null)
+            {
+                customerBalance.Balance = currentBalance;
+                customerBalance.LastUpdated = DateTime.UtcNow;
+            }
+            else if (allTransactions.Any())
+            {
+                // Create balance record if it doesn't exist but we have transactions
+                customerBalance = new CustomerBalance
+                {
+                    CustomerId = customerId,
+                    CurrencyCode = currencyCode,
+                    Balance = currentBalance,
+                    LastUpdated = DateTime.UtcNow
+                };
+                _context.CustomerBalances.Add(customerBalance);
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds pool balance chain for a specific currency after order deletion
+        /// </summary>
+        private async Task RebuildPoolBalanceChainForOrder(string currencyCode)
+        {
+            if (string.IsNullOrEmpty(currencyCode)) return;
+
+            // Get all non-deleted pool transactions for this currency
+            var allTransactions = await _context.CurrencyPoolHistory
+                .Where(h => !h.IsDeleted && h.CurrencyCode == currencyCode)
+                .OrderBy(h => h.TransactionDate)
+                .ThenBy(h => h.Id)
+                .ToListAsync();
+
+            // Rebuild the chain
+            decimal currentBalance = 0;
+            foreach (var transaction in allTransactions)
+            {
+                transaction.BalanceBefore = currentBalance;
+                transaction.BalanceAfter = currentBalance + transaction.TransactionAmount;
+                currentBalance = transaction.BalanceAfter;
+            }
+
+            // Update pool balance
+            var poolBalance = await _context.CurrencyPools
+                .FirstOrDefaultAsync(p => p.CurrencyCode == currencyCode);
+
+            if (poolBalance != null)
+            {
+                poolBalance.Balance = currentBalance;
+                poolBalance.LastUpdated = DateTime.UtcNow;
+            }
+            else if (allTransactions.Any())
+            {
+                // Create pool record if it doesn't exist but we have transactions
+                poolBalance = new CurrencyPool
+                {
+                    CurrencyCode = currencyCode,
+                    Balance = currentBalance,
+                    LastUpdated = DateTime.UtcNow
+                };
+                _context.CurrencyPools.Add(poolBalance);
+            }
+        }
+
+        /// <summary>
+        /// Updates pool statistics when order is deleted
+        /// </summary>
+        private async Task UpdatePoolStatisticsForOrderDeletion(Order order)
+        {
+            if (order.FromCurrencyId != null && order.FromAmount > 0)
+            {
+                var fromPool = await _context.CurrencyPools
+                    .FirstOrDefaultAsync(p => p.CurrencyId == order.FromCurrencyId);
+
+                if (fromPool != null)
+                {
+                    fromPool.ActiveBuyOrderCount = Math.Max(0, fromPool.ActiveBuyOrderCount - 1);
+                    fromPool.TotalBought = Math.Max(0, fromPool.TotalBought - order.FromAmount);
+                    fromPool.LastUpdated = DateTime.UtcNow;
+                }
+            }
+
+            if (order.ToCurrencyId != null && order.ToAmount > 0)
+            {
+                var toPool = await _context.CurrencyPools
+                    .FirstOrDefaultAsync(p => p.CurrencyId == order.ToCurrencyId);
+
+                if (toPool != null)
+                {
+                    toPool.ActiveSellOrderCount = Math.Max(0, toPool.ActiveSellOrderCount - 1);
+                    toPool.TotalSold = Math.Max(0, toPool.TotalSold - order.ToAmount);
+                    toPool.LastUpdated = DateTime.UtcNow;
+                }
+            }
+        }
+
+        #endregion
+
+        #region Helper Methods for Document Deletion
+
+        /// <summary>
+        /// Soft deletes all history records related to a document
+        /// </summary>
+        private async Task SoftDeleteDocumentHistoryRecords(long documentId, string performedBy)
+        {
+            var timestamp = DateTime.UtcNow;
+
+            // Soft delete customer balance history
+            var customerHistoryRecords = await _context.CustomerBalanceHistory
+                .Where(h => h.ReferenceId == documentId &&
+                           h.TransactionType == CustomerBalanceTransactionType.AccountingDocument &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            foreach (var record in customerHistoryRecords)
+            {
+                record.IsDeleted = true;
+                record.DeletedAt = timestamp;
+                record.DeletedBy = performedBy;
+            }
+
+            // Soft delete bank account history
+            var bankHistoryRecords = await _context.BankAccountBalanceHistory
+                .Where(h => h.ReferenceId == documentId &&
+                           h.TransactionType == BankAccountTransactionType.Document &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            foreach (var record in bankHistoryRecords)
+            {
+                record.IsDeleted = true;
+                record.DeletedAt = timestamp;
+                record.DeletedBy = performedBy;
+            }
+
+            _logger.LogInformation($"Soft-deleted {customerHistoryRecords.Count} customer and {bankHistoryRecords.Count} bank history records for document {documentId}");
+        }
+
+        /// <summary>
+        /// Rebuilds balance chains after document deletion
+        /// </summary>
+        private async Task RebuildBalanceChainsForDocumentDeletion(AccountingDocument document)
+        {
+            var currencyCode = document.CurrencyCode;
+
+            // Rebuild customer balance chains for affected customers
+            if (document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue)
+            {
+                await RebuildCustomerBalanceChainForDocument(document.PayerCustomerId.Value, currencyCode);
+            }
+            if (document.ReceiverType == ReceiverType.Customer && document.ReceiverCustomerId.HasValue)
+            {
+                await RebuildCustomerBalanceChainForDocument(document.ReceiverCustomerId.Value, currencyCode);
+            }
+
+            // Rebuild bank balance chains for affected bank accounts
+            if (document.PayerType == PayerType.System && document.PayerBankAccountId.HasValue)
+            {
+                await RebuildBankBalanceChainForDocument(document.PayerBankAccountId.Value);
+            }
+            if (document.ReceiverType == ReceiverType.System && document.ReceiverBankAccountId.HasValue)
+            {
+                await RebuildBankBalanceChainForDocument(document.ReceiverBankAccountId.Value);
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds customer balance chain for a specific customer and currency after document deletion
+        /// </summary>
+        private async Task RebuildCustomerBalanceChainForDocument(int customerId, string currencyCode)
+        {
+            if (string.IsNullOrEmpty(currencyCode)) return;
+
+            // Get all non-deleted transactions for this customer and currency
+            var allTransactions = await _context.CustomerBalanceHistory
+                .Where(h => h.CustomerId == customerId &&
+                           !h.IsDeleted &&
+                           h.CurrencyCode == currencyCode)
+                .OrderBy(h => h.TransactionDate)
+                .ThenBy(h => h.Id)
+                .ToListAsync();
+
+            // Rebuild the chain
+            decimal currentBalance = 0;
+            foreach (var transaction in allTransactions)
+            {
+                transaction.BalanceBefore = currentBalance;
+                transaction.BalanceAfter = currentBalance + transaction.TransactionAmount;
+                currentBalance = transaction.BalanceAfter;
+            }
+
+            // Update customer balance
+            var customerBalance = await _context.CustomerBalances
+                .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyCode == currencyCode);
+
+            if (customerBalance != null)
+            {
+                customerBalance.Balance = currentBalance;
+                customerBalance.LastUpdated = DateTime.UtcNow;
+            }
+            else if (allTransactions.Any())
+            {
+                // Create balance record if it doesn't exist but we have transactions
+                customerBalance = new CustomerBalance
+                {
+                    CustomerId = customerId,
+                    CurrencyCode = currencyCode,
+                    Balance = currentBalance,
+                    LastUpdated = DateTime.UtcNow
+                };
+                _context.CustomerBalances.Add(customerBalance);
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds bank balance chain for a specific bank account after document deletion
+        /// </summary>
+        private async Task RebuildBankBalanceChainForDocument(int bankAccountId)
+        {
+            // Get all non-deleted bank transactions for this account
+            var allTransactions = await _context.BankAccountBalanceHistory
+                .Where(h => h.BankAccountId == bankAccountId && !h.IsDeleted)
+                .OrderBy(h => h.TransactionDate)
+                .ThenBy(h => h.Id)
+                .ToListAsync();
+
+            // Rebuild the chain
+            decimal currentBalance = 0;
+            foreach (var transaction in allTransactions)
+            {
+                transaction.BalanceBefore = currentBalance;
+                transaction.BalanceAfter = currentBalance + transaction.TransactionAmount;
+                currentBalance = transaction.BalanceAfter;
+            }
+
+            // Update bank balance
+            var bankBalance = await _context.BankAccountBalances
+                .FirstOrDefaultAsync(b => b.BankAccountId == bankAccountId);
+
+            if (bankBalance != null)
+            {
+                bankBalance.Balance = currentBalance;
+                bankBalance.LastUpdated = DateTime.UtcNow;
+            }
+            else if (allTransactions.Any())
+            {
+                // Create balance record if it doesn't exist but we have transactions
+                bankBalance = new BankAccountBalance
+                {
+                    BankAccountId = bankAccountId,
+                    Balance = currentBalance,
+                    LastUpdated = DateTime.UtcNow
+                };
+                _context.BankAccountBalances.Add(bankBalance);
+            }
+        }
 
         #endregion
 
