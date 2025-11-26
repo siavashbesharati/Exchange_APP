@@ -2315,6 +2315,8 @@ namespace ForexExchange.Services
             {
                 _logger.LogInformation($"Deleting order: Order {order.Id} by {performedBy}");
 
+                await EnsureOrderCurrenciesLoaded(order);
+
                 if (order.IsFrozen)
                 {
                     _logger.LogInformation($"Order {order.Id} is frozen - skipping deletion");
@@ -2406,6 +2408,29 @@ namespace ForexExchange.Services
 
         #region Helper Methods for Order Deletion
 
+        private async Task EnsureOrderCurrenciesLoaded(Order order)
+        {
+            if (order.FromCurrency == null && order.FromCurrencyId != 0)
+            {
+                order.FromCurrency = await _context.Currencies
+                    .FirstOrDefaultAsync(c => c.Id == order.FromCurrencyId);
+                if (order.FromCurrency == null)
+                {
+                    _logger.LogWarning($"[PoolStats] Could not load FromCurrency for order {order.Id} (CurrencyId={order.FromCurrencyId})");
+                }
+            }
+
+            if (order.ToCurrency == null && order.ToCurrencyId != 0)
+            {
+                order.ToCurrency = await _context.Currencies
+                    .FirstOrDefaultAsync(c => c.Id == order.ToCurrencyId);
+                if (order.ToCurrency == null)
+                {
+                    _logger.LogWarning($"[PoolStats] Could not load ToCurrency for order {order.Id} (CurrencyId={order.ToCurrencyId})");
+                }
+            }
+        }
+
         /// <summary>
         /// Soft deletes all history records related to an order
         /// </summary>
@@ -2456,9 +2481,8 @@ namespace ForexExchange.Services
             // Rebuild pool balance chains for both currencies
             await RebuildPoolBalanceChainForOrder(order.FromCurrency?.Code);
             await RebuildPoolBalanceChainForOrder(order.ToCurrency?.Code);
-
-            // Update pool statistics
             await UpdatePoolStatisticsForOrderDeletion(order);
+
         }
 
         /// <summary>
@@ -2552,6 +2576,7 @@ namespace ForexExchange.Services
                 };
                 _context.CurrencyPools.Add(poolBalance);
             }
+
         }
 
         /// <summary>
@@ -2559,29 +2584,71 @@ namespace ForexExchange.Services
         /// </summary>
         private async Task UpdatePoolStatisticsForOrderDeletion(Order order)
         {
+            // Recalculate statistics for the source currency pool
             if (order.FromCurrencyId != null && order.FromAmount > 0)
             {
+                _logger.LogInformation($"[PoolStats] Recalculating FROM pool for order {order.Id} (CurrencyId={order.FromCurrencyId}, Code={order.FromCurrency?.Code})");
+
                 var fromPool = await _context.CurrencyPools
                     .FirstOrDefaultAsync(p => p.CurrencyId == order.FromCurrencyId);
 
                 if (fromPool != null)
                 {
-                    fromPool.ActiveBuyOrderCount = Math.Max(0, fromPool.ActiveBuyOrderCount - 1);
-                    fromPool.TotalBought = Math.Max(0, fromPool.TotalBought - order.FromAmount);
+                    // Recalculate statistics from remaining active orders
+                    var activeBuyOrders = await _context.Orders
+                        .Where(o => !o.IsDeleted &&
+                                   !o.IsFrozen &&
+                                   o.FromCurrencyId == order.FromCurrencyId &&
+                                   o.Id != order.Id &&
+                                   o.FromAmount > 0)
+                        .ToListAsync();
+
+                    _logger.LogInformation($"[PoolStats] Remaining active buy orders for currency {fromPool.CurrencyCode}: {activeBuyOrders.Count}, Sum={activeBuyOrders.Sum(o => o.FromAmount)}");
+
+                    fromPool.ActiveBuyOrderCount = activeBuyOrders.Count;
+                    fromPool.TotalBought = activeBuyOrders.Sum(o => o.FromAmount);
                     fromPool.LastUpdated = DateTime.UtcNow;
+                    fromPool.Balance = fromPool.Balance - order.FromAmount;
+
+                    _logger.LogInformation($"Updated {fromPool.CurrencyCode} pool: BuyCount={fromPool.ActiveBuyOrderCount}, TotalBought={fromPool.TotalBought}");
+                }
+                else
+                {
+                    _logger.LogWarning($"[PoolStats] FROM pool not found for CurrencyId={order.FromCurrencyId} when deleting order {order.Id}");
                 }
             }
 
+            // Update ToCurrency pool (Sell side)
             if (order.ToCurrencyId != null && order.ToAmount > 0)
             {
+                _logger.LogInformation($"[PoolStats] Recalculating TO pool for order {order.Id} (CurrencyId={order.ToCurrencyId}, Code={order.ToCurrency?.Code})");
+
                 var toPool = await _context.CurrencyPools
                     .FirstOrDefaultAsync(p => p.CurrencyId == order.ToCurrencyId);
 
                 if (toPool != null)
                 {
-                    toPool.ActiveSellOrderCount = Math.Max(0, toPool.ActiveSellOrderCount - 1);
-                    toPool.TotalSold = Math.Max(0, toPool.TotalSold - order.ToAmount);
+                    // Recalculate statistics from remaining active orders
+                    var activeSellOrders = await _context.Orders
+                        .Where(o => !o.IsDeleted &&
+                                   !o.IsFrozen &&
+                                   o.ToCurrencyId == order.ToCurrencyId &&
+                                   o.Id != order.Id &&
+                                   o.ToAmount > 0)
+                        .ToListAsync();
+
+                    _logger.LogInformation($"[PoolStats] Remaining active sell orders for currency {toPool.CurrencyCode}: {activeSellOrders.Count}, Sum={activeSellOrders.Sum(o => o.ToAmount)}");
+
+                    toPool.ActiveSellOrderCount = activeSellOrders.Count;
+                    toPool.TotalSold = activeSellOrders.Sum(o => o.ToAmount);
                     toPool.LastUpdated = DateTime.UtcNow;
+                    toPool.Balance = toPool.Balance + order.ToAmount;
+
+                    _logger.LogInformation($"Updated {toPool.CurrencyCode} pool: SellCount={toPool.ActiveSellOrderCount}, TotalSold={toPool.TotalSold}");
+                }
+                else
+                {
+                    _logger.LogWarning($"[PoolStats] TO pool not found for CurrencyId={order.ToCurrencyId} when deleting order {order.Id}");
                 }
             }
         }
