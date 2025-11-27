@@ -980,8 +980,9 @@ namespace ForexExchange.Services
                 _context.Entry(existingRecord).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
             }
 
-            // Load document with customers and bank accounts
+            // Load document with customers and bank accounts using AsNoTracking to avoid tracking conflicts
             var documentWithDetails = await _context.AccountingDocuments
+                .AsNoTracking()
                 .Include(d => d.PayerCustomer)
                 .Include(d => d.ReceiverCustomer)
                 .Include(d => d.PayerBankAccount)
@@ -1197,6 +1198,14 @@ namespace ForexExchange.Services
 
             try
             {
+                // CRITICAL: Detach document if it's already tracked to avoid tracking conflicts
+                var trackedEntity = _context.Entry(document);
+                if (trackedEntity.State != Microsoft.EntityFrameworkCore.EntityState.Detached)
+                {
+                    _logger.LogDebug($"Document {document.Id} is already tracked. Detaching to avoid conflicts.");
+                    trackedEntity.State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+                }
+
                 // Save document if not already saved
                 if (document.Id == 0)
                 {
