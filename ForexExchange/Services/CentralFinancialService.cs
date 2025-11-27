@@ -726,16 +726,23 @@ namespace ForexExchange.Services
         {
             var orderDateTime = order.CreatedAt;
 
-            // Remove existing record for this order to avoid duplicates
+            // CRITICAL: Remove existing record for this order to avoid duplicates
+            // Use AsNoTracking to avoid Change Tracker issues
             var existingRecord = await _context.CustomerBalanceHistory
+                .AsNoTracking()
                 .FirstOrDefaultAsync(h => h.ReferenceId == order.Id &&
                                          h.CustomerId == order.CustomerId &&
-                                         h.CurrencyCode == currencyCode &&
+                                         string.Equals((h.CurrencyCode ?? "").Trim(), currencyCode, StringComparison.OrdinalIgnoreCase) &&
                                          !h.IsDeleted);
 
             if (existingRecord != null)
             {
+                // Attach and remove to properly delete from database
+                _context.CustomerBalanceHistory.Attach(existingRecord);
                 _context.CustomerBalanceHistory.Remove(existingRecord);
+                await _context.SaveChangesAsync(); // Save deletion immediately
+                // Detach only this specific entity to avoid conflicts, without affecting other tracked entities
+                _context.Entry(existingRecord).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
             }
 
             // Load order with customer and currencies to get Notes and CurrencyPair
@@ -793,15 +800,22 @@ namespace ForexExchange.Services
         {
             var orderDateTime = order.CreatedAt;
 
-            // Remove existing record for this order to avoid duplicates
+            // CRITICAL: Remove existing record for this order to avoid duplicates
+            // Use AsNoTracking to avoid Change Tracker issues
             var existingRecord = await _context.CurrencyPoolHistory
+                .AsNoTracking()
                 .FirstOrDefaultAsync(h => h.ReferenceId == order.Id &&
-                                         h.CurrencyCode == currencyCode &&
+                                         string.Equals((h.CurrencyCode ?? "").Trim(), currencyCode, StringComparison.OrdinalIgnoreCase) &&
                                          !h.IsDeleted);
 
             if (existingRecord != null)
             {
+                // Attach and remove to properly delete from database
+                _context.CurrencyPoolHistory.Attach(existingRecord);
                 _context.CurrencyPoolHistory.Remove(existingRecord);
+                await _context.SaveChangesAsync(); // Save deletion immediately
+                // Detach only this specific entity to avoid conflicts, without affecting other tracked entities
+                _context.Entry(existingRecord).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
             }
 
             // Use helper to generate English description
@@ -947,16 +961,23 @@ namespace ForexExchange.Services
                 _context.CustomerBalances.Add(customerBalance);
             }
 
-            // Remove existing record for this document to avoid duplicates
+            // CRITICAL: Remove existing record for this document to avoid duplicates
+            // Use AsNoTracking to avoid Change Tracker issues
             var existingRecord = await _context.CustomerBalanceHistory
+                .AsNoTracking()
                 .FirstOrDefaultAsync(h => h.ReferenceId == document.Id &&
                                          h.CustomerId == customerId &&
-                                         h.CurrencyCode == currencyCode &&
+                                         string.Equals((h.CurrencyCode ?? "").Trim(), currencyCode, StringComparison.OrdinalIgnoreCase) &&
                                          !h.IsDeleted);
 
             if (existingRecord != null)
             {
+                // Attach and remove to properly delete from database
+                _context.CustomerBalanceHistory.Attach(existingRecord);
                 _context.CustomerBalanceHistory.Remove(existingRecord);
+                await _context.SaveChangesAsync(); // Save deletion immediately
+                // Detach only this specific entity to avoid conflicts, without affecting other tracked entities
+                _context.Entry(existingRecord).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
             }
 
             // Load document with customers and bank accounts
@@ -1030,15 +1051,22 @@ namespace ForexExchange.Services
                 _context.BankAccountBalances.Add(bankBalance);
             }
 
-            // Remove existing record for this document to avoid duplicates
+            // CRITICAL: Remove existing record for this document to avoid duplicates
+            // Use AsNoTracking to avoid Change Tracker issues
             var existingRecord = await _context.BankAccountBalanceHistory
+                .AsNoTracking()
                 .FirstOrDefaultAsync(h => h.ReferenceId == document.Id &&
                                          h.BankAccountId == bankAccountId &&
                                          !h.IsDeleted);
 
             if (existingRecord != null)
             {
+                // Attach and remove to properly delete from database
+                _context.BankAccountBalanceHistory.Attach(existingRecord);
                 _context.BankAccountBalanceHistory.Remove(existingRecord);
+                await _context.SaveChangesAsync(); // Save deletion immediately
+                // Detach only this specific entity to avoid conflicts, without affecting other tracked entities
+                _context.Entry(existingRecord).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
             }
 
             // Load bank account to get details
