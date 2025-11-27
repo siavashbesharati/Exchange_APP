@@ -2338,12 +2338,12 @@ namespace ForexExchange.Services
                     // 3. Rebuild balance chains without the deleted records
 
                     // Rebuild customer balance chains for both currencies
-                    await RebuildCustomerBalanceChainForOrder(order.CustomerId, order.FromCurrency?.Code);
-                    await RebuildCustomerBalanceChainForOrder(order.CustomerId, order.ToCurrency?.Code);
+                    await RebuildCustomerBalanceChainForOrderDeleation(order.CustomerId, order.FromCurrency?.Code);
+                    await RebuildCustomerBalanceChainForOrderDeleation(order.CustomerId, order.ToCurrency?.Code);
 
                     // Rebuild pool balance chains for both currencies
-                    await RebuildPoolBalanceChainForOrder(order.FromCurrency?.Code, true, order.FromAmount);
-                    await RebuildPoolBalanceChainForOrder(order.ToCurrency?.Code, false, order.ToAmount);
+                    await RebuildPoolBalanceChainForOrderDeleation(order.FromCurrency?.Code, true, order.FromAmount);
+                    await RebuildPoolBalanceChainForOrderDeleation(order.ToCurrency?.Code, false, order.ToAmount);
                     await _context.SaveChangesAsync();
 
 
@@ -2396,7 +2396,7 @@ namespace ForexExchange.Services
         /// <summary>
         /// Rebuilds customer balance chain for a specific currency after order deletion
         /// </summary>
-        private async Task RebuildCustomerBalanceChainForOrder(int customerId, string currencyCode)
+        private async Task RebuildCustomerBalanceChainForOrderDeleation(int customerId, string currencyCode)
         {
 
 
@@ -2453,7 +2453,7 @@ namespace ForexExchange.Services
         /// <summary>
         /// Rebuilds pool balance chain for a specific currency after order deletion
         /// </summary>
-        private async Task RebuildPoolBalanceChainForOrder(string currencyCode, bool isBuy, decimal amount)
+        private async Task RebuildPoolBalanceChainForOrderDeleation(string currencyCode, bool isBuy, decimal amount)
         {
             if (string.IsNullOrEmpty(currencyCode)) return;
 
@@ -2598,28 +2598,28 @@ namespace ForexExchange.Services
             // Rebuild customer balance chains for affected customers
             if (document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue)
             {
-                await RebuildCustomerBalanceChainForDocument(document.PayerCustomerId.Value, currencyCode);
+                await RebuildCustomerBalanceChainForDocumentDeletion(document.PayerCustomerId.Value, currencyCode);
             }
             if (document.ReceiverType == ReceiverType.Customer && document.ReceiverCustomerId.HasValue)
             {
-                await RebuildCustomerBalanceChainForDocument(document.ReceiverCustomerId.Value, currencyCode);
+                await RebuildCustomerBalanceChainForDocumentDeletion(document.ReceiverCustomerId.Value, currencyCode);
             }
 
             // Rebuild bank balance chains for affected bank accounts
             if (document.PayerType == PayerType.System && document.PayerBankAccountId.HasValue)
             {
-                await RebuildBankBalanceChainForDocument(document.PayerBankAccountId.Value);
+                await RebuildBankBalanceChainForDocumentDeletion(document.PayerBankAccountId.Value);
             }
             if (document.ReceiverType == ReceiverType.System && document.ReceiverBankAccountId.HasValue)
             {
-                await RebuildBankBalanceChainForDocument(document.ReceiverBankAccountId.Value);
+                await RebuildBankBalanceChainForDocumentDeletion(document.ReceiverBankAccountId.Value);
             }
         }
 
         /// <summary>
         /// Rebuilds customer balance chain for a specific customer and currency after document deletion
         /// </summary>
-        private async Task RebuildCustomerBalanceChainForDocument(int customerId, string currencyCode)
+        private async Task RebuildCustomerBalanceChainForDocumentDeletion(int customerId, string currencyCode)
         {
             if (string.IsNullOrEmpty(currencyCode)) return;
 
@@ -2667,7 +2667,7 @@ namespace ForexExchange.Services
         /// <summary>
         /// Rebuilds bank balance chain for a specific bank account after document deletion
         /// </summary>
-        private async Task RebuildBankBalanceChainForDocument(int bankAccountId)
+        private async Task RebuildBankBalanceChainForDocumentDeletion(int bankAccountId)
         {
             // Get all non-deleted bank transactions for this account
             var allTransactions = await _context.BankAccountBalanceHistory
