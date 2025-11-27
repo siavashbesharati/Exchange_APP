@@ -728,12 +728,17 @@ namespace ForexExchange.Services
 
             // CRITICAL: Remove existing record for this order to avoid duplicates
             // Use AsNoTracking to avoid Change Tracker issues
-            var existingRecord = await _context.CustomerBalanceHistory
+            // Query first, then filter in memory for case-insensitive comparison
+            var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
+            var existingRecords = await _context.CustomerBalanceHistory
                 .AsNoTracking()
-                .FirstOrDefaultAsync(h => h.ReferenceId == order.Id &&
-                                         h.CustomerId == order.CustomerId &&
-                                         string.Equals((h.CurrencyCode ?? "").Trim(), currencyCode, StringComparison.OrdinalIgnoreCase) &&
-                                         !h.IsDeleted);
+                .Where(h => h.ReferenceId == order.Id &&
+                           h.CustomerId == order.CustomerId &&
+                           !h.IsDeleted)
+                .ToListAsync();
+            
+            var existingRecord = existingRecords
+                .FirstOrDefault(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode);
 
             if (existingRecord != null)
             {
@@ -802,11 +807,16 @@ namespace ForexExchange.Services
 
             // CRITICAL: Remove existing record for this order to avoid duplicates
             // Use AsNoTracking to avoid Change Tracker issues
-            var existingRecord = await _context.CurrencyPoolHistory
+            // Query first, then filter in memory for case-insensitive comparison
+            var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
+            var existingRecords = await _context.CurrencyPoolHistory
                 .AsNoTracking()
-                .FirstOrDefaultAsync(h => h.ReferenceId == order.Id &&
-                                         string.Equals((h.CurrencyCode ?? "").Trim(), currencyCode, StringComparison.OrdinalIgnoreCase) &&
-                                         !h.IsDeleted);
+                .Where(h => h.ReferenceId == order.Id &&
+                           !h.IsDeleted)
+                .ToListAsync();
+            
+            var existingRecord = existingRecords
+                .FirstOrDefault(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode);
 
             if (existingRecord != null)
             {
@@ -963,12 +973,17 @@ namespace ForexExchange.Services
 
             // CRITICAL: Remove existing record for this document to avoid duplicates
             // Use AsNoTracking to avoid Change Tracker issues
-            var existingRecord = await _context.CustomerBalanceHistory
+            // Query first, then filter in memory for case-insensitive comparison
+            var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
+            var existingRecords = await _context.CustomerBalanceHistory
                 .AsNoTracking()
-                .FirstOrDefaultAsync(h => h.ReferenceId == document.Id &&
-                                         h.CustomerId == customerId &&
-                                         string.Equals((h.CurrencyCode ?? "").Trim(), currencyCode, StringComparison.OrdinalIgnoreCase) &&
-                                         !h.IsDeleted);
+                .Where(h => h.ReferenceId == document.Id &&
+                           h.CustomerId == customerId &&
+                           !h.IsDeleted)
+                .ToListAsync();
+            
+            var existingRecord = existingRecords
+                .FirstOrDefault(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode);
 
             if (existingRecord != null)
             {
