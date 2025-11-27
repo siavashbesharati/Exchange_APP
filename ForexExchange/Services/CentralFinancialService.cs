@@ -596,7 +596,7 @@ namespace ForexExchange.Services
         {
             _logger.LogInformation($"Fast balance update for Order ID: {order.Id}");
 
-          
+
 
             // Normalize currency codes
             var fromCurrencyCode = (order.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
@@ -727,11 +727,11 @@ namespace ForexExchange.Services
 
             // Remove existing record for this order to avoid duplicates
             var existingRecord = await _context.CustomerBalanceHistory
-                .FirstOrDefaultAsync(h => h.ReferenceId == order.Id && 
+                .FirstOrDefaultAsync(h => h.ReferenceId == order.Id &&
                                          h.CustomerId == order.CustomerId &&
                                          h.CurrencyCode == currencyCode &&
                                          !h.IsDeleted);
-            
+
             if (existingRecord != null)
             {
                 _context.CustomerBalanceHistory.Remove(existingRecord);
@@ -779,7 +779,7 @@ namespace ForexExchange.Services
             // Update the current balance entity
             var updatedBalance = await _context.CustomerBalances
                 .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyCode == currencyCode);
-            
+
             if (updatedBalance != null)
             {
                 currentBalanceEntity.Balance = updatedBalance.Balance;
@@ -798,10 +798,10 @@ namespace ForexExchange.Services
 
             // Remove existing record for this order to avoid duplicates
             var existingRecord = await _context.CurrencyPoolHistory
-                .FirstOrDefaultAsync(h => h.ReferenceId == order.Id && 
+                .FirstOrDefaultAsync(h => h.ReferenceId == order.Id &&
                                          h.CurrencyCode == currencyCode &&
                                          !h.IsDeleted);
-            
+
             if (existingRecord != null)
             {
                 _context.CurrencyPoolHistory.Remove(existingRecord);
@@ -840,12 +840,12 @@ namespace ForexExchange.Services
             // Update the current balance entity
             var currency = await _context.Currencies
                 .FirstOrDefaultAsync(c => c.Code == currencyCode);
-            
+
             if (currency != null)
             {
                 var updatedPool = await _context.CurrencyPools
                     .FirstOrDefaultAsync(p => p.CurrencyId == currency.Id);
-                
+
                 if (updatedPool != null)
                 {
                     currentBalanceEntity.Balance = updatedPool.Balance;
@@ -951,11 +951,11 @@ namespace ForexExchange.Services
 
             // Remove existing record for this document to avoid duplicates
             var existingRecord = await _context.CustomerBalanceHistory
-                .FirstOrDefaultAsync(h => h.ReferenceId == document.Id && 
+                .FirstOrDefaultAsync(h => h.ReferenceId == document.Id &&
                                          h.CustomerId == customerId &&
                                          h.CurrencyCode == currencyCode &&
                                          !h.IsDeleted);
-            
+
             if (existingRecord != null)
             {
                 _context.CustomerBalanceHistory.Remove(existingRecord);
@@ -996,7 +996,7 @@ namespace ForexExchange.Services
             // Update the current balance entity
             var updatedBalance = await _context.CustomerBalances
                 .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyCode == currencyCode);
-            
+
             if (updatedBalance != null)
             {
                 customerBalance.Balance = updatedBalance.Balance;
@@ -1029,10 +1029,10 @@ namespace ForexExchange.Services
 
             // Remove existing record for this document to avoid duplicates
             var existingRecord = await _context.BankAccountBalanceHistory
-                .FirstOrDefaultAsync(h => h.ReferenceId == document.Id && 
+                .FirstOrDefaultAsync(h => h.ReferenceId == document.Id &&
                                          h.BankAccountId == bankAccountId &&
                                          !h.IsDeleted);
-            
+
             if (existingRecord != null)
             {
                 _context.BankAccountBalanceHistory.Remove(existingRecord);
@@ -1071,7 +1071,7 @@ namespace ForexExchange.Services
             // Update the current balance entity
             var updatedBalance = await _context.BankAccountBalances
                 .FirstOrDefaultAsync(b => b.BankAccountId == bankAccountId);
-            
+
             if (updatedBalance != null)
             {
                 bankBalance.Balance = updatedBalance.Balance;
@@ -2042,42 +2042,6 @@ namespace ForexExchange.Services
 
         }
 
-        public async Task<int> FreezeAllOrdersAndDocumentsAsync(string performedBy = "System")
-        {
-            _logger.LogInformation("FreezeAllOrdersAndDocumentsAsync initiated by {PerformedBy}", performedBy);
-
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var timestamp = DateTime.Now;
-
-                var ordersFrozen = await _context.Orders
-                    .Where(o => !o.IsFrozen)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(o => o.IsFrozen, _ => true)
-                        .SetProperty(o => o.UpdatedAt, _ => timestamp));
-
-
-                //NO longer freezing documents, it is not affect ony banks andd customer , orr vevey where else 
-
-                /*var documentsFrozen = await _context.AccountingDocuments
-                    .Where(d => !d.IsFrozen)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(d => d.IsFrozen, _ => true)); */
-
-                await transaction.CommitAsync();
-
-                _logger.LogInformation("Freeze operation completed. Orders frozen: {Orders}, Documents frozen: {Documents}", ordersFrozen);
-                return (ordersFrozen);
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "Failed to freeze orders/documents initiated by {PerformedBy}", performedBy);
-                throw;
-            }
-        }
-
 
 
 
@@ -2161,12 +2125,12 @@ namespace ForexExchange.Services
             // Load and update the CurrencyPool entity
             var currency = await _context.Currencies
                 .FirstOrDefaultAsync(c => c.Code == currencyCode);
-            
+
             if (currency != null)
             {
                 var poolBalance = await _context.CurrencyPools
                     .FirstOrDefaultAsync(p => p.CurrencyId == currency.Id);
-                
+
                 if (poolBalance != null)
                 {
                     poolBalance.Balance = runningBalance;
@@ -2533,7 +2497,9 @@ namespace ForexExchange.Services
 
             _logger.LogInformation($"Manual customer balance history created with coherent balances: ID {historyRecord.Id}, Customer {customerId}, Currency {currencyCode}, Amount {amount}");
 
-            await RebuildAllFinancialBalancesAsync(performedBy);
+            // Rebuild balance chain for this specific customer and currency only
+            await RebuildCustomerBalanceChain(customerId, currencyCode);
+            await _context.SaveChangesAsync();
         }
 
         /// <summary>
@@ -2566,300 +2532,66 @@ namespace ForexExchange.Services
             await _context.SaveChangesAsync();
             _logger.LogInformation($"Manual customer balance history deleted: ID {transactionId}, Customer {historyRecord.CustomerId}, Currency {historyRecord.CurrencyCode}, Amount {historyRecord.TransactionAmount}");
 
-
-            // Rebuild all financial balances after manual customer balance deletion to ensure complete coherence
-            await RebuildAllFinancialBalancesAsync(performedBy);
-
+            // Rebuild balance chain for this specific customer and currency only
+            await RebuildCustomerBalanceChain(historyRecord.CustomerId, historyRecord.CurrencyCode);
+            await _context.SaveChangesAsync();
             // Send notification to admin users (excluding the performing user)
 
-            var customerId = historyRecord.CustomerId;
-            var currencyCode = historyRecord.CurrencyCode;
-            var amount = historyRecord.TransactionAmount;
-            var transactionDate = historyRecord.TransactionDate;
-            var customerName = historyRecord.Customer?.FullName ?? $"مشتری {customerId}";
+            await _notificationHub.SendManualAdjustmentNotificationAsync(
+                    title: "تعدیل دستی موجودی حذف شد");
 
-            try
-            {
-
-                await _notificationHub.SendManualAdjustmentNotificationAsync(
-                    title: "تعدیل دستی موجودی حذف شد",
-                    message: $"مشتری: {customerName} | مبلغ: {amount:N2} {currencyCode}",
-                    eventType: NotificationEventType.ManualAdjustment,
-                    userId: performingUserId, // This will exclude the current user from SignalR notifications
-                    navigationUrl: $"/Reports/CustomerReports?customerId={customerId}",
-                    priority: NotificationPriority.Normal
-                );
-
-                _logger.LogInformation($"Notification sent for manual balance deletion: Customer {customerId}, Amount {amount} {currencyCode}");
-            }
-            catch (Exception notificationEx)
-            {
-                _logger.LogError(notificationEx, $"Error sending notification for manual balance deletion: Customer {customerId}, Amount {amount} {currencyCode}");
-                // Don't fail the main operation due to notification errors
-            }
-
-        }
-
-        /// <summary>
-        /// Creates a manual currency pool balance history record with specified transaction date following the coherent history pattern.
-        /// This method creates proper balance chains with correct BalanceBefore, TransactionAmount, and BalanceAfter calculations.
-        /// Uses the same coherent sequencing pattern as RebuildAllFinancialBalances to ensure consistency.
-        /// Manual transactions are never frozen and always affect current balance calculations.
-        /// </summary>
-        public async Task CreateManualPoolBalanceHistoryAsync(
-            string currencyCode,
-            decimal adjustmentAmount,
-            string reason,
-            DateTime transactionDate,
-            string performedBy = "Manual Entry",
-            string? performingUserId = null)
-        {
-            _logger.LogInformation($"Creating manual pool balance history: Currency {currencyCode}, Amount {adjustmentAmount}, Date {transactionDate:yyyy-MM-dd}");
-
-
-
-            // Create the manual history record with proper coherent balance calculations
-            var historyRecord = new CurrencyPoolHistory
-            {
-                CurrencyCode = currencyCode,
-                BalanceBefore = 0, //will update in rebuild
-                TransactionAmount = adjustmentAmount,
-                BalanceAfter = 0, //will update in rebuild
-                TransactionType = CurrencyPoolTransactionType.ManualEdit,
-                ReferenceId = null,
-                Description = reason,
-                TransactionDate = transactionDate,
-                CreatedAt = DateTime.Now,
-                CreatedBy = performedBy,
-                IsDeleted = false
-            };
-
-
-            _context.CurrencyPoolHistory.Add(historyRecord);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation($"Manual pool balance history created with coherent balances: ID {historyRecord.Id}, Currency {currencyCode}, Amount {adjustmentAmount}");
-
-
-
-            await _context.SaveChangesAsync();
-
-            // Rebuild all financial balances after manual pool balance creation to ensure complete coherence
-            await RebuildAllFinancialBalancesAsync(performedBy);
-
-            // Send notification to admin users (excluding the performing user)
-            try
-            {
-                await _notificationHub.SendManualAdjustmentNotificationAsync(
-                    title: "تعدیل دستی داشبورد ارزی ایجاد شد",
-                    message: $"ارز: {currencyCode} | مبلغ: {adjustmentAmount:N2} || دلیل: {reason}",
-                    eventType: NotificationEventType.ManualAdjustment,
-                    userId: performingUserId,
-                    navigationUrl: $"/Reports/PoolReports?currencyCode={currencyCode}",
-                    priority: NotificationPriority.Normal
-                );
-
-                _logger.LogInformation($"Notification sent for manual pool balance creation: Currency {currencyCode}, Amount {adjustmentAmount}");
-            }
-            catch (Exception notificationEx)
-            {
-                _logger.LogError(notificationEx, $"Error sending notification for manual pool balance creation: Currency {currencyCode}, Amount {adjustmentAmount}");
-            }
 
 
         }
 
-        /// <summary>
-        /// Deletes a manual currency pool balance history record and recalculates balances from the transaction date.
-        /// Only manual transactions (TransactionType.ManualEdit) can be deleted for safety.
-        /// After deletion, balances are automatically recalculated to maintain coherence.
-        /// </summary>
-        public async Task DeleteManualPoolBalanceHistoryAsync(long transactionId, string performedBy = "Manual Deletion", string? performingUserId = null)
-        {
-            _logger.LogInformation($"Deleting manual pool balance history: Transaction ID {transactionId}");
-
-
-            var historyRecord = await _context.CurrencyPoolHistory
-                .FirstOrDefaultAsync(h => h.Id == transactionId);
-
-            if (historyRecord == null)
-            {
-                throw new ArgumentException($"Currency pool history with ID {transactionId} not found");
-            }
-
-            if (historyRecord.TransactionType != CurrencyPoolTransactionType.ManualEdit)
-            {
-                throw new InvalidOperationException($"Only manual transactions can be deleted. Transaction ID {transactionId} is of type {historyRecord.TransactionType}");
-            }
-
-            var currencyCode = historyRecord.CurrencyCode;
-            var amount = historyRecord.TransactionAmount;
-            var transactionDate = historyRecord.TransactionDate;
-
-            _context.CurrencyPoolHistory.Remove(historyRecord);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation($"Manual pool balance history deleted: ID {transactionId}, Currency {currencyCode}, Amount {amount}");
 
 
 
-            // Rebuild all financial balances after manual pool balance deletion to ensure complete coherence
-            await RebuildAllFinancialBalancesAsync(performedBy);
-
-            // Send notification to admin users (excluding the performing user)
-            try
-            {
-                await _notificationHub.SendManualAdjustmentNotificationAsync(
-                    title: "تعدیل دستی داشبورد ارزی حذف شد",
-                    message: $"ارز: {currencyCode} | مبلغ: {amount:N2}",
-                    eventType: NotificationEventType.ManualAdjustment,
-                    userId: performingUserId,
-                    navigationUrl: $"/Reports/PoolReports?currencyCode={currencyCode}",
-                    priority: NotificationPriority.Normal
-                );
-
-                _logger.LogInformation($"Notification sent for manual pool balance deletion: Currency {currencyCode}, Amount {amount}");
-            }
-            catch (Exception notificationEx)
-            {
-                _logger.LogError(notificationEx, $"Error sending notification for manual pool balance deletion: Currency {currencyCode}, Amount {amount}");
-            }
-
-
-        }
-
-        /// <summary>
-        /// Creates a manual bank account balance history record with specified transaction date following the coherent history pattern.
-        /// This method creates proper balance chains with correct BalanceBefore, TransactionAmount, and BalanceAfter calculations.
-        /// Uses the same coherent sequencing pattern as RebuildAllFinancialBalances to ensure consistency.
-        /// Manual transactions are never frozen and always affect current balance calculations.
-        /// </summary>
-        public async Task CreateManualBankAccountBalanceHistoryAsync(
-            int bankAccountId,
-            decimal amount,
-            string reason,
-            DateTime transactionDate,
-            string performedBy = "Manual Entry",
-            string? performingUserId = null)
-        {
-            _logger.LogInformation($"Creating manual bank account balance history: Bank Account {bankAccountId}, Amount {amount}, Date {transactionDate:yyyy-MM-dd}");
-
-
-
-            // Create the manual history record with proper coherent balance calculations
-            var historyRecord = new BankAccountBalanceHistory
-            {
-                BankAccountId = bankAccountId,
-                BalanceBefore = 0, //will update in rebuild
-                TransactionAmount = amount,
-                BalanceAfter = 0, //will update in rebuild
-                TransactionType = BankAccountTransactionType.ManualEdit,
-                ReferenceId = null,
-                Description = reason,
-                TransactionDate = transactionDate,
-                CreatedAt = DateTime.Now,
-                CreatedBy = performedBy,
-                IsDeleted = false
-            };
-
-
-            _context.BankAccountBalanceHistory.Add(historyRecord);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation($"Manual bank account balance history created with coherent balances: ID {historyRecord.Id}, Bank Account {bankAccountId}, Amount {amount}");
-
-
-            // Rebuild all financial balances after manual bank account balance creation to ensure complete coherence
-            await RebuildAllFinancialBalancesAsync(performedBy);
-
-            // Send notification to admin users (excluding the performing user)
-            try
-            {
-                var bankrecord = _context.BankAccountBalanceHistory.FirstOrDefault(c => c.BankAccountId == bankAccountId);
-                var accountName = bankrecord?.BankAccount.AccountHolderName ?? $"حساب {bankAccountId}";
-
-                await _notificationHub.SendManualAdjustmentNotificationAsync(
-                    title: "تعدیل دستی حساب بانکی ایجاد شد",
-                    message: $"حساب: {accountName} | مبلغ: {amount:N2} | موجودی نهایی: {bankrecord?.BalanceAfter:N2} | دلیل: {reason}",
-                    eventType: NotificationEventType.ManualAdjustment,
-                    userId: performingUserId,
-                    navigationUrl: $"/Reports/BankAccountReports?bankAccountId={bankAccountId}",
-                    priority: NotificationPriority.Normal
-                );
-
-                _logger.LogInformation($"Notification sent for manual bank account balance creation: Bank Account {bankAccountId}, Amount {amount}");
-            }
-            catch (Exception notificationEx)
-            {
-                _logger.LogError(notificationEx, $"Error sending notification for manual bank account balance creation: Bank Account {bankAccountId}, Amount {amount}");
-            }
-
-        }
-
-        /// <summary>
-        /// Deletes a manual bank account balance history record and recalculates balances from the transaction date.
-        /// Only manual transactions (TransactionType.ManualEdit) can be deleted for safety.
-        /// After deletion, balances are automatically recalculated to maintain coherence.
-        /// </summary>
-        public async Task DeleteManualBankAccountBalanceHistoryAsync(long transactionId, string performedBy = "Manual Deletion", string? performingUserId = null)
-        {
-            _logger.LogInformation($"Deleting manual bank account balance history: Transaction ID {transactionId}");
-
-
-            var historyRecord = await _context.BankAccountBalanceHistory
-                .FirstOrDefaultAsync(h => h.Id == transactionId);
-
-            if (historyRecord == null)
-            {
-                throw new ArgumentException($"Bank account balance history with ID {transactionId} not found");
-            }
-
-            if (historyRecord.TransactionType != BankAccountTransactionType.ManualEdit)
-            {
-                throw new InvalidOperationException($"Only manual transactions can be deleted. Transaction ID {transactionId} is of type {historyRecord.TransactionType}");
-            }
-
-            var bankAccountId = historyRecord.BankAccountId;
-            var amount = historyRecord.TransactionAmount;
-            var transactionDate = historyRecord.TransactionDate;
-
-            // Get bank account name for notification
-            var bankAccount = await _context.BankAccounts
-                .FirstOrDefaultAsync(ba => ba.Id == bankAccountId);
-            var accountName = bankAccount?.AccountHolderName ?? $"حساب {bankAccountId}";
-
-            _context.BankAccountBalanceHistory.Remove(historyRecord);
-            await _context.SaveChangesAsync();
-
-
-
-            _logger.LogInformation($"Successfully deleted manual bank account transaction and recalculated balances for Bank Account {bankAccountId}");
-
-            // Rebuild all financial balances after manual bank account balance deletion to ensure complete coherence
-            await RebuildAllFinancialBalancesAsync(performedBy);
-
-            // Send notification to admin users (excluding the performing user)
-            try
-            {
-                await _notificationHub.SendManualAdjustmentNotificationAsync(
-                    title: "تعدیل دستی حساب بانکی حذف شد",
-                    message: $"حساب: {accountName} | مبلغ: {amount:N2}",
-                    eventType: NotificationEventType.ManualAdjustment,
-                    userId: performingUserId,
-                    navigationUrl: $"/Reports/BankAccountReports?bankAccountId={bankAccountId}",
-                    priority: NotificationPriority.Normal
-                );
-
-                _logger.LogInformation($"Notification sent for manual bank account balance deletion: Bank Account {bankAccountId}, Amount {amount}");
-            }
-            catch (Exception notificationEx)
-            {
-                _logger.LogError(notificationEx, $"Error sending notification for manual bank account balance deletion: Bank Account {bankAccountId}, Amount {amount}");
-            }
-
-        }
 
         #endregion
+
+
+
+
+
+
+        public async Task<int> FreezeAllOrdersAndDocumentsAsync(string performedBy = "System")
+        {
+            _logger.LogInformation("FreezeAllOrdersAndDocumentsAsync initiated by {PerformedBy}", performedBy);
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var timestamp = DateTime.Now;
+
+                var ordersFrozen = await _context.Orders
+                    .Where(o => !o.IsFrozen)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(o => o.IsFrozen, _ => true)
+                        .SetProperty(o => o.UpdatedAt, _ => timestamp));
+
+
+                //NO longer freezing documents, it is not affect ony banks andd customer , orr vevey where else 
+
+                /*var documentsFrozen = await _context.AccountingDocuments
+                    .Where(d => !d.IsFrozen)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.IsFrozen, _ => true)); */
+
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("Freeze operation completed. Orders frozen: {Orders}, Documents frozen: {Documents}", ordersFrozen);
+                return (ordersFrozen);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Failed to freeze orders/documents initiated by {PerformedBy}", performedBy);
+                throw;
+            }
+        }
+
+
 
 
     }
