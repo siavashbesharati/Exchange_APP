@@ -402,6 +402,35 @@
             </div>
         </div>
 
+        @if (ViewBag.OMRExchangeRates != null && ((List<object>)ViewBag.OMRExchangeRates).Any())
+        {
+            <div class="summary-section" style="margin-top: 20px;">
+                <div class="summary-section-title">
+                    <span><i class="fas fa-exchange-alt"></i> نرخ‌های ارز مرجع (OMR)</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                    @foreach (dynamic rate in (List<object>)ViewBag.OMRExchangeRates)
+                    {
+                        <div style="background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; padding: 12px; text-align: center;">
+                            <div style="font-size: 11px; color: #6c757d; margin-bottom: 6px; font-weight: 500;">
+                                OMR - @rate.toCurrency
+                            </div>
+                            <div style="font-size: 14px; color: #0d2f66; font-weight: 700; direction: ltr; font-family: 'Courier New', monospace;">
+                                @{
+                                    var rateValue = (decimal)rate.rate;
+                                    var currencyCode = (string)rate.toCurrency;
+                                    var formattedRate = currencyCode.ToUpper() == "IRR" 
+                                        ? rateValue.ToString("N0")
+                                        : rateValue.ToString("N2");
+                                }
+                                @formattedRate
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         @if (!Model.HasData)
         {
             <div class="no-data">

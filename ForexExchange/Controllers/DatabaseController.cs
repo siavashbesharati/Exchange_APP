@@ -566,13 +566,101 @@ namespace ForexExchange.Controllers
                 var historyUpdated = await _context.SaveChangesAsync();
                 logMessages.Add($"✓ Updated {historyUpdated} customer balance history descriptions");
 
+                // STEP 4: Update CurrencyPoolHistory Descriptions
+                logMessages.Add("");
+                logMessages.Add("STEP 4: Updating CurrencyPoolHistory Descriptions...");
+                
+                var poolHistoryRecords = await _context.CurrencyPoolHistory
+                    .Where(h => !h.IsDeleted)
+                    .ToListAsync();
+
+                foreach (var history in poolHistoryRecords)
+                {
+                    var description = "";
+                    
+                    if (history.PoolTransactionType == "Buy")
+                    {
+                        description = $"خرید {history.CurrencyCode} - مقدار: {Math.Abs(history.TransactionAmount):N0} {history.CurrencyCode}";
+                    }
+                    else if (history.PoolTransactionType == "Sell")
+                    {
+                        description = $"فروش {history.CurrencyCode} - مقدار: {Math.Abs(history.TransactionAmount):N0} {history.CurrencyCode}";
+                    }
+                    else
+                    {
+                        description = $"تراکنش {history.CurrencyCode} - مقدار: {history.TransactionAmount:N0} {history.CurrencyCode}";
+                    }
+                    
+                    if (history.ReferenceId.HasValue)
+                    {
+                        var order = orders.FirstOrDefault(o => o.Id == history.ReferenceId.Value);
+                        if (order != null)
+                        {
+                            description += $" - معامله #{order.Id} - نرخ: {order.Rate:N4}";
+                        }
+                    }
+                    
+                    history.Description = description;
+                }
+
+                var poolHistoryUpdated = await _context.SaveChangesAsync();
+                logMessages.Add($"✓ Updated {poolHistoryUpdated} currency pool history descriptions");
+
+                // STEP 5: Update BankAccountBalanceHistory Descriptions
+                logMessages.Add("");
+                logMessages.Add("STEP 5: Updating BankAccountBalanceHistory Descriptions...");
+                
+                var bankHistoryRecords = await _context.BankAccountBalanceHistory
+                    .Include(h => h.BankAccount)
+                    .Where(h => !h.IsDeleted)
+                    .ToListAsync();
+
+                foreach (var history in bankHistoryRecords)
+                {
+                    var description = "";
+                    var currencyCode = history.BankAccount?.CurrencyCode ?? "نامشخص";
+                    
+                    if (history.ReferenceId.HasValue)
+                    {
+                        var document = documents.FirstOrDefault(d => d.Id == history.ReferenceId.Value);
+                        if (document != null)
+                        {
+                            description = $"{document.Title} - مبلغ: {document.Amount:N0} {document.CurrencyCode}";
+                            if (!string.IsNullOrEmpty(document.ReferenceNumber))
+                            {
+                                description += $" - شناسه: {document.ReferenceNumber}";
+                            }
+                            if (history.BankAccount != null)
+                            {
+                                description += $" - حساب: {history.BankAccount.BankName}";
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Manual transaction
+                        description = $"تعدیل دستی - مبلغ: {history.TransactionAmount:N0} {currencyCode}";
+                        if (history.BankAccount != null)
+                        {
+                            description += $" - حساب: {history.BankAccount.BankName}";
+                        }
+                    }
+                    
+                    history.Description = description;
+                }
+
+                var bankHistoryUpdated = await _context.SaveChangesAsync();
+                logMessages.Add($"✓ Updated {bankHistoryUpdated} bank account balance history descriptions");
+
                 await dbTransaction.CommitAsync();
 
                 logMessages.Add("");
                 logMessages.Add("=== UPDATE COMPLETED SUCCESSFULLY ===");
                 logMessages.Add($"Total orders processed: {orders.Count}");
                 logMessages.Add($"Total documents processed: {documents.Count}");
-                logMessages.Add($"Total history records updated: {orderHistoryRecords.Count + documentHistoryRecords.Count}");
+                logMessages.Add($"Total customer balance history records updated: {orderHistoryRecords.Count + documentHistoryRecords.Count}");
+                logMessages.Add($"Total currency pool history records updated: {poolHistoryRecords.Count}");
+                logMessages.Add($"Total bank account balance history records updated: {bankHistoryRecords.Count}");
 
                 TempData["Success"] = string.Join("<br/>", logMessages);
                 return RedirectToAction("Index");

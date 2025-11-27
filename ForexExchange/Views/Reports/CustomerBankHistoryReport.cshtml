@@ -143,6 +143,81 @@
         color: #ffffff;
         box-shadow: 0 2px 6px rgba(111, 66, 193, 0.3);
     }
+    .exchange-rates-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 16px;
+    }
+    .exchange-rates-card h6 {
+        color: #0d2f66;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .exchange-rates-card h6 i {
+        color: #0b5ed7;
+    }
+    .exchange-rate-item {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        transition: all 0.2s ease;
+    }
+    .exchange-rate-item:hover {
+        background: #e9ecef;
+        border-color: #0b5ed7;
+        transform: translateY(-1px);
+    }
+    .exchange-rate-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+    .exchange-rate-value {
+        font-size: 1rem;
+        color: #0d2f66;
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+    }
+    @@media print {
+        .exchange-rates-card {
+            background: #ffffff !important;
+            border: 1px solid #dee2e6 !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            page-break-inside: avoid;
+        }
+        .exchange-rates-card h6 {
+            color: #000 !important;
+            font-weight: 600 !important;
+            margin-bottom: 12px !important;
+        }
+        .exchange-rate-item {
+            background: #ffffff !important;
+            border: 1px solid #dee2e6 !important;
+            border-radius: 4px !important;
+            padding: 8px 10px !important;
+            page-break-inside: avoid;
+        }
+        .exchange-rate-item:hover {
+            background: #ffffff !important;
+            border-color: #dee2e6 !important;
+            transform: none !important;
+        }
+        .exchange-rate-label {
+            color: #000 !important;
+            font-size: 0.8rem !important;
+        }
+        .exchange-rate-value {
+            color: #000 !important;
+            font-size: 0.9rem !important;
+        }
+    }
 </style>
 
 <div class="container-fluid">
@@ -565,6 +640,22 @@ function renderSummary(summary) {
                         </div>
                     </div>
                 </div>
+                <div class="mt-4 pt-3 border-top">
+                    <div class="exchange-rates-card">
+                        <h6 class="mb-3">
+                            <i class="fas fa-exchange-alt me-2"></i>
+                            نرخ‌های ارز مرجع (OMR)
+                        </h6>
+                        <div id="omrExchangeRates" class="row g-2">
+                            <div class="col-12">
+                                <div class="text-muted text-center">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    در حال بارگذاری نرخ‌ها...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>`;
 
@@ -577,6 +668,9 @@ function renderSummary(summary) {
     const selectElement = document.getElementById('summaryCurrencySelect');
     selectElement.addEventListener('change', () => updateSummaryTotals(selectElement.value));
     updateSummaryTotals(selectElement.value || selectedCurrencyCode);
+    
+    // Load OMR exchange rates
+    loadOMRExchangeRates();
 }
 
 function updateSummaryTotals(currencyCode) {
@@ -649,6 +743,89 @@ function updateSummaryTotals(currencyCode) {
     if (warningElement) {
         warningElement.classList.toggle('d-none', !totals.hasMissingRates);
     }
+}
+
+function loadOMRExchangeRates() {
+    const ratesContainer = document.getElementById('omrExchangeRates');
+    if (!ratesContainer) {
+        return;
+    }
+
+    fetch('/api/exchangerates/omr')
+        .then(response => response.json())
+        .then(rates => {
+            if (Array.isArray(rates) && rates.length > 0) {
+                renderOMRExchangeRates(rates);
+            } else {
+                ratesContainer.innerHTML = `
+                    <div class="col-12">
+                        <div class="text-muted text-center">
+                            <i class="fas fa-info-circle"></i>
+                            نرخ ارزی یافت نشد
+                        </div>
+                    </div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading OMR exchange rates:', error);
+            ratesContainer.innerHTML = `
+                <div class="col-12">
+                    <div class="text-danger text-center">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        خطا در بارگذاری نرخ‌ها
+                    </div>
+                </div>`;
+        });
+}
+
+function renderOMRExchangeRates(rates) {
+    const ratesContainer = document.getElementById('omrExchangeRates');
+    if (!ratesContainer) {
+        return;
+    }
+
+    if (!Array.isArray(rates) || rates.length === 0) {
+        ratesContainer.innerHTML = `
+            <div class="col-12">
+                <div class="text-muted text-center">
+                    <i class="fas fa-info-circle"></i>
+                    نرخ ارزی یافت نشد
+                </div>
+            </div>`;
+        return;
+    }
+
+    let ratesHTML = '';
+    rates.forEach(rate => {
+        const rateValue = formatRateValue(rate.rate, rate.toCurrency);
+        ratesHTML += `
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="exchange-rate-item">
+                    <span class="exchange-rate-label">OMR - ${rate.toCurrency}</span>
+                    <span class="exchange-rate-value" dir="ltr">${rateValue}</span>
+                </div>
+            </div>`;
+    });
+
+    ratesContainer.innerHTML = ratesHTML;
+}
+
+function formatRateValue(rate, currencyCode) {
+    const numericValue = Number(rate) || 0;
+    
+    // For IRR, use integer format with commas
+    if (currencyCode && currencyCode.toUpperCase() === 'IRR') {
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(numericValue);
+    }
+    
+    // For other currencies, use decimal format
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8
+    }).format(numericValue);
 }
 
 function toggleLoading(show) {

@@ -2606,6 +2606,37 @@ namespace ForexExchange.Controllers
         public async Task<IActionResult> CustomerBankHistoryReportPrint(DateTime dateFrom, DateTime dateTo, string? currencyCode = null)
         {
             var report = await BuildCustomerBankHistoryReportAsync(dateFrom, dateTo, currencyCode);
+            
+            // Get OMR exchange rates
+            var omrCurrency = await _context.Currencies
+                .Where(c => c.Code == "OMR" && c.IsActive)
+                .FirstOrDefaultAsync();
+
+            var omrRates = new List<object>();
+            if (omrCurrency != null)
+            {
+                var rates = await _context.ExchangeRates
+                    .Include(r => r.FromCurrency)
+                    .Include(r => r.ToCurrency)
+                    .Where(r => r.FromCurrencyId == omrCurrency.Id && 
+                               r.IsActive &&
+                               r.ToCurrency.IsActive)
+                    .OrderBy(r => r.ToCurrency.DisplayOrder)
+                    .ThenBy(r => r.ToCurrency.Code)
+                    .Select(r => new
+                    {
+                        fromCurrency = r.FromCurrency.Code,
+                        toCurrency = r.ToCurrency.Code,
+                        toCurrencyName = r.ToCurrency.PersianName ?? r.ToCurrency.Name ?? r.ToCurrency.Code,
+                        rate = r.Rate
+                    })
+                    .ToListAsync();
+                
+                omrRates = rates.Cast<object>().ToList();
+            }
+            
+            ViewBag.OMRExchangeRates = omrRates;
+            
             return View("~/Views/PrintViews/CustomerBankHistoryReportPrint.cshtml", report);
         }
 

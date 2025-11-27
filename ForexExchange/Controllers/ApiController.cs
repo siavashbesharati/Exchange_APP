@@ -156,5 +156,46 @@ namespace ForexExchange.Controllers
                 return Ok(new { success = false, error = "خطا در دریافت نرخ ارز" });
             }
         }
+
+        [HttpGet("exchangerates/omr")]
+        public async Task<IActionResult> GetOMRExchangeRates()
+        {
+            try
+            {
+                // Get OMR currency
+                var omrCurrency = await _context.Currencies
+                    .Where(c => c.Code == "OMR" && c.IsActive)
+                    .FirstOrDefaultAsync();
+
+                if (omrCurrency == null)
+                {
+                    return Ok(new List<object>());
+                }
+
+                // Get all active exchange rates from OMR to other currencies
+                var rates = await _context.ExchangeRates
+                    .Include(r => r.FromCurrency)
+                    .Include(r => r.ToCurrency)
+                    .Where(r => r.FromCurrencyId == omrCurrency.Id && 
+                               r.IsActive &&
+                               r.ToCurrency.IsActive)
+                    .OrderBy(r => r.ToCurrency.DisplayOrder)
+                    .ThenBy(r => r.ToCurrency.Code)
+                    .Select(r => new
+                    {
+                        fromCurrency = r.FromCurrency.Code,
+                        toCurrency = r.ToCurrency.Code,
+                        toCurrencyName = r.ToCurrency.PersianName ?? r.ToCurrency.Name ?? r.ToCurrency.Code,
+                        rate = r.Rate
+                    })
+                    .ToListAsync();
+
+                return Ok(rates);
+            }
+            catch (Exception)
+            {
+                return Ok(new List<object>());
+            }
+        }
     }
 }
