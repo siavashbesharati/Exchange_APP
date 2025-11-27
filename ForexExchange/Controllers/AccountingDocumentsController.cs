@@ -515,16 +515,70 @@ namespace ForexExchange.Controllers
                     }
 
                     _context.Add(accountingDocument);
-                    await _context.SaveChangesAsync();
                     
-                    // Send notifications through central hub
+                    try
+                    {
+                        await _context.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException dbEx)
+                    {
+                        // Log specific database exceptions with full details
+                        _logger.LogError(dbEx, "Database error creating accounting document. ExceptionType: {ExceptionType}, Message: {Message}", 
+                            dbEx.GetType().Name, dbEx.Message);
+                        
+                        if (dbEx.InnerException != null)
+                        {
+                            _logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}", 
+                                dbEx.InnerException.GetType().Name, dbEx.InnerException.Message);
+                            
+                            // Check for specific SQLite errors
+                            var innerMessage = dbEx.InnerException.Message ?? "";
+                            if (innerMessage.Contains("too large", StringComparison.OrdinalIgnoreCase) || 
+                                innerMessage.Contains("entity is too large", StringComparison.OrdinalIgnoreCase) ||
+                                innerMessage.Contains("String or BLOB exceeds", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var errorMsg = "حجم داده‌های سند بسیار بزرگ است. لطفاً فایل کوچکتری انتخاب کنید یا فایل را حذف کنید.";
+                                _logger.LogWarning("Entity too large error detected. File size: {FileSize} bytes", 
+                                    documentFile?.Length ?? 0);
+                                
+                                if (isAjax)
+                                {
+                                    return Json(new { success = false, message = errorMsg });
+                                }
+                                
+                                TempData["ErrorMessage"] = errorMsg;
+                                ViewData["Customers"] = _context.Customers.Where(c => c.IsActive && !c.IsSystem).ToList();
+                                ViewData["Currencies"] = _context.Currencies.Where(c => c.IsActive).ToList();
+                                ViewData["BankAccounts"] = _context.BankAccounts.ToList();
+                                return View(accountingDocument);
+                            }
+                        }
+                        
+                        throw; // Re-throw if not handled
+                    }
+                    
+                    // Send notifications through central hub (idempotent - failures don't affect main operation)
                     var currentUser = await _userManager.GetUserAsync(User);
                     if (currentUser != null)
                     {
-                        await _notificationHub.SendAccountingDocumentNotificationAsync(accountingDocument, NotificationEventType.AccountingDocumentCreated, currentUser.Id);
+                        try
+                        {
+                            await _notificationHub.SendAccountingDocumentNotificationAsync(
+                                accountingDocument, 
+                                NotificationEventType.AccountingDocumentCreated, 
+                                currentUser.Id);
+                        }
+                        catch (Exception notifEx)
+                        {
+                            // Idempotent: Log but don't fail the operation
+                            _logger.LogWarning(notifEx, 
+                                "Failed to send notification for document {DocumentId}, but document was created successfully. ExceptionType: {ExceptionType}", 
+                                accountingDocument.Id, notifEx.GetType().Name);
+                        }
                     }
                     
-                    _logger.LogInformation($"Accounting document created successfully. ID: {accountingDocument.Id}, User: {User.Identity?.Name}");
+                    _logger.LogInformation("Accounting document created successfully. ID: {DocumentId}, User: {User}", 
+                        accountingDocument.Id, User.Identity?.Name);
                     
                     if (isAjax)
                     {
@@ -541,7 +595,19 @@ namespace ForexExchange.Controllers
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error creating accounting document. User: {User}", User.Identity?.Name);
+                    // Enhanced error logging with full exception details
+                    _logger.LogError(ex, "Error creating accounting document. User: {User}, ExceptionType: {ExceptionType}, Message: {Message}", 
+                        User.Identity?.Name, ex.GetType().Name, ex.Message);
+                    
+                    // Log inner exception if exists
+                    if (ex.InnerException != null)
+                    {
+                        _logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}", 
+                            ex.InnerException.GetType().Name, ex.InnerException.Message);
+                    }
+                    
+                    // Log stack trace for debugging
+                    _logger.LogError("Stack Trace: {StackTrace}", ex.StackTrace);
                     
                     if (isAjax)
                     {

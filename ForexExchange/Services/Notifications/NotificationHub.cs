@@ -146,7 +146,17 @@ namespace ForexExchange.Services.Notifications
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending accounting document notification for document {DocumentId}, event {EventType}", document.Id, eventType);
+                // Idempotent: Log error but don't throw - notification failures should not affect main operations
+                _logger.LogError(ex, "Error sending accounting document notification for document {DocumentId}, event {EventType}. Notification failed but document operation succeeded. ExceptionType: {ExceptionType}", 
+                    document.Id, eventType, ex.GetType().Name);
+                
+                if (ex.InnerException != null)
+                {
+                    _logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}", 
+                        ex.InnerException.GetType().Name, ex.InnerException.Message);
+                }
+                
+                // Don't throw - this is idempotent
             }
         }
 
@@ -278,9 +288,16 @@ namespace ForexExchange.Services.Notifications
 
         private async Task<NotificationContext> BuildAccountingDocumentNotificationContextAsync(AccountingDocument document, NotificationEventType eventType, string? userId)
         {
-            var payerCustomer = await _context.Customers.FindAsync(document.PayerCustomerId);
-            var receiverCustomer = await _context.Customers.FindAsync(document.ReceiverCustomerId);
-            var currency = await _context.Currencies.FindAsync(document.CurrencyCode);
+            // Use FindAsync for nullable int IDs
+            var payerCustomer = document.PayerCustomerId.HasValue 
+                ? await _context.Customers.FindAsync(document.PayerCustomerId.Value) 
+                : null;
+            var receiverCustomer = document.ReceiverCustomerId.HasValue 
+                ? await _context.Customers.FindAsync(document.ReceiverCustomerId.Value) 
+                : null;
+            
+            // Use FirstOrDefaultAsync for string CurrencyCode (not int Id)
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == document.CurrencyCode);
 
             var title = eventType switch
             {

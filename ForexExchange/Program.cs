@@ -25,7 +25,8 @@ builder.Host.UseSerilog((context, services, configuration) =>
             fileSizeLimitBytes: 10_000_000,
             rollOnFileSizeLimit: true,
             shared: true,
-            flushToDiskInterval: TimeSpan.FromSeconds(1)));
+            flushToDiskInterval: TimeSpan.FromSeconds(1),
+            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
 });
 
 // Add services to the container.
@@ -37,10 +38,16 @@ builder.Services.AddControllersWithViews()
         options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver();
     });
 
-// Add Entity Framework
+// Add Entity Framework with enhanced logging
 builder.Services.AddDbContext<ForexDbContext>(options =>
+{
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ??
-                     "Data Source=ForexExchange.db"));
+                     "Data Source=ForexExchange.db");
+    
+    // Enable detailed error logging (only in development for security)
+    options.EnableSensitiveDataLogging(builder.Environment.IsDevelopment());
+    options.EnableDetailedErrors();
+});
 
 // Add Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -239,6 +246,32 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+
+// Global exception handler middleware - catches all unhandled exceptions
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Unhandled exception: {ExceptionType} - {Message} | Path: {Path}", 
+            ex.GetType().Name, ex.Message, context.Request.Path);
+        
+        if (ex.InnerException != null)
+        {
+            logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}", 
+                ex.InnerException.GetType().Name, ex.InnerException.Message);
+        }
+        
+        // Log stack trace for debugging
+        logger.LogError("Stack Trace: {StackTrace}", ex.StackTrace);
+        
+        throw; // Re-throw to let exception handler middleware handle it
+    }
+});
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
