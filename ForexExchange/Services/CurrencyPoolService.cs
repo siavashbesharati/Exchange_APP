@@ -14,7 +14,7 @@ namespace ForexExchange.Services
         private readonly AdminNotificationService _adminNotificationService;
 
         public CurrencyPoolService(
-            ForexDbContext context, 
+            ForexDbContext context,
             ILogger<CurrencyPoolService> logger,
             AdminNotificationService adminNotificationService)
         {
@@ -137,7 +137,7 @@ namespace ForexExchange.Services
 
             // Normalize currency code to uppercase for consistency (handles case sensitivity issues like USDT vs usdt)
             var normalizedCurrencyCode = (currency.Code ?? "").ToUpperInvariant().Trim();
-            
+
             var pool = new CurrencyPool
             {
                 CurrencyId = currencyId,
@@ -315,8 +315,8 @@ namespace ForexExchange.Services
             // Count active buy orders from CurrencyPoolHistory
             // Buy orders are transactions where TransactionAmount > 0 (exchange is buying/receiving this currency)
             var activeBuyOrders = await _context.CurrencyPoolHistory
-                .Where(h => h.CurrencyCode == currencyCode && 
-                           h.TransactionType == CurrencyPoolTransactionType.Order && 
+                .Where(h => h.CurrencyCode == currencyCode &&
+                           h.TransactionType == CurrencyPoolTransactionType.Order &&
                            !h.IsDeleted &&
                            h.TransactionAmount > 0) // Positive = Pool increase = Exchange buying
                 .Select(h => h.ReferenceId)
@@ -326,8 +326,8 @@ namespace ForexExchange.Services
             // Count active sell orders from CurrencyPoolHistory  
             // Sell orders are transactions where TransactionAmount < 0 (exchange is selling/giving this currency)
             var activeSellOrders = await _context.CurrencyPoolHistory
-                .Where(h => h.CurrencyCode == currencyCode && 
-                           h.TransactionType == CurrencyPoolTransactionType.Order && 
+                .Where(h => h.CurrencyCode == currencyCode &&
+                           h.TransactionType == CurrencyPoolTransactionType.Order &&
                            !h.IsDeleted &&
                            h.TransactionAmount < 0) // Negative = Pool decrease = Exchange selling
                 .Select(h => h.ReferenceId)
@@ -421,7 +421,7 @@ namespace ForexExchange.Services
                 foreach (var pool in pools)
                 {
                     _logger.LogInformation($"Cleaning pool for {pool.CurrencyCode}: Balance={pool.Balance}, TotalBought={pool.TotalBought}, TotalSold={pool.TotalSold}");
-                    
+
                     pool.ActiveBuyOrderCount = 0;
                     pool.ActiveSellOrderCount = 0;
                     pool.TotalBought = 0;
@@ -429,15 +429,15 @@ namespace ForexExchange.Services
                     pool.RiskLevel = PoolRiskLevel.Low;
                     pool.Balance = 0;
                     pool.LastUpdated = DateTime.Now;
-                    
+
                     _context.CurrencyPools.Update(pool);
-                    
+
                     _logger.LogInformation($"Pool {pool.CurrencyCode} cleaned: All values set to 0");
                 }
 
                 var result = await _context.SaveChangesAsync();
                 _logger.LogInformation($"Successfully cleaned {pools.Count} pools, {result} records updated");
-                
+
                 return true;
             }
             catch (Exception ex)
