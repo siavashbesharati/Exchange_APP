@@ -48,6 +48,57 @@ namespace ForexExchange.Controllers
         }
 
         [HttpPost]
+        public async Task<IActionResult> ApplyPendingMigrations()
+        {
+            try
+            {
+                var currentUser = await _userManager.GetUserAsync(User);
+
+                // Check if there are pending migrations
+                var pendingMigrations = await _context.Database.GetPendingMigrationsAsync();
+
+                if (!pendingMigrations.Any())
+                {
+                    TempData["SuccessMessage"] = "✅ پایگاه داده به‌روز است. هیچ migration در حال انتظاری وجود ندارد.";
+                    return RedirectToAction(nameof(Index));
+                }
+
+                // Log the operation
+                var migrationList = string.Join(", ", pendingMigrations);
+                _context.AdminActivities.Add(new AdminActivity
+                {
+                    AdminUserId = currentUser?.Id ?? "Unknown",
+                    ActivityType = AdminActivityType.BulkOperation,
+                    Description = $"Applying {pendingMigrations.Count()} pending migrations: {migrationList}",
+                    Timestamp = DateTime.UtcNow,
+                    IpAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString()
+                });
+
+                // Apply migrations
+                await _context.Database.MigrateAsync();
+                await _context.SaveChangesAsync();
+
+                TempData["SuccessMessage"] = $"✅ {pendingMigrations.Count()} migration با موفقیت اعمال شد: {migrationList}";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (Exception ex)
+            {
+                _context.AdminActivities.Add(new AdminActivity
+                {
+                    AdminUserId = (await _userManager.GetUserAsync(User))?.Id ?? "Unknown",
+                    ActivityType = AdminActivityType.BulkOperation,
+                    Description = $"Failed to apply migrations: {ex.Message}",
+                    Timestamp = DateTime.UtcNow,
+                    IpAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString()
+                });
+                await _context.SaveChangesAsync();
+
+                TempData["ErrorMessage"] = $"خطا در اعمال migration: {ex.Message}";
+                return RedirectToAction(nameof(Index));
+            }
+        }
+
+        [HttpPost]
         public IActionResult CreateBackup()
         {
             try

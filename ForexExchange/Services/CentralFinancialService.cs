@@ -741,11 +741,11 @@ namespace ForexExchange.Services
             string description;
             if (isFromCurrency)
             {
-                description = $"خرید {order.ToAmount} {order.ToCurrency?.Code} با {order.FromAmount} {order.FromCurrency?.Code} - نرخ: {order.Rate}";
+                description = $"{order.FromAmount:N0} {order.FromCurrency?.Code} to {order.ToAmount:N0} {order.ToCurrency?.Code} | rate : {order.Rate} {order.CreatedAt:yyyy-MM-dd:HH:mm}";
             }
             else
             {
-                description = $"فروش {order.FromAmount} {order.FromCurrency?.Code} برای {order.ToAmount} {order.ToCurrency?.Code} - نرخ: {order.Rate}";
+                description = $"{order.FromAmount:N0} {order.FromCurrency?.Code} to {order.ToAmount:N0} {order.ToCurrency?.Code} | rate : {order.Rate} {order.CreatedAt:yyyy-MM-dd:HH:mm}";
             }
 
             if (!string.IsNullOrEmpty(order.Notes))
@@ -808,10 +808,10 @@ namespace ForexExchange.Services
             }
 
             // Create description
-            string description = $"سفارش #{order.Id} - {poolTransactionType}";
+            string description = $"{order.FromAmount:N0} {order.FromCurrency?.Code} to {order.ToAmount:N0} {order.ToCurrency?.Code} | rate : {order.Rate} {order.CreatedAt:yyyy-MM-dd:HH:mm}";
             if (!string.IsNullOrEmpty(order.Notes))
             {
-                description += $" - {order.Notes}";
+                description += $" | {order.Notes}";
             }
 
             // Create new history record for this order (balances will be recalculated in rebuild)

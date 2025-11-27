@@ -190,6 +190,14 @@
                                     
 
 
+                                    <form asp-action="ApplyPendingMigrations" method="post" class="mb-3" onsubmit="return confirm('آیا از اعمال migrationهای در حال انتظار مطمئن هستید؟ این عملیات ساختار پایگاه داده را تغییر خواهد داد.');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-outline-info w-100">
+                                            <i class="fas fa-database me-2"></i>
+                                            اعمال Migrationهای در حال انتظار
+                                        </button>
+                                    </form>
+
                                     <form id="freezeDashboardForm">
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="btn btn-outline-primary w-100" id="freezeDashboardBtn">

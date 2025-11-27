@@ -196,9 +196,28 @@ using (var scope = app.Services.CreateScope())
                 logger.LogInformation("Pending migration: {Migration}", migration);
             }
 
-            // Apply all pending migrations
-            await dbContext.Database.MigrateAsync();
-            logger.LogInformation("All migrations applied successfully");
+            try
+            {
+                // Apply all pending migrations with detailed error handling
+                await dbContext.Database.MigrateAsync();
+                logger.LogInformation("All migrations applied successfully");
+            }
+            catch (Exception migrationEx)
+            {
+                logger.LogError(migrationEx, "Failed to apply migrations automatically. Manual intervention may be required.");
+
+                // Option 1: Force re-creation of database (USE WITH CAUTION - DATA LOSS!)
+                // Uncomment the lines below ONLY if you want to recreate the database from scratch
+                // logger.LogWarning("RECREATING DATABASE FROM SCRATCH - ALL DATA WILL BE LOST!");
+                // await dbContext.Database.EnsureDeletedAsync();
+                // await dbContext.Database.MigrateAsync();
+                // await dataSeedService.SeedDataAsync();
+                // logger.LogWarning("Database recreated successfully");
+
+                // Option 2: Continue without migrations (not recommended for production)
+                logger.LogWarning("Continuing application startup without applying migrations. This may cause runtime errors.");
+                // throw; // Uncomment to stop application startup on migration failure
+            }
         }
         else
         {
