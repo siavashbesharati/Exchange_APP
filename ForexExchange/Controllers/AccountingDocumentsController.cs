@@ -915,6 +915,11 @@ namespace ForexExchange.Controllers
                 {
                     try
                     {
+                        // CRITICAL: Detach document from Change Tracker before processing to avoid tracking conflicts
+                        var documentId = accountingDocument.Id;
+                        _context.Entry(accountingDocument).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+
+                        // Update document properties
                         accountingDocument.IsVerified = true;
                         accountingDocument.VerifiedAt = DateTime.Now;
                         accountingDocument.VerifiedBy = User.Identity?.Name ?? "System";
@@ -923,8 +928,19 @@ namespace ForexExchange.Controllers
                         // This will now use the CORRECTED logic: Payer = +amount, Receiver = -amount
                         await _centralFinancialService.ProcessAccountingDocumentAsync(accountingDocument, User.Identity?.Name ?? "System");
                      
-                        _context.Update(accountingDocument);
-                        await _context.SaveChangesAsync();
+                        // Reload document from database to get latest state and avoid tracking conflicts
+                        var updatedDocument = await _context.AccountingDocuments
+                            .FirstOrDefaultAsync(d => d.Id == documentId);
+                        
+                        if (updatedDocument != null)
+                        {
+                            updatedDocument.IsVerified = true;
+                            updatedDocument.VerifiedAt = accountingDocument.VerifiedAt;
+                            updatedDocument.VerifiedBy = accountingDocument.VerifiedBy;
+                            _context.Update(updatedDocument);
+                            await _context.SaveChangesAsync();
+                            accountingDocument = updatedDocument; // Update reference for notification
+                        }
 
                         // Send notifications through central hub
                         var currentUser = await _userManager.GetUserAsync(User);

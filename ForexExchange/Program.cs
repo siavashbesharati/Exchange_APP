@@ -45,6 +45,7 @@ builder.Services.AddDbContext<ForexDbContext>(options =>
                      "Data Source=ForexExchange.db");
     
     // Enable detailed error logging (only in development for security)
+    // Enable sensitive data logging to see entity key values in tracking conflicts
     options.EnableSensitiveDataLogging(builder.Environment.IsDevelopment());
     options.EnableDetailedErrors();
 });
