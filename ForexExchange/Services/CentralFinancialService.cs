@@ -2535,8 +2535,13 @@ namespace ForexExchange.Services
                     document.DeletedAt = DateTime.UtcNow;
                     document.DeletedBy = performedBy;
 
+                    _context.Update(document);
+                    await _context.SaveChangesAsync();
+
                     // 2. Soft delete related history records
                     await DeleteCustomerAndBankHistoryRecords(document.Id);
+
+                    await _context.SaveChangesAsync();
 
                     // 3. Rebuild balance chains without the deleted records
                     await RebuildBalanceChainsForDocumentDeletion(document);
