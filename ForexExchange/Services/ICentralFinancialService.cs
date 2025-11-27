@@ -80,7 +80,7 @@ namespace ForexExchange.Services
         /// Automatically sends notifications to admin users (excluding the performing user).
         /// </summary>
         Task CreateManualPoolBalanceHistoryAsync(string currencyCode, decimal adjustmentAmount,
-            string reason, DateTime transactionDate, string performedBy = "Manual Entry", string? performingUserId = null);
+            string reason, DateTime transactionDate, string performedBy = "Manual Entry", string? transactionNumber = null, string? performingUserId = null);
 
         /// <summary>
         /// Deletes a manual currency pool balance history record and recalculates balances from the transaction date.
@@ -97,7 +97,7 @@ namespace ForexExchange.Services
         /// Automatically sends notifications to admin users (excluding the performing user).
         /// </summary>
         Task CreateManualBankAccountBalanceHistoryAsync(int bankAccountId, decimal amount,
-            string reason, DateTime transactionDate, string performedBy = "Manual Entry", string? performingUserId = null);
+            string reason, DateTime transactionDate, string performedBy = "Manual Entry", string? transactionNumber = null, string? performingUserId = null);
 
         /// <summary>
         /// Deletes a manual bank account balance history record and recalculates balances from the transaction date.

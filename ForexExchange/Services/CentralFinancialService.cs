@@ -2538,14 +2538,198 @@ namespace ForexExchange.Services
             // Send notification to admin users (excluding the performing user)
 
             await _notificationHub.SendManualAdjustmentNotificationAsync(
-                    title: "تعدیل دستی موجودی حذف شد");
-
+                    title: "تعدیل دستی موجودی حذف شد",
+                    message: $"تعدیل دستی مشتری حذف شد - مبلغ: {historyRecord.TransactionAmount:N2} {historyRecord.CurrencyCode}",
+                    eventType: NotificationEventType.ManualAdjustment,
+                    userId: performingUserId,
+                    navigationUrl: $"/Reports/CustomerReports?customerId={historyRecord.CustomerId}",
+                    priority: NotificationPriority.Normal);
 
 
         }
 
 
 
+
+        // Manual Pool and Bank Account Adjustment Methods
+
+        /// <summary>
+        /// Creates a manual currency pool balance history record with specified transaction date following the coherent history pattern.
+        /// This method creates proper balance chains with correct BalanceBefore, TransactionAmount, and BalanceAfter calculations.
+        /// Uses the same coherent sequencing pattern as RebuildPoolBalanceChain to ensure consistency.
+        /// Manual transactions are never frozen and always affect current balance calculations.
+        /// </summary>
+        public async Task CreateManualPoolBalanceHistoryAsync(
+            string currencyCode,
+            decimal adjustmentAmount,
+            string reason,
+            DateTime transactionDate,
+            string performedBy = "Manual Entry",
+            string? transactionNumber = null,
+            string? performingUserId = null)
+        {
+            _logger.LogInformation($"Creating manual pool balance history: Currency {currencyCode}, Amount {adjustmentAmount}, Date {transactionDate:yyyy-MM-dd}");
+
+            // Validate currency exists
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == currencyCode);
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with code {currencyCode} not found");
+            }
+
+            // Create the manual history record with proper coherent balance calculations
+            var historyRecord = new CurrencyPoolHistory
+            {
+                CurrencyCode = currencyCode,
+                BalanceBefore = 0, //will update to correct value in rebuild
+                TransactionAmount = adjustmentAmount,
+                BalanceAfter = 0, //will update to correct value in rebuild
+                TransactionType = CurrencyPoolTransactionType.ManualEdit,
+                ReferenceId = null, // Manual entries do not have reference IDs
+                Description = reason,
+                TransactionNumber = transactionNumber,
+                TransactionDate = transactionDate, // Use the specified date
+                CreatedAt = DateTime.Now,
+                CreatedBy = performedBy,
+                IsDeleted = false // Manual transactions are never deleted via soft delete
+            };
+
+            _context.CurrencyPoolHistory.Add(historyRecord);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"Manual pool balance history created with coherent balances: ID {historyRecord.Id}, Currency {currencyCode}, Amount {adjustmentAmount}");
+
+            // Rebuild balance chain for this specific currency only
+            await RebuildPoolBalanceChain(currencyCode);
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Deletes a manual currency pool balance history record and recalculates balances from the transaction date.
+        /// Only manual transactions (TransactionType.ManualEdit) can be deleted for safety.
+        /// After deletion, balances are automatically recalculated to maintain coherence.
+        /// </summary>
+        public async Task DeleteManualPoolBalanceHistoryAsync(long transactionId, string performedBy = "Manual Deletion", string? performingUserId = null)
+        {
+            _logger.LogInformation($"Deleting manual pool balance history: Transaction ID {transactionId}");
+
+            // Find the manual transaction
+            var historyRecord = await _context.CurrencyPoolHistory
+                .FirstOrDefaultAsync(h => h.Id == transactionId);
+
+            if (historyRecord == null)
+            {
+                throw new ArgumentException($"Currency pool history with ID {transactionId} not found");
+            }
+
+            // Verify this is a manual transaction - only manual transactions can be deleted
+            if (historyRecord.TransactionType != CurrencyPoolTransactionType.ManualEdit)
+            {
+                throw new InvalidOperationException($"Only manual transactions can be deleted. Transaction ID {transactionId} is of type {historyRecord.TransactionType}");
+            }
+
+            var currencyCode = historyRecord.CurrencyCode;
+            var amount = historyRecord.TransactionAmount;
+
+            // Delete the manual transaction
+            _context.CurrencyPoolHistory.Remove(historyRecord);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"Manual pool balance history deleted: ID {transactionId}, Currency {currencyCode}, Amount {amount}");
+
+            // Rebuild balance chain for this specific currency only
+            await RebuildPoolBalanceChain(currencyCode);
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Creates a manual bank account balance history record with specified transaction date following the coherent history pattern.
+        /// This method creates proper balance chains with correct BalanceBefore, TransactionAmount, and BalanceAfter calculations.
+        /// Uses the same coherent sequencing pattern as RebuildBankBalanceChain to ensure consistency.
+        /// Manual transactions are never frozen and always affect current balance calculations.
+        /// </summary>
+        public async Task CreateManualBankAccountBalanceHistoryAsync(
+            int bankAccountId,
+            decimal amount,
+            string reason,
+            DateTime transactionDate,
+            string performedBy = "Manual Entry",
+            string? transactionNumber = null,
+            string? performingUserId = null)
+        {
+            _logger.LogInformation($"Creating manual bank account balance history: Bank Account {bankAccountId}, Amount {amount}, Date {transactionDate:yyyy-MM-dd}");
+
+            // Validate bank account exists
+            var bankAccount = await _context.BankAccounts.FirstOrDefaultAsync(b => b.Id == bankAccountId);
+            if (bankAccount == null)
+            {
+                throw new ArgumentException($"Bank account with ID {bankAccountId} not found");
+            }
+
+            // Create the manual history record with proper coherent balance calculations
+            var historyRecord = new BankAccountBalanceHistory
+            {
+                BankAccountId = bankAccountId,
+                BalanceBefore = 0, //will update to correct value in rebuild
+                TransactionAmount = amount,
+                BalanceAfter = 0, //will update to correct value in rebuild
+                TransactionType = BankAccountTransactionType.ManualEdit,
+                ReferenceId = null, // Manual entries do not have reference IDs
+                Description = reason,
+                TransactionNumber = transactionNumber,
+                TransactionDate = transactionDate, // Use the specified date
+                CreatedAt = DateTime.Now,
+                CreatedBy = performedBy,
+                IsDeleted = false // Manual transactions are never deleted via soft delete
+            };
+
+            _context.BankAccountBalanceHistory.Add(historyRecord);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"Manual bank account balance history created with coherent balances: ID {historyRecord.Id}, Bank Account {bankAccountId}, Amount {amount}");
+
+            // Rebuild balance chain for this specific bank account only
+            await RebuildBankBalanceChain(bankAccountId);
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Deletes a manual bank account balance history record and recalculates balances from the transaction date.
+        /// Only manual transactions (TransactionType.ManualEdit) can be deleted for safety.
+        /// After deletion, balances are automatically recalculated to maintain coherence.
+        /// </summary>
+        public async Task DeleteManualBankAccountBalanceHistoryAsync(long transactionId, string performedBy = "Manual Deletion", string? performingUserId = null)
+        {
+            _logger.LogInformation($"Deleting manual bank account balance history: Transaction ID {transactionId}");
+
+            // Find the manual transaction
+            var historyRecord = await _context.BankAccountBalanceHistory
+                .FirstOrDefaultAsync(h => h.Id == transactionId);
+
+            if (historyRecord == null)
+            {
+                throw new ArgumentException($"Bank account balance history with ID {transactionId} not found");
+            }
+
+            // Verify this is a manual transaction - only manual transactions can be deleted
+            if (historyRecord.TransactionType != BankAccountTransactionType.ManualEdit)
+            {
+                throw new InvalidOperationException($"Only manual transactions can be deleted. Transaction ID {transactionId} is of type {historyRecord.TransactionType}");
+            }
+
+            var bankAccountId = historyRecord.BankAccountId;
+            var amount = historyRecord.TransactionAmount;
+
+            // Delete the manual transaction
+            _context.BankAccountBalanceHistory.Remove(historyRecord);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"Manual bank account balance history deleted: ID {transactionId}, Bank Account {bankAccountId}, Amount {amount}");
+
+            // Rebuild balance chain for this specific bank account only
+            await RebuildBankBalanceChain(bankAccountId);
+            await _context.SaveChangesAsync();
+        }
 
 
         #endregion
@@ -2590,8 +2774,6 @@ namespace ForexExchange.Services
                 throw;
             }
         }
-
-
 
 
     }
