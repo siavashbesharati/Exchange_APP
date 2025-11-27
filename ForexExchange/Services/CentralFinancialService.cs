@@ -1,5 +1,6 @@
 
 using ForexExchange.Extensions;
+using ForexExchange.Helpers;
 using ForexExchange.Models;
 using ForexExchange.Services.Notifications;
 using Microsoft.EntityFrameworkCore;
@@ -737,21 +738,16 @@ namespace ForexExchange.Services
                 _context.CustomerBalanceHistory.Remove(existingRecord);
             }
 
-            // Create description based on currency type
-            string description;
-            if (isFromCurrency)
-            {
-                description = $"{order.FromAmount:N0} {order.FromCurrency?.Code} to {order.ToAmount:N0} {order.ToCurrency?.Code} | rate : {order.Rate} {order.CreatedAt:yyyy-MM-dd:HH:mm}";
-            }
-            else
-            {
-                description = $"{order.FromAmount:N0} {order.FromCurrency?.Code} to {order.ToAmount:N0} {order.ToCurrency?.Code} | rate : {order.Rate} {order.CreatedAt:yyyy-MM-dd:HH:mm}";
-            }
+            // Load order with customer and currencies to get Notes and CurrencyPair
+            var orderWithDetails = await _context.Orders
+                .Include(o => o.Customer)
+                .Include(o => o.FromCurrency)
+                .Include(o => o.ToCurrency)
+                .FirstOrDefaultAsync(o => o.Id == order.Id);
 
-            if (!string.IsNullOrEmpty(order.Notes))
-            {
-                description += $" - {order.Notes}";
-            }
+            // Use helper to generate English descriptions
+            var description = HistoryDescriptionHelper.GenerateOrderDescription(order, currencyCode, isFromCurrency);
+            var note = HistoryDescriptionHelper.GenerateOrderNote(order, currencyCode, isFromCurrency);
 
             // Create new history record for this order (balances will be recalculated in rebuild)
             var newHistoryRecord = new CustomerBalanceHistory
@@ -764,6 +760,7 @@ namespace ForexExchange.Services
                 TransactionAmount = transactionAmount,
                 BalanceAfter = 0, // Will be recalculated in rebuild
                 Description = description,
+                Note = note,
                 TransactionDate = orderDateTime,
                 CreatedAt = DateTime.Now,
                 CreatedBy = performedBy,
@@ -807,12 +804,13 @@ namespace ForexExchange.Services
                 _context.CurrencyPoolHistory.Remove(existingRecord);
             }
 
-            // Create description
-            string description = $"{order.FromAmount:N0} {order.FromCurrency?.Code} to {order.ToAmount:N0} {order.ToCurrency?.Code} | rate : {order.Rate} {order.CreatedAt:yyyy-MM-dd:HH:mm}";
-            if (!string.IsNullOrEmpty(order.Notes))
-            {
-                description += $" | {order.Notes}";
-            }
+            // Use helper to generate English description
+            var description = HistoryDescriptionHelper.GeneratePoolHistoryDescription(
+                currencyCode, 
+                transactionAmount, 
+                poolTransactionType, 
+                order.Id > 0 ? order.Id : null, 
+                order.Rate);
 
             // Create new history record for this order (balances will be recalculated in rebuild)
             var newHistoryRecord = new CurrencyPoolHistory
@@ -961,13 +959,17 @@ namespace ForexExchange.Services
                 _context.CustomerBalanceHistory.Remove(existingRecord);
             }
 
-            // Create description
-            string amountDirection = transactionAmount > 0 ? "افزایش" : "کاهش";
-            string description = $"{document.Title} - مبلغ: {Math.Abs(document.Amount)} {currencyCode} - نقش: {role} - جهت: {amountDirection}";
-            if (!string.IsNullOrEmpty(document.Description))
-            {
-                description += $" - {document.Description}";
-            }
+            // Load document with customers and bank accounts
+            var documentWithDetails = await _context.AccountingDocuments
+                .Include(d => d.PayerCustomer)
+                .Include(d => d.ReceiverCustomer)
+                .Include(d => d.PayerBankAccount)
+                .Include(d => d.ReceiverBankAccount)
+                .FirstOrDefaultAsync(d => d.Id == document.Id) ?? document;
+
+            // Use helper to generate English descriptions
+            var description = HistoryDescriptionHelper.GenerateDocumentDescription(documentWithDetails, role);
+            var note = HistoryDescriptionHelper.GenerateDocumentNote(documentWithDetails);
 
             // Create new history record for this document (balances will be recalculated in rebuild)
             var newHistoryRecord = new CustomerBalanceHistory
@@ -980,6 +982,7 @@ namespace ForexExchange.Services
                 TransactionAmount = transactionAmount,
                 BalanceAfter = 0, // Will be recalculated in rebuild
                 Description = description,
+                Note = note,
                 TransactionNumber = document.ReferenceNumber,
                 TransactionDate = documentDate,
                 CreatedAt = DateTime.Now,
@@ -1038,13 +1041,12 @@ namespace ForexExchange.Services
                 _context.BankAccountBalanceHistory.Remove(existingRecord);
             }
 
-            // Create description
-            string amountDirection = transactionAmount > 0 ? "افزایش" : "کاهش";
-            string description = $"{document.Title} - مبلغ: {Math.Abs(document.Amount)} {document.CurrencyCode} - نقش: {role} - جهت: {amountDirection}";
-            if (!string.IsNullOrEmpty(document.Description))
-            {
-                description += $" - {document.Description}";
-            }
+            // Load bank account to get details
+            var bankAccount = await _context.BankAccounts
+                .FirstOrDefaultAsync(b => b.Id == bankAccountId);
+
+            // Use helper to generate English description
+            var description = HistoryDescriptionHelper.GenerateBankHistoryDescription(document, bankAccount);
 
             // Create new history record for this document (balances will be recalculated in rebuild)
             var newHistoryRecord = new BankAccountBalanceHistory
@@ -1365,42 +1367,36 @@ namespace ForexExchange.Services
                 logMessages.Add("STEP 2: Creating coherent pool history...");
 
                 // Load active orders with required data only (eliminate N+1 queries)
+                // Include Customer to get Notes which contains customer info
                 var activeOrders = await _context.Orders
                     .Where(o => !o.IsDeleted && !o.IsFrozen)
+                    .Include(o => o.Customer)
                     .Include(o => o.FromCurrency)
                     .Include(o => o.ToCurrency)
-                    .Select(o => new
-                    {
-                        o.Id,
-                        o.CustomerId,
-                        o.CreatedAt,
-                        o.FromAmount,
-                        o.ToAmount,
-                        o.Rate,
-                        o.Notes,
-                        FromCurrencyCode = o.FromCurrency.Code,
-                        ToCurrencyCode = o.ToCurrency.Code
-                    })
                     .OrderBy(o => o.CreatedAt)
                     .ToListAsync();
 
                 logMessages.Add($"Processing {activeOrders.Count} active (non-deleted, non-frozen) orders and {manualPoolRecords.Count} manual pool records...");
 
                 // Pre-allocate collections with estimated capacity for better performance
-                var poolTransactionItems = new List<(string CurrencyCode, DateTime TransactionDate, string TransactionType, int? ReferenceId, decimal Amount, string PoolTransactionType, string Description)>(activeOrders.Count * 2);
+                var poolTransactionItems = new List<(string CurrencyCode, DateTime TransactionDate, string TransactionType, int? ReferenceId, decimal Amount, string PoolTransactionType, string Description, decimal Rate)>(activeOrders.Count * 2);
 
                 // Add order transactions (eliminated N+1 query by pre-loading data)
                 // IMPORTANT: Normalize currency codes to UPPERCASE to handle case sensitivity issues (e.g., USDT vs usdt)
                 foreach (var o in activeOrders)
                 {
-                    var fromCurrencyCode = (o.FromCurrencyCode ?? "").ToUpperInvariant().Trim();
-                    var toCurrencyCode = (o.ToCurrencyCode ?? "").ToUpperInvariant().Trim();
+                    var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
+                    var toCurrencyCode = (o.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
+
+                    // Use helper to generate English descriptions
+                    var buyDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(fromCurrencyCode, o.FromAmount, "Buy", o.Id, o.Rate);
+                    var sellDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(toCurrencyCode, -o.ToAmount, "Sell", o.Id, o.Rate);
 
                     // Institution receives FromAmount in FromCurrency (pool increases)
-                    poolTransactionItems.Add((fromCurrencyCode, o.CreatedAt, "Order", o.Id, o.FromAmount, "Buy", o.Notes ?? ""));
+                    poolTransactionItems.Add((fromCurrencyCode, o.CreatedAt, "Order", o.Id, o.FromAmount, "Buy", buyDescription, o.Rate));
 
                     // Institution pays ToAmount in ToCurrency (pool decreases)
-                    poolTransactionItems.Add((toCurrencyCode, o.CreatedAt, "Order", o.Id, -o.ToAmount, "Sell", o.Notes ?? ""));
+                    poolTransactionItems.Add((toCurrencyCode, o.CreatedAt, "Order", o.Id, -o.ToAmount, "Sell", sellDescription, o.Rate));
                 }
 
                 // Add manual pool records as transactions for balance calculation
@@ -1416,7 +1412,8 @@ namespace ForexExchange.Services
                         (int?)manual.Id, // Use existing ID to identify duplicates
                         manual.TransactionAmount,
                         "Manual",
-                        manual.Description ?? "Manual adjustment"
+                        manual.Description ?? "Manual adjustment",
+                        0m // No rate for manual records
                     ));
                 }
                 logMessages.Add($"Added {manualPoolRecords.Count} manual pool records to transaction items for balance calculation");
@@ -1477,6 +1474,7 @@ namespace ForexExchange.Services
                         }
 
                         // For non-manual or new manual records, create new history record
+                        // Use the description from transaction (already formatted correctly)
                         poolHistoryRecords.Add(new CurrencyPoolHistory
                         {
                             CurrencyCode = currencyCode,
@@ -1579,20 +1577,11 @@ namespace ForexExchange.Services
                 // Load active documents efficiently
                 // IMPORTANT: Only process verified documents (same as customer balance history)
                 // Unverified documents should not affect bank account balances
+                // Include BankAccounts to get details for description
                 var activeDocuments = await _context.AccountingDocuments
                     .Where(d => !d.IsDeleted && !d.IsFrozen && d.IsVerified)
-                    .Select(d => new
-                    {
-                        d.Id,
-                        d.DocumentDate,
-                        d.CurrencyCode,
-                        d.Amount,
-                        d.Notes,
-                        d.PayerType,
-                        d.PayerBankAccountId,
-                        d.ReceiverType,
-                        d.ReceiverBankAccountId
-                    })
+                    .Include(d => d.PayerBankAccount)
+                    .Include(d => d.ReceiverBankAccount)
                     .OrderBy(d => d.DocumentDate)
                     .ToListAsync();
 
@@ -1607,19 +1596,23 @@ namespace ForexExchange.Services
                 {
                     var normalizedCurrencyCode = (d.CurrencyCode ?? "").ToUpperInvariant().Trim();
 
+                    // Use helper to generate English descriptions
+                    var payerDescription = HistoryDescriptionHelper.GenerateBankHistoryDescription(d, d.PayerBankAccount);
+                    var receiverDescription = HistoryDescriptionHelper.GenerateBankHistoryDescription(d, d.ReceiverBankAccount);
+
                     if (d.PayerType == PayerType.System && d.PayerBankAccountId.HasValue && d.ReceiverType == ReceiverType.System && d.ReceiverBankAccountId.HasValue)
                     {
                         // Both sides are system bank accounts: create two transactions
-                        bankAccountTransactionItems.Add((d.PayerBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "system bank to bank", d.Id, d.Amount, d.Notes ?? string.Empty));
-                        bankAccountTransactionItems.Add((d.ReceiverBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "system bank to bank", d.Id, -(d.Amount), d.Notes ?? string.Empty));
+                        bankAccountTransactionItems.Add((d.PayerBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "system bank to bank", d.Id, d.Amount, payerDescription));
+                        bankAccountTransactionItems.Add((d.ReceiverBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "system bank to bank", d.Id, -(d.Amount), receiverDescription));
                     }
                     else
                     {
                         // Single side system bank account transactions
                         if (d.PayerType == PayerType.System && d.PayerBankAccountId.HasValue)
-                            bankAccountTransactionItems.Add((d.PayerBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "payment document", d.Id, d.Amount, d.Notes ?? string.Empty));
+                            bankAccountTransactionItems.Add((d.PayerBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "payment document", d.Id, d.Amount, payerDescription));
                         if (d.ReceiverType == ReceiverType.System && d.ReceiverBankAccountId.HasValue)
-                            bankAccountTransactionItems.Add((d.ReceiverBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "reciept document", d.Id, -(d.Amount), d.Notes ?? string.Empty));
+                            bankAccountTransactionItems.Add((d.ReceiverBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "reciept document", d.Id, -(d.Amount), receiverDescription));
                     }
                 }
 
@@ -1746,45 +1739,27 @@ namespace ForexExchange.Services
                 logMessages.Add("STEP 4: Rebuilding coherent customer balance history from orders, documents, and manual records (including frozen for customer history)...");
 
                 // Load all valid documents and orders efficiently for customer history
+                // Include Customers and BankAccounts to get Notes which contains customer info
                 var allValidDocuments = await _context.AccountingDocuments
                     .Where(d => !d.IsDeleted && d.IsVerified)
-                    .Select(d => new
-                    {
-                        d.Id,
-                        d.DocumentDate,
-                        d.CurrencyCode,
-                        d.Amount,
-                        d.Description,
-                        d.ReferenceNumber,
-                        d.PayerType,
-                        d.PayerCustomerId,
-                        d.ReceiverType,
-                        d.ReceiverCustomerId
-                    })
+                    .Include(d => d.PayerCustomer)
+                    .Include(d => d.ReceiverCustomer)
+                    .Include(d => d.PayerBankAccount)
+                    .Include(d => d.ReceiverBankAccount)
                     .ToListAsync();
 
                 var allValidOrders = await _context.Orders
                     .Where(o => !o.IsDeleted)
+                    .Include(o => o.Customer)
                     .Include(o => o.FromCurrency)
                     .Include(o => o.ToCurrency)
-                    .Select(o => new
-                    {
-                        o.Id,
-                        o.CustomerId,
-                        o.CreatedAt,
-                        o.FromAmount,
-                        o.ToAmount,
-                        o.Notes,
-                        FromCurrencyCode = o.FromCurrency.Code,
-                        ToCurrencyCode = o.ToCurrency.Code
-                    })
                     .ToListAsync();
 
                 logMessages.Add($"Processing {allValidDocuments.Count} valid documents, {allValidOrders.Count} valid orders, and {manualCustomerRecords.Count} manual customer records for customer balance history...");
 
                 // Create unified transaction items for customers from orders, documents, and manual records
                 var estimatedCapacity = allValidOrders.Count * 2 + allValidDocuments.Count * 2 + manualCustomerRecords.Count;
-                var customerTransactionItems = new List<(int CustomerId, string CurrencyCode, DateTime TransactionDate, string TransactionType, string transactionCode, int? ReferenceId, decimal Amount, string Description)>(estimatedCapacity);
+                var customerTransactionItems = new List<(int CustomerId, string CurrencyCode, DateTime TransactionDate, string TransactionType, string transactionCode, int? ReferenceId, decimal Amount, string Description, string Note)>(estimatedCapacity);
 
                 // Add document transactions
                 // IMPORTANT: Normalize currency codes to UPPERCASE for consistency
@@ -1792,19 +1767,24 @@ namespace ForexExchange.Services
                 {
                     var currencyCode = (d.CurrencyCode ?? "").ToUpperInvariant().Trim();
 
+                    // Use helper to generate English descriptions
+                    var payerDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Payer");
+                    var receiverDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Receiver");
+                    var note = HistoryDescriptionHelper.GenerateDocumentNote(d);
+
                     if (d.PayerType == PayerType.Customer && d.PayerCustomerId.HasValue && d.ReceiverType == ReceiverType.Customer && d.ReceiverCustomerId.HasValue)
                     {
                         // Both sides are customers: create two transactions
-                        customerTransactionItems.Add((d.PayerCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, d.Description ?? string.Empty));
-                        customerTransactionItems.Add((d.ReceiverCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, d.Description ?? string.Empty));
+                        customerTransactionItems.Add((d.PayerCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, payerDescription, note));
+                        customerTransactionItems.Add((d.ReceiverCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, receiverDescription, note));
                     }
                     else
                     {
                         // Single side customer transactions
                         if (d.PayerType == PayerType.Customer && d.PayerCustomerId.HasValue)
-                            customerTransactionItems.Add((d.PayerCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, d.Description ?? string.Empty));
+                            customerTransactionItems.Add((d.PayerCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, payerDescription, note));
                         if (d.ReceiverType == ReceiverType.Customer && d.ReceiverCustomerId.HasValue)
-                            customerTransactionItems.Add((d.ReceiverCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, d.Description ?? string.Empty));
+                            customerTransactionItems.Add((d.ReceiverCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, receiverDescription, note));
                     }
                 }
 
@@ -1812,14 +1792,20 @@ namespace ForexExchange.Services
                 // IMPORTANT: Normalize currency codes to UPPERCASE for consistency
                 foreach (var o in allValidOrders)
                 {
-                    var fromCurrencyCode = (o.FromCurrencyCode ?? "").ToUpperInvariant().Trim();
-                    var toCurrencyCode = (o.ToCurrencyCode ?? "").ToUpperInvariant().Trim();
+                    var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
+                    var toCurrencyCode = (o.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
+
+                    // Use helper to generate English descriptions
+                    var fromDescription = HistoryDescriptionHelper.GenerateOrderDescription(o, fromCurrencyCode, true);
+                    var toDescription = HistoryDescriptionHelper.GenerateOrderDescription(o, toCurrencyCode, false);
+                    var fromNote = HistoryDescriptionHelper.GenerateOrderNote(o, fromCurrencyCode, true);
+                    var toNote = HistoryDescriptionHelper.GenerateOrderNote(o, toCurrencyCode, false);
 
                     // Customer pays FromAmount in FromCurrency
-                    customerTransactionItems.Add((o.CustomerId, fromCurrencyCode, o.CreatedAt, "Order", string.Empty, o.Id, -o.FromAmount, o.Notes ?? string.Empty));
+                    customerTransactionItems.Add((o.CustomerId, fromCurrencyCode, o.CreatedAt, "Order", string.Empty, o.Id, -o.FromAmount, fromDescription, fromNote));
 
                     // Customer receives ToAmount in ToCurrency
-                    customerTransactionItems.Add((o.CustomerId, toCurrencyCode, o.CreatedAt, "Order", string.Empty, o.Id, o.ToAmount, o.Notes ?? string.Empty));
+                    customerTransactionItems.Add((o.CustomerId, toCurrencyCode, o.CreatedAt, "Order", string.Empty, o.Id, o.ToAmount, toDescription, toNote));
                 }
 
                 logMessages.Add($"Manual customer records in database: [{manualCustomerRecords.Count}]");
@@ -1839,7 +1825,8 @@ namespace ForexExchange.Services
                         string.Empty,
                         (int?)manual.Id, // Use existing ID to identify duplicates
                         manual.TransactionAmount,
-                        manual.Description ?? "Manual adjustment"
+                        manual.Description ?? "Manual adjustment",
+                        string.Empty // No note for manual records
                     ));
                 }
                 logMessages.Add($"Customer transaction items after adding manual: [{customerTransactionItems.Count}]");
@@ -1856,7 +1843,8 @@ namespace ForexExchange.Services
                         x.transactionCode,
                         x.ReferenceId,
                         x.Amount,
-                        x.Description
+                        x.Description,
+                        x.Note
                     })
                     .ToList();
 
@@ -1923,8 +1911,10 @@ namespace ForexExchange.Services
                             }
 
                             // For non-manual or new manual records, create new history record
-                            var note = $"{transactionType} - مبلغ: {transaction.Amount} {transaction.CurrencyCode}";
-                            if (!string.IsNullOrEmpty(transaction.transactionCode))
+                            // Use the Note from transaction if available (already formatted correctly)
+                            var note = !string.IsNullOrEmpty(transaction.Note) ? transaction.Note : 
+                                $"{transactionType} - مبلغ: {transaction.Amount} {transaction.CurrencyCode}";
+                            if (string.IsNullOrEmpty(transaction.Note) && !string.IsNullOrEmpty(transaction.transactionCode))
                                 note += $" - شناسه تراکنش: {transaction.transactionCode}";
 
                             customerHistoryRecords.Add(new CustomerBalanceHistory

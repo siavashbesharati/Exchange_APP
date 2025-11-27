@@ -7,6 +7,7 @@ using DNTPersianUtils.Core;
 using ForexExchange.Services.Notifications;
 using Microsoft.AspNetCore.Identity;
 using ForexExchange.Extensions;
+using ForexExchange.Helpers;
 
 namespace ForexExchange.Controllers
 {
@@ -483,7 +484,8 @@ namespace ForexExchange.Controllers
 
                 foreach (var order in orders)
                 {
-                    var note = $"معامله {order.CurrencyPair} - مشتری: {order.Customer?.FullName ?? "نامشخص"} - مقدار: {order.FromAmount:N0} {order.FromCurrency?.Code ?? ""} → {order.ToAmount:N0} {order.ToCurrency?.Code ?? ""} - نرخ: {order.Rate:N4}";
+                    // Use helper to generate English description (for FromCurrency side)
+                    var note = HistoryDescriptionHelper.GenerateOrderDescription(order, order.FromCurrency?.Code ?? "", true);
                     order.Notes = note;
                 }
 
@@ -503,9 +505,8 @@ namespace ForexExchange.Controllers
 
                 foreach (var doc in documents)
                 {
-                    var note = $"{doc.Title} - مبلغ: {doc.Amount:N0} {doc.CurrencyCode} - از: {doc.PayerDisplayText} → به: {doc.ReceiverDisplayText}";
-                    if (!string.IsNullOrEmpty(doc.Description))
-                        note += $" - توضیحات: {doc.Description}";
+                    // Use helper to generate English description (for Payer side)
+                    var note = HistoryDescriptionHelper.GenerateDocumentDescription(doc, "Payer");
                     doc.Notes = note;
                 }
 
@@ -526,15 +527,12 @@ namespace ForexExchange.Controllers
                     var order = orders.FirstOrDefault(o => o.Id == history.ReferenceId);
                     if (order != null)
                     {
-                        // Description includes customer info (from order.Notes)
-                        if (!string.IsNullOrEmpty(order.Notes))
-                        {
-                            history.Description = order.Notes;
-                        }
-
-                        // Note includes transaction details without customer info
-                        var note = $"{order.CurrencyPair} - مقدار: {order.FromAmount:N0} {order.FromCurrency?.Code ?? ""} → {order.ToAmount:N0} {order.ToCurrency?.Code ?? ""} - نرخ: {order.Rate:N4}";
-                        history.Note = note;
+                        // Determine if this is FromCurrency or ToCurrency transaction
+                        var isFromCurrency = history.CurrencyCode?.ToUpperInvariant().Trim() == (order.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
+                        
+                        // Use helper to generate English descriptions
+                        history.Description = HistoryDescriptionHelper.GenerateOrderDescription(order, history.CurrencyCode ?? "", isFromCurrency);
+                        history.Note = HistoryDescriptionHelper.GenerateOrderNote(order, history.CurrencyCode ?? "", isFromCurrency);
                     }
                 }
 
@@ -548,18 +546,12 @@ namespace ForexExchange.Controllers
                     var document = documents.FirstOrDefault(d => d.Id == history.ReferenceId);
                     if (document != null)
                     {
-                        // Description includes customer info (from document.Notes)
-                        if (!string.IsNullOrEmpty(document.Notes))
-                        {
-                            history.Description = document.Notes;
-                        }
-
-                        // Note includes transaction details without customer info
-                        var note = $"{document.Type.GetDisplayName()} - مبلغ: {document.Amount:N0} {document.CurrencyCode}";
-                        if (!string.IsNullOrEmpty(document.ReferenceNumber))
-                            note += $" - شناسه تراکنش: {document.ReferenceNumber}";
-
-                        history.Note = note;
+                        // Determine role based on transaction amount (positive = Payer, negative = Receiver)
+                        var role = history.TransactionAmount > 0 ? "Payer" : "Receiver";
+                        
+                        // Use helper to generate English descriptions
+                        history.Description = HistoryDescriptionHelper.GenerateDocumentDescription(document, role);
+                        history.Note = HistoryDescriptionHelper.GenerateDocumentNote(document);
                     }
                 }
 
@@ -576,31 +568,17 @@ namespace ForexExchange.Controllers
 
                 foreach (var history in poolHistoryRecords)
                 {
-                    var description = "";
+                    // Use helper to generate English description
+                    var order = history.ReferenceId.HasValue 
+                        ? orders.FirstOrDefault(o => o.Id == history.ReferenceId.Value) 
+                        : null;
                     
-                    if (history.PoolTransactionType == "Buy")
-                    {
-                        description = $"خرید {history.CurrencyCode} - مقدار: {Math.Abs(history.TransactionAmount):N0} {history.CurrencyCode}";
-                    }
-                    else if (history.PoolTransactionType == "Sell")
-                    {
-                        description = $"فروش {history.CurrencyCode} - مقدار: {Math.Abs(history.TransactionAmount):N0} {history.CurrencyCode}";
-                    }
-                    else
-                    {
-                        description = $"تراکنش {history.CurrencyCode} - مقدار: {history.TransactionAmount:N0} {history.CurrencyCode}";
-                    }
-                    
-                    if (history.ReferenceId.HasValue)
-                    {
-                        var order = orders.FirstOrDefault(o => o.Id == history.ReferenceId.Value);
-                        if (order != null)
-                        {
-                            description += $" - معامله #{order.Id} - نرخ: {order.Rate:N4}";
-                        }
-                    }
-                    
-                    history.Description = description;
+                    history.Description = HistoryDescriptionHelper.GeneratePoolHistoryDescription(
+                        history.CurrencyCode ?? "",
+                        history.TransactionAmount,
+                        history.PoolTransactionType ?? "",
+                        history.ReferenceId,
+                        order?.Rate);
                 }
 
                 var poolHistoryUpdated = await _context.SaveChangesAsync();
@@ -617,36 +595,21 @@ namespace ForexExchange.Controllers
 
                 foreach (var history in bankHistoryRecords)
                 {
-                    var description = "";
-                    var currencyCode = history.BankAccount?.CurrencyCode ?? "نامشخص";
-                    
                     if (history.ReferenceId.HasValue)
                     {
                         var document = documents.FirstOrDefault(d => d.Id == history.ReferenceId.Value);
                         if (document != null)
                         {
-                            description = $"{document.Title} - مبلغ: {document.Amount:N0} {document.CurrencyCode}";
-                            if (!string.IsNullOrEmpty(document.ReferenceNumber))
-                            {
-                                description += $" - شناسه: {document.ReferenceNumber}";
-                            }
-                            if (history.BankAccount != null)
-                            {
-                                description += $" - حساب: {history.BankAccount.BankName}";
-                            }
+                            // Use helper to generate English description
+                            history.Description = HistoryDescriptionHelper.GenerateBankHistoryDescription(document, history.BankAccount);
                         }
                     }
                     else
                     {
                         // Manual transaction
-                        description = $"تعدیل دستی - مبلغ: {history.TransactionAmount:N0} {currencyCode}";
-                        if (history.BankAccount != null)
-                        {
-                            description += $" - حساب: {history.BankAccount.BankName}";
-                        }
+                        var reason = history.Description ?? "Manual adjustment";
+                        history.Description = HistoryDescriptionHelper.GenerateManualDescription(reason, history.TransactionAmount, history.BankAccount?.CurrencyCode ?? "");
                     }
-                    
-                    history.Description = description;
                 }
 
                 var bankHistoryUpdated = await _context.SaveChangesAsync();
