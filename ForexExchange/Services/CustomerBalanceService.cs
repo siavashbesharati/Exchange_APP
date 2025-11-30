@@ -16,9 +16,32 @@ namespace ForexExchange.Services
 
         public async Task<CustomerBalance> GetCustomerBalanceAsync(int customerId, string currencyCode)
         {
-            var balance = await _context.CustomerBalances
-                .Include(b => b.Customer)
-                .FirstOrDefaultAsync(b => b.CustomerId == customerId && b.CurrencyCode == currencyCode);
+            // Get CurrencyId from CurrencyCode
+            var currency = await _context.Currencies
+                .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+
+            CustomerBalance? balance = null;
+            if (currency != null)
+            {
+                // Try to find by CurrencyId first (preferred)
+                balance = await _context.CustomerBalances
+                    .Include(b => b.Customer)
+                    .Include(b => b.Currency)
+                    .FirstOrDefaultAsync(b => b.CustomerId == customerId && b.CurrencyId == currency.Id);
+            }
+
+            // Fallback to CurrencyCode lookup if not found
+            if (balance == null)
+            {
+                var normalizedCode = currencyCode.ToUpperInvariant().Trim();
+                var balances = await _context.CustomerBalances
+                    .Include(b => b.Customer)
+                    .Include(b => b.Currency)
+                    .Where(b => b.CustomerId == customerId)
+                    .ToListAsync();
+                balance = balances.FirstOrDefault(b => 
+                    (b.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCode);
+            }
 
             if (balance == null)
             {
@@ -26,6 +49,7 @@ namespace ForexExchange.Services
                 balance = new CustomerBalance
                 {
                     CustomerId = customerId,
+                    CurrencyId = currency?.Id,
                     CurrencyCode = currencyCode,
                     Balance = 0,
                     LastUpdated = DateTime.Now
@@ -36,7 +60,14 @@ namespace ForexExchange.Services
                 // Re-query to get navigation properties
                 balance = await _context.CustomerBalances
                     .Include(b => b.Customer)
+                    .Include(b => b.Currency)
                     .FirstAsync(b => b.Id == balance.Id);
+            }
+            else if (currency != null && !balance.CurrencyId.HasValue)
+            {
+                // Ensure CurrencyId is set
+                balance.CurrencyId = currency.Id;
+                await _context.SaveChangesAsync();
             }
 
             return balance;

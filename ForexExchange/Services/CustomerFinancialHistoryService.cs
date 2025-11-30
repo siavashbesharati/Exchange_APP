@@ -54,10 +54,24 @@ namespace ForexExchange.Services
                                h.TransactionDate <= validToDate &&
                                !h.IsDeleted); // EXCLUDE ONLY DELETED RECORDS FOR REPORTING
 
-                // Apply currency filter if specified
+                // Apply currency filter if specified - prioritize CurrencyId over CurrencyCode
                 if (!string.IsNullOrEmpty(currencyCode))
                 {
-                    historyQuery = historyQuery.Where(h => h.CurrencyCode == currencyCode);
+                    // Try to find CurrencyId from CurrencyCode for better performance
+                    var currency = await _context.Currencies
+                        .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                    
+                    if (currency != null)
+                    {
+                        // Use CurrencyId if available, otherwise fallback to CurrencyCode
+                        historyQuery = historyQuery.Where(h => h.CurrencyId == currency.Id || 
+                                                              (h.CurrencyId == null && h.CurrencyCode == currencyCode));
+                    }
+                    else
+                    {
+                        // Fallback to CurrencyCode if currency not found
+                        historyQuery = historyQuery.Where(h => h.CurrencyCode == currencyCode);
+                    }
                 }
 
                 var historyRecords = await historyQuery

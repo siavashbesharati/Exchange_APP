@@ -502,6 +502,17 @@ namespace ForexExchange.Controllers
                 {
                     accountingDocument.CreatedAt = DateTime.Now;
 
+                    // Set CurrencyId from CurrencyCode if not already set
+                    if (!accountingDocument.CurrencyId.HasValue && !string.IsNullOrEmpty(accountingDocument.CurrencyCode))
+                    {
+                        var currency = await _context.Currencies
+                            .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == accountingDocument.CurrencyCode.ToUpperInvariant().Trim());
+                        if (currency != null)
+                        {
+                            accountingDocument.CurrencyId = currency.Id;
+                        }
+                    }
+
                     // Handle file upload only if a file is provided
                     if (documentFile != null && documentFile.Length > 0)
                     {
@@ -718,6 +729,17 @@ namespace ForexExchange.Controllers
                     if (existingDocument == null)
                     {
                         return NotFound();
+                    }
+
+                    // Set CurrencyId from CurrencyCode if not already set
+                    if (!accountingDocument.CurrencyId.HasValue && !string.IsNullOrEmpty(accountingDocument.CurrencyCode))
+                    {
+                        var currency = await _context.Currencies
+                            .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == accountingDocument.CurrencyCode.ToUpperInvariant().Trim());
+                        if (currency != null)
+                        {
+                            accountingDocument.CurrencyId = currency.Id;
+                        }
                     }
 
                     // Handle file upload if a new file is provided

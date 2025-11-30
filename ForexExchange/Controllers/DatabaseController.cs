@@ -346,13 +346,23 @@ namespace ForexExchange.Controllers
                 var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == customerId);
                 var customerName = customer?.FullName ?? $"مشتری {customerId}";
 
+                // Resolve CurrencyId from CurrencyCode - use CurrencyId directly (this is why we did the refactoring!)
+                var currency = await _context.Currencies
+                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                if (currency == null)
+                {
+                    TempData["Error"] = $"ارز با کد {currencyCode} یافت نشد";
+                    return RedirectToAction("Index");
+                }
+
                 // Get current user for notification exclusion
                 var currentUser = await _userManager.GetUserAsync(User);
 
                 // Create the manual history record with notification handling in service layer
+                // Use CurrencyId directly - this is why we did the refactoring!
                 await _centralFinancialService.CreateManualCustomerBalanceHistoryAsync(
                     customerId: customerId,
-                    currencyCode: currencyCode,
+                    currencyId: currency.Id,
                     amount: amount,
                     reason: reason,
                     transactionDate: transactionDate,
@@ -563,6 +573,7 @@ namespace ForexExchange.Controllers
                     .Where(h => h.TransactionType == CustomerBalanceTransactionType.AccountingDocument && !h.IsDeleted)
                     .ToListAsync();
 
+                int historyRecordsWithDocumentDescription = 0;
                 foreach (var history in documentHistoryRecords)
                 {
                     var document = documents.FirstOrDefault(d => d.Id == history.ReferenceId);
@@ -572,13 +583,79 @@ namespace ForexExchange.Controllers
                         var role = history.TransactionAmount > 0 ? "Payer" : "Receiver";
                         
                         // Use helper to generate English descriptions
-                        history.Description = HistoryDescriptionHelper.GenerateDocumentDescription(document, role);
-                        history.Note = HistoryDescriptionHelper.GenerateDocumentNote(document);
+                        var description = HistoryDescriptionHelper.GenerateDocumentDescription(document, role);
+                        var note = HistoryDescriptionHelper.GenerateDocumentNote(document);
+                        
+                        // If document has Description, append it to both Description and Note in CustomerBalanceHistory
+                        if (!string.IsNullOrWhiteSpace(document.Description))
+                        {
+                            if (!string.IsNullOrWhiteSpace(description))
+                            {
+                                history.Description = $"{description}\n\nDescription: {document.Description}";
+                            }
+                            else
+                            {
+                                history.Description = $"Description: {document.Description}";
+                            }
+                            
+                            if (!string.IsNullOrWhiteSpace(note))
+                            {
+                                history.Note = $"{note}\n\nDescription: {document.Description}";
+                            }
+                            else
+                            {
+                                history.Note = $"Description: {document.Description}";
+                            }
+                            
+                            historyRecordsWithDocumentDescription++;
+                        }
+                        else
+                        {
+                            history.Description = description;
+                            history.Note = note;
+                        }
                     }
+                }
+
+                // Update descriptions for Manual transactions
+                var manualHistoryRecords = await _context.CustomerBalanceHistory
+                    .Where(h => h.TransactionType == CustomerBalanceTransactionType.Manual && !h.IsDeleted)
+                    .ToListAsync();
+
+                int manualRecordsUpdated = 0;
+                foreach (var history in manualHistoryRecords)
+                {
+                    // Use helper to generate English descriptions for manual adjustments
+                    var description = HistoryDescriptionHelper.GenerateManualDescription(
+                        history.Description ?? "Manual adjustment",
+                        history.TransactionAmount,
+                        history.CurrencyCode ?? "");
+                    
+                    var note = $"Manual Adjustment - Amount: {history.TransactionAmount.FormatCurrency(history.CurrencyCode ?? "")} {history.CurrencyCode ?? ""}";
+                    if (!string.IsNullOrWhiteSpace(history.Description))
+                    {
+                        note += $" | Reason: {history.Description}";
+                    }
+                    if (!string.IsNullOrWhiteSpace(history.TransactionNumber))
+                    {
+                        note += $" | Transaction ID: {history.TransactionNumber}";
+                    }
+                    
+                    history.Description = description;
+                    history.Note = note;
+                    manualRecordsUpdated++;
                 }
 
                 var historyUpdated = await _context.SaveChangesAsync();
                 logMessages.Add($"✓ Updated {historyUpdated} customer balance history descriptions");
+                if (historyRecordsWithDocumentDescription > 0)
+                {
+                    logMessages.Add($"  → {historyRecordsWithDocumentDescription} history records had document Description field that was added to both Description and Note");
+                }
+                if (manualRecordsUpdated > 0)
+                {
+                    logMessages.Add($"  → {manualRecordsUpdated} manual adjustment records updated with English descriptions");
+                }
 
                 // STEP 4: Update CurrencyPoolHistory Descriptions
                 logMessages.Add("");

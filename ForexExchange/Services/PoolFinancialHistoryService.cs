@@ -27,10 +27,24 @@ namespace ForexExchange.Services
             // Build query for CurrencyPoolHistory - EXCLUDE ONLY DELETED RECORDS FOR REPORTING
             var query = _context.CurrencyPoolHistory.Where(h => !h.IsDeleted);
 
-            // Apply currency filter
+            // Apply currency filter - prioritize CurrencyId over CurrencyCode
             if (!string.IsNullOrEmpty(currencyCode))
             {
-                query = query.Where(h => h.CurrencyCode == currencyCode);
+                // Try to find CurrencyId from CurrencyCode for better performance
+                var currency = await _context.Currencies
+                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                
+                if (currency != null)
+                {
+                    // Use CurrencyId if available, otherwise fallback to CurrencyCode
+                    query = query.Where(h => h.CurrencyId == currency.Id || 
+                                            (h.CurrencyId == null && h.CurrencyCode == currencyCode));
+                }
+                else
+                {
+                    // Fallback to CurrencyCode if currency not found
+                    query = query.Where(h => h.CurrencyCode == currencyCode);
+                }
             }
 
             // Apply date filter
@@ -80,7 +94,21 @@ namespace ForexExchange.Services
 
             if (!string.IsNullOrEmpty(currencyCode))
             {
-                query = query.Where(h => h.CurrencyCode == currencyCode);
+                // Try to find CurrencyId from CurrencyCode for better performance
+                var currency = await _context.Currencies
+                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                
+                if (currency != null)
+                {
+                    // Use CurrencyId if available, otherwise fallback to CurrencyCode
+                    query = query.Where(h => h.CurrencyId == currency.Id || 
+                                            (h.CurrencyId == null && h.CurrencyCode == currencyCode));
+                }
+                else
+                {
+                    // Fallback to CurrencyCode if currency not found
+                    query = query.Where(h => h.CurrencyCode == currencyCode);
+                }
             }
 
             var today = DateTime.Today;
@@ -88,10 +116,31 @@ namespace ForexExchange.Services
             var todayTransactions = await query.CountAsync(h => h.TransactionDate.Date == today);
 
             // Get current balance from latest record for each currency
-            var latestBalances = await _context.CurrencyPoolHistory
+            // Use CurrencyId grouping when available, fallback to CurrencyCode
+            var latestBalancesQuery = _context.CurrencyPoolHistory
                 .AsNoTracking()
-                .Where(h => !h.IsDeleted && (string.IsNullOrEmpty(currencyCode) || h.CurrencyCode == currencyCode))
-                .GroupBy(h => h.CurrencyCode)
+                .Include(h => h.Currency)
+                .Where(h => !h.IsDeleted);
+            
+            if (!string.IsNullOrEmpty(currencyCode))
+            {
+                var currency = await _context.Currencies
+                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                
+                if (currency != null)
+                {
+                    latestBalancesQuery = latestBalancesQuery.Where(h => 
+                        h.CurrencyId == currency.Id || 
+                        (h.CurrencyId == null && h.CurrencyCode == currencyCode));
+                }
+                else
+                {
+                    latestBalancesQuery = latestBalancesQuery.Where(h => h.CurrencyCode == currencyCode);
+                }
+            }
+            
+            var latestBalances = await latestBalancesQuery
+                .GroupBy(h => h.CurrencyId.HasValue && h.Currency != null ? h.Currency.Code : h.CurrencyCode)
                 .Select(g => new
                 {
                     CurrencyCode = g.Key,

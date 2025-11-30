@@ -31,12 +31,24 @@ namespace ForexExchange.Models
         public BankAccount BankAccount { get; set; } = null!;
 
         /// <summary>
+        /// Navigation property to Currency
+        /// خاصیت ناوبری به ارز
+        /// </summary>
+        public Currency? Currency { get; set; }
+
+        /// <summary>
         /// Currency code
         /// کد ارز
         /// </summary>
         [Required]
         [StringLength(3)]
         public string CurrencyCode { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Currency ID reference
+        /// شناسه ارز مرجع
+        /// </summary>
+        public int? CurrencyId { get; set; }
 
         /// <summary>
         /// Current balance amount

@@ -314,22 +314,47 @@ namespace ForexExchange.Services
 
             // Count active buy orders from CurrencyPoolHistory
             // Buy orders are transactions where TransactionAmount > 0 (exchange is buying/receiving this currency)
-            var activeBuyOrders = await _context.CurrencyPoolHistory
-                .Where(h => h.CurrencyCode == currencyCode &&
-                           h.TransactionType == CurrencyPoolTransactionType.Order &&
+            // Use CurrencyId (preferred) or CurrencyCode (fallback)
+            var activeBuyOrdersQuery = _context.CurrencyPoolHistory
+                .Where(h => h.TransactionType == CurrencyPoolTransactionType.Order &&
                            !h.IsDeleted &&
-                           h.TransactionAmount > 0) // Positive = Pool increase = Exchange buying
+                           h.TransactionAmount > 0); // Positive = Pool increase = Exchange buying
+
+            if (pool.CurrencyId > 0)
+            {
+                activeBuyOrdersQuery = activeBuyOrdersQuery.Where(h => h.CurrencyId == pool.CurrencyId);
+            }
+            else if (!string.IsNullOrEmpty(currencyCode))
+            {
+                var normalizedCode = currencyCode.ToUpperInvariant().Trim();
+                activeBuyOrdersQuery = activeBuyOrdersQuery.Where(h => 
+                    (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCode);
+            }
+
+            var activeBuyOrders = await activeBuyOrdersQuery
                 .Select(h => h.ReferenceId)
                 .Distinct()
                 .CountAsync();
 
             // Count active sell orders from CurrencyPoolHistory  
             // Sell orders are transactions where TransactionAmount < 0 (exchange is selling/giving this currency)
-            var activeSellOrders = await _context.CurrencyPoolHistory
-                .Where(h => h.CurrencyCode == currencyCode &&
-                           h.TransactionType == CurrencyPoolTransactionType.Order &&
+            var activeSellOrdersQuery = _context.CurrencyPoolHistory
+                .Where(h => h.TransactionType == CurrencyPoolTransactionType.Order &&
                            !h.IsDeleted &&
-                           h.TransactionAmount < 0) // Negative = Pool decrease = Exchange selling
+                           h.TransactionAmount < 0); // Negative = Pool decrease = Exchange selling
+
+            if (pool.CurrencyId > 0)
+            {
+                activeSellOrdersQuery = activeSellOrdersQuery.Where(h => h.CurrencyId == pool.CurrencyId);
+            }
+            else if (!string.IsNullOrEmpty(currencyCode))
+            {
+                var normalizedCode = currencyCode.ToUpperInvariant().Trim();
+                activeSellOrdersQuery = activeSellOrdersQuery.Where(h => 
+                    (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCode);
+            }
+
+            var activeSellOrders = await activeSellOrdersQuery
                 .Select(h => h.ReferenceId)
                 .Distinct()
                 .CountAsync();
@@ -454,13 +479,21 @@ namespace ForexExchange.Services
         {
             try
             {
-                // Get the currency for this document
-                var currency = await _context.Currencies
-                    .FirstOrDefaultAsync(c => c.Code == document.CurrencyCode);
+                // Get the currency for this document - prefer CurrencyId, fallback to CurrencyCode
+                Currency? currency = null;
+                if (document.CurrencyId.HasValue)
+                {
+                    currency = await _context.Currencies.FindAsync(document.CurrencyId.Value);
+                }
+                else if (!string.IsNullOrEmpty(document.CurrencyCode))
+                {
+                    currency = await _context.Currencies
+                        .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == document.CurrencyCode.ToUpperInvariant().Trim());
+                }
 
                 if (currency == null)
                 {
-                    _logger.LogWarning($"Currency not found for code {document.CurrencyCode}");
+                    _logger.LogWarning($"Currency not found for CurrencyId={document.CurrencyId}, CurrencyCode={document.CurrencyCode}");
                     return;
                 }
 

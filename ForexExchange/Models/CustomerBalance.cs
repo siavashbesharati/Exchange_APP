@@ -21,6 +21,9 @@ namespace ForexExchange.Models
         [Display(Name = "Currency Code - کد ارز")]
         public string CurrencyCode { get; set; } = string.Empty;
 
+        [Display(Name = "Currency ID - شناسه ارز")]
+        public int? CurrencyId { get; set; }
+
         [Required]
         [Column(TypeName = "decimal(18,2)")]
         [Display(Name = "Balance - موجودی")]
@@ -36,6 +39,9 @@ namespace ForexExchange.Models
         // Navigation properties
         [Display(Name = "Customer - مشتری")]
         public Customer Customer { get; set; } = null!;
+
+        [Display(Name = "Currency - ارز")]
+        public Currency? Currency { get; set; }
 
         // Helper properties
         public bool IsDebt => Balance < 0;

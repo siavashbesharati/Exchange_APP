@@ -1,4 +1,5 @@
 using ForexExchange.Models;
+using ForexExchange.Extensions;
 
 namespace ForexExchange.Helpers
 {
@@ -22,12 +23,12 @@ namespace ForexExchange.Helpers
             if (isFromCurrency)
             {
                 // Customer sends FromCurrency (negative transaction)
-                return $"SEND {order.FromAmount:N0} {fromCurrencyCode} at rate {order.Rate:N4} to {customerName}, RECEIVE {order.ToAmount:N2} {toCurrencyCode} | ID {order.Id}";
+                return $"SEND {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} at rate {order.Rate:N4} to {customerName}, RECEIVE {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode} | ID {order.Id}";
             }
             else
             {
                 // Customer receives ToCurrency (positive transaction)
-                return $"RECEIVE {order.ToAmount:N2} {toCurrencyCode} from {customerName}, SEND {order.FromAmount:N0} {fromCurrencyCode} at rate {order.Rate:N4} | ID {order.Id}";
+                return $"RECEIVE {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode} from {customerName}, SEND {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} at rate {order.Rate:N4} | ID {order.Id}";
             }
         }
 
@@ -44,11 +45,11 @@ namespace ForexExchange.Helpers
 
             if (isFromCurrency)
             {
-                return $"SEND {order.FromAmount:N0} {fromCurrencyCode} at rate {order.Rate:N4}, RECEIVE {order.ToAmount:N2} {toCurrencyCode} | ID {order.Id}";
+                return $"SEND {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} at rate {order.Rate:N4}, RECEIVE {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode} | ID {order.Id}";
             }
             else
             {
-                return $"RECEIVE {order.ToAmount:N2} {toCurrencyCode}, SEND {order.FromAmount:N0} {fromCurrencyCode} at rate {order.Rate:N4} | ID {order.Id}";
+                return $"RECEIVE {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode}, SEND {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} at rate {order.Rate:N4} | ID {order.Id}";
             }
         }
 
@@ -71,7 +72,7 @@ namespace ForexExchange.Helpers
                         ? $"{document.ReceiverBankAccount?.BankName ?? "Bank"} ({document.ReceiverBankAccount?.AccountNumber ?? ""})"
                         : "System";
 
-                return $"RECEIVE {amount:N0} {currencyCode} from {title} | To: {receiverName}";
+                return $"RECEIVE {amount.FormatCurrency(currencyCode)} {currencyCode} from {title} | To: {receiverName}";
             }
             else // Receiver
             {
@@ -82,7 +83,7 @@ namespace ForexExchange.Helpers
                         ? $"{document.PayerBankAccount?.BankName ?? "Bank"} ({document.PayerBankAccount?.AccountNumber ?? ""})"
                         : "System";
 
-                return $"SEND {amount:N0} {currencyCode} to {title} | From: {payerName}";
+                return $"SEND {amount.FormatCurrency(currencyCode)} {currencyCode} to {title} | From: {payerName}";
             }
         }
 
@@ -96,7 +97,7 @@ namespace ForexExchange.Helpers
             var documentType = document.Type.ToString();
             var amount = document.Amount;
             var currencyCode = document.CurrencyCode;
-            var note = $"{documentType} - Amount: {amount:N0} {currencyCode}";
+            var note = $"{documentType} - Amount: {amount.FormatCurrency(currencyCode)} {currencyCode}";
 
             if (!string.IsNullOrEmpty(document.ReferenceNumber))
             {
@@ -117,15 +118,15 @@ namespace ForexExchange.Helpers
 
             if (poolTransactionType == "Buy")
             {
-                description = $"BUY {amount:N0} {currencyCode}";
+                description = $"BUY {amount.FormatCurrency(currencyCode)} {currencyCode}";
             }
             else if (poolTransactionType == "Sell")
             {
-                description = $"SELL {amount:N0} {currencyCode}";
+                description = $"SELL {amount.FormatCurrency(currencyCode)} {currencyCode}";
             }
             else
             {
-                description = $"TRANSACTION {transactionAmount:N0} {currencyCode}";
+                description = $"TRANSACTION {transactionAmount.FormatCurrency(currencyCode)} {currencyCode}";
             }
 
             if (orderId.HasValue && rate.HasValue)
@@ -148,7 +149,7 @@ namespace ForexExchange.Helpers
             var bankName = bankAccount?.BankName ?? "Unknown Bank";
             var accountNumber = bankAccount?.AccountNumber ?? "";
 
-            return $"{title} - Amount: {amount:N0} {currencyCode} - Account: {bankName} ({accountNumber})";
+            return $"{title} - Amount: {amount.FormatCurrency(currencyCode)} {currencyCode} - Account: {bankName} ({accountNumber})";
         }
 
         /// <summary>
@@ -156,7 +157,7 @@ namespace ForexExchange.Helpers
         /// </summary>
         public static string GenerateManualDescription(string reason, decimal amount, string currencyCode)
         {
-            return $"MANUAL ADJUSTMENT - {reason} | Amount: {amount:N0} {currencyCode}";
+            return $"MANUAL ADJUSTMENT - {reason} | Amount: {amount.FormatCurrency(currencyCode)} {currencyCode}";
         }
     }
 }

@@ -35,9 +35,12 @@ namespace ForexExchange.Models
         public virtual ICollection<ExchangeRate> LegacyRates { get; set; } = new List<ExchangeRate>();
         public virtual ICollection<Order> FromCurrencyOrders { get; set; } = new List<Order>();
         public virtual ICollection<Order> ToCurrencyOrders { get; set; } = new List<Order>();
-        // TODO: Add AccountingDocument navigation properties for new architecture
-        // public virtual ICollection<AccountingDocument> FromCurrencyDocuments { get; set; } = new List<AccountingDocument>();
-        // public virtual ICollection<AccountingDocument> ToCurrencyDocuments { get; set; } = new List<AccountingDocument>();
+        public virtual ICollection<AccountingDocument> CurrencyDocuments { get; set; } = new List<AccountingDocument>();
+        public virtual ICollection<CustomerBalance> CustomerBalances { get; set; } = new List<CustomerBalance>();
+        public virtual ICollection<CustomerBalanceHistory> CustomerBalanceHistories { get; set; } = new List<CustomerBalanceHistory>();
+        public virtual ICollection<CurrencyPoolHistory> CurrencyPoolHistories { get; set; } = new List<CurrencyPoolHistory>();
+        public virtual ICollection<BankAccount> BankAccounts { get; set; } = new List<BankAccount>();
+        public virtual ICollection<BankAccountBalance> BankAccountBalances { get; set; } = new List<BankAccountBalance>();
         public virtual ICollection<CurrencyPool> CurrencyPools { get; set; } = new List<CurrencyPool>();
     }
 }

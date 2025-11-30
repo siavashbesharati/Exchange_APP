@@ -28,6 +28,7 @@ namespace ForexExchange.Services
             return new BankAccountBalance
             {
                 BankAccountId = bankAccountId,
+                CurrencyId = bankAccount.CurrencyId,
                 CurrencyCode = bankAccount.CurrencyCode,
                 Balance = bankAccount.AccountBalance,
                 LastUpdated = bankAccount.LastModified ?? bankAccount.CreatedAt,
@@ -47,6 +48,7 @@ namespace ForexExchange.Services
                 new BankAccountBalance
                 {
                     BankAccountId = bankAccountId,
+                    CurrencyId = bankAccount.CurrencyId,
                     CurrencyCode = bankAccount.CurrencyCode,
                     Balance = bankAccount.AccountBalance,
                     LastUpdated = bankAccount.LastModified ?? bankAccount.CreatedAt,

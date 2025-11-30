@@ -62,7 +62,7 @@ namespace ForexExchange.Services
         /// After creating manual records, use RecalculateAllBalancesFromTransactionDatesAsync to ensure coherence.
         /// Automatically sends notifications to admin users (excluding the performing user).
         /// </summary>
-        Task CreateManualCustomerBalanceHistoryAsync(int customerId, string currencyCode, decimal amount,
+        Task CreateManualCustomerBalanceHistoryAsync(int customerId, int currencyId, decimal amount,
             string reason, DateTime transactionDate, string performedBy = "Manual Entry", string? transactionNumber = null, string? performingUserId = null);
 
         /// <summary>
@@ -79,7 +79,7 @@ namespace ForexExchange.Services
         /// After creating manual records, use RecalculateAllBalancesFromTransactionDatesAsync to ensure coherence.
         /// Automatically sends notifications to admin users (excluding the performing user).
         /// </summary>
-        Task CreateManualPoolBalanceHistoryAsync(string currencyCode, decimal adjustmentAmount,
+        Task CreateManualPoolBalanceHistoryAsync(int currencyId, decimal adjustmentAmount,
             string reason, DateTime transactionDate, string performedBy = "Manual Entry", string? transactionNumber = null, string? performingUserId = null);
 
         /// <summary>

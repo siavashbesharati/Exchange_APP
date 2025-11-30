@@ -138,7 +138,13 @@ namespace ForexExchange.Models
                       .WithMany(c => c.Balances)
                       .HasForeignKey(e => e.CustomerId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Currency)
+                      .WithMany(c => c.CustomerBalances)
+                      .HasForeignKey(e => e.CurrencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                // Keep both indexes for backward compatibility during migration
                 entity.HasIndex(e => new { e.CustomerId, e.CurrencyCode }).IsUnique();
+                entity.HasIndex(e => new { e.CustomerId, e.CurrencyId }).IsUnique().HasFilter("[CurrencyId] IS NOT NULL");
             });
             
             // ExchangeRate configurations - Updated for cross-currency support
@@ -220,6 +226,10 @@ namespace ForexExchange.Models
                       .WithMany(e => e.BankAccounts)
                       .HasForeignKey(e => e.CustomerId)
                       .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Currency)
+                      .WithMany(c => c.BankAccounts)
+                      .HasForeignKey(e => e.CurrencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
                 entity.Property(e => e.BankName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.AccountNumber).IsRequired().HasMaxLength(50);
                 entity.Property(e => e.AccountHolderName).IsRequired().HasMaxLength(100);
@@ -244,7 +254,13 @@ namespace ForexExchange.Models
                       .WithMany()
                       .HasForeignKey(e => e.BankAccountId)
                       .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Currency)
+                      .WithMany(c => c.BankAccountBalances)
+                      .HasForeignKey(e => e.CurrencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                // Keep both indexes for backward compatibility during migration
                 entity.HasIndex(e => new { e.BankAccountId, e.CurrencyCode }).IsUnique();
+                entity.HasIndex(e => new { e.BankAccountId, e.CurrencyId }).IsUnique().HasFilter("[CurrencyId] IS NOT NULL");
             });
 
             // AccountingDocument configurations
@@ -282,12 +298,19 @@ namespace ForexExchange.Models
                       .WithMany()
                       .HasForeignKey(e => e.ReceiverBankAccountId)
                       .OnDelete(DeleteBehavior.Restrict);
+                
+                // Configure Currency relationship
+                entity.HasOne(e => e.Currency)
+                      .WithMany(c => c.CurrencyDocuments)
+                      .HasForeignKey(e => e.CurrencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
                       
                 // Indexes for performance
                 entity.HasIndex(e => e.PayerCustomerId);
                 entity.HasIndex(e => e.ReceiverCustomerId);
                 entity.HasIndex(e => e.PayerBankAccountId);
                 entity.HasIndex(e => e.ReceiverBankAccountId);
+                entity.HasIndex(e => e.CurrencyId);
                 entity.HasIndex(e => e.DocumentDate);
                 entity.HasIndex(e => e.IsVerified);
                 entity.HasIndex(e => e.Type);
@@ -420,6 +443,17 @@ namespace ForexExchange.Models
                       .WithMany()
                       .HasForeignKey(e => e.CustomerId)
                       .OnDelete(DeleteBehavior.Restrict);
+                
+                // Foreign key to Currency
+                entity.HasOne(e => e.Currency)
+                      .WithMany(c => c.CustomerBalanceHistories)
+                      .HasForeignKey(e => e.CurrencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                
+                // Update indexes to include CurrencyId
+                entity.HasIndex(e => new { e.CustomerId, e.CurrencyId, e.TransactionDate, e.Id })
+                      .HasDatabaseName("IX_CustomerBalanceHistory_Customer_CurrencyId_Latest")
+                      .HasFilter("[CurrencyId] IS NOT NULL");
             });
 
             // CurrencyPoolHistory configurations
@@ -445,6 +479,17 @@ namespace ForexExchange.Models
                 // PERFORMANCE OPTIMIZATION: Index for filtering by TransactionType and IsDeleted (used in rebuild)
                 entity.HasIndex(e => new { e.TransactionType, e.IsDeleted })
                       .HasDatabaseName("IX_CurrencyPoolHistory_Type_Deleted");
+                
+                // Foreign key to Currency
+                entity.HasOne(e => e.Currency)
+                      .WithMany(c => c.CurrencyPoolHistories)
+                      .HasForeignKey(e => e.CurrencyId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                
+                // Update indexes to include CurrencyId
+                entity.HasIndex(e => new { e.CurrencyId, e.TransactionDate, e.Id })
+                      .HasDatabaseName("IX_CurrencyPoolHistory_CurrencyId_Latest")
+                      .HasFilter("[CurrencyId] IS NOT NULL");
             });
 
             // BankAccountBalanceHistory configurations

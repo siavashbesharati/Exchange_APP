@@ -203,25 +203,27 @@ namespace ForexExchange.Services
         {
             var list = new List<CurrencyBalance>();
 
-            // TODO: Replace with CustomerBalance queries
+            // Load balances with Currency navigation property for better performance
             var balances = await _context.CustomerBalances
+                .Include(b => b.Currency)
                 .Where(b => b.CustomerId == customerId)
                 .ToListAsync();
 
             if (!balances.Any()) return list;
 
-            // Get currency names
-            var currencyNames = await _context.Currencies
-                .ToDictionaryAsync(c => c.Code, c => c.PersianName);
-
             foreach (var b in balances)
             {
-                currencyNames.TryGetValue(b.CurrencyCode, out var persianName);
+                // Use Currency navigation property if available, otherwise fallback to CurrencyCode lookup
+                var currencyCode = b.CurrencyCode;
+                var persianName = b.Currency?.PersianName ?? 
+                                 (await _context.Currencies
+                                     .FirstOrDefaultAsync(c => c.Code == b.CurrencyCode))?.PersianName ?? 
+                                 currencyCode;
                 
                 list.Add(new CurrencyBalance
                 {
-                    CurrencyCode = b.CurrencyCode,
-                    CurrencyName = persianName ?? b.CurrencyCode,
+                    CurrencyCode = currencyCode,
+                    CurrencyName = persianName,
                     Balance = b.Balance,
                     DebtAmount = b.Balance < 0 ? Math.Abs(b.Balance) : 0,
                     CreditAmount = b.Balance > 0 ? b.Balance : 0

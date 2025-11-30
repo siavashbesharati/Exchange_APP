@@ -92,6 +92,13 @@ namespace ForexExchange.Models
         public string CurrencyCode { get; set; } = "IRR";
 
         /// <summary>
+        /// Currency ID reference
+        /// شناسه ارز مرجع
+        /// </summary>
+        [Display(Name = "Currency ID - شناسه ارز")]
+        public int? CurrencyId { get; set; }
+
+        /// <summary>
         /// Is this account active?
         /// آیا این حساب فعال است؟
         /// </summary>
@@ -139,5 +146,8 @@ namespace ForexExchange.Models
         public ICollection<Order> Orders { get; set; } = new List<Order>();
         // TODO: Add navigation property for AccountingDocuments in new architecture
         // public ICollection<AccountingDocument> AccountingDocuments { get; set; } = new List<AccountingDocument>();
+        
+        [Display(Name = "Currency - ارز")]
+        public Currency? Currency { get; set; }
     }
 }

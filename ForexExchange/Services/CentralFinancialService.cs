@@ -124,23 +124,21 @@ namespace ForexExchange.Services
             var fromCurrencyCode = (order.FromCurrency.Code ?? "").ToUpperInvariant().Trim();
             var toCurrencyCode = (order.ToCurrency.Code ?? "").ToUpperInvariant().Trim();
 
-            // Load all customer balances for this customer for case-insensitive lookup
-            var customerBalances = await _context.CustomerBalances
-                .Where(cb => cb.CustomerId == order.CustomerId)
-                .ToListAsync();
-
-            var customerBalanceFrom = customerBalances.FirstOrDefault(cb =>
-                (cb.CurrencyCode ?? "").ToUpperInvariant().Trim() == fromCurrencyCode);
+            // Load customer balances using CurrencyId directly - CurrencyId is REQUIRED!
+            var customerBalanceFrom = await _context.CustomerBalances
+                .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyId == order.FromCurrencyId);
 
             if (customerBalanceFrom == null)
             {
-                _logger.LogWarning($"Customer balance not found for customer {order.CustomerId} and currency {fromCurrencyCode} - creating with zero balance");
+                _logger.LogWarning($"Customer balance not found for customer {order.CustomerId} and currency {order.FromCurrencyId} - creating with zero balance");
 
-                // Auto-create missing customer balance record with zero balance (normalized to uppercase)
+                // Auto-create missing customer balance record
+                // Use CurrencyId directly - CurrencyCode will be populated from Currency navigation property
                 customerBalanceFrom = new CustomerBalance
                 {
                     CustomerId = order.CustomerId,
-                    CurrencyCode = fromCurrencyCode,
+                    CurrencyId = order.FromCurrencyId,
+                    CurrencyCode = fromCurrencyCode, // Get from Currency navigation property for backward compatibility
                     Balance = 0,
                     LastUpdated = DateTime.Now
                 };
@@ -148,28 +146,31 @@ namespace ForexExchange.Services
                 _context.CustomerBalances.Add(customerBalanceFrom);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"Created new customer balance record: CustomerId={order.CustomerId}, Currency={fromCurrencyCode}, Balance=0");
+                _logger.LogInformation($"Created new customer balance record: CustomerId={order.CustomerId}, CurrencyId={order.FromCurrencyId}, Balance=0");
             }
-            else if (customerBalanceFrom.CurrencyCode != fromCurrencyCode)
+            else
             {
-                // Normalize existing balance's currency code to uppercase
-                _logger.LogWarning($"Normalizing CustomerBalance CurrencyCode from '{customerBalanceFrom.CurrencyCode}' to '{fromCurrencyCode}' for Customer {order.CustomerId}");
-                customerBalanceFrom.CurrencyCode = fromCurrencyCode;
-                await _context.SaveChangesAsync();
+                // Ensure CurrencyId is set
+                if (!customerBalanceFrom.CurrencyId.HasValue)
+                {
+                    customerBalanceFrom.CurrencyId = order.FromCurrencyId;
+                    await _context.SaveChangesAsync();
+                }
             }
             _logger.LogInformation($"CustomerBalanceFrom: {customerBalanceFrom.Balance}");
 
-            var customerBalanceTo = customerBalances.FirstOrDefault(cb =>
-                (cb.CurrencyCode ?? "").ToUpperInvariant().Trim() == toCurrencyCode);
+            var customerBalanceTo = await _context.CustomerBalances
+                .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyId == order.ToCurrencyId);
 
             if (customerBalanceTo == null)
             {
-                _logger.LogWarning($"Customer balance not found for customer {order.CustomerId} and currency {toCurrencyCode} - creating with zero balance");
+                _logger.LogWarning($"Customer balance not found for customer {order.CustomerId} and currency {order.ToCurrencyId} - creating with zero balance");
 
-                // Auto-create missing customer balance record with zero balance (normalized to uppercase)
+                // Auto-create missing customer balance record
                 customerBalanceTo = new CustomerBalance
                 {
                     CustomerId = order.CustomerId,
+                    CurrencyId = order.ToCurrencyId,
                     CurrencyCode = toCurrencyCode,
                     Balance = 0,
                     LastUpdated = DateTime.Now
@@ -178,14 +179,16 @@ namespace ForexExchange.Services
                 _context.CustomerBalances.Add(customerBalanceTo);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"Created new customer balance record: CustomerId={order.CustomerId}, Currency={toCurrencyCode}, Balance=0");
+                _logger.LogInformation($"Created new customer balance record: CustomerId={order.CustomerId}, CurrencyId={order.ToCurrencyId}, Balance=0");
             }
-            else if (customerBalanceTo.CurrencyCode != toCurrencyCode)
+            else
             {
-                // Normalize existing balance's currency code to uppercase
-                _logger.LogWarning($"Normalizing CustomerBalance CurrencyCode from '{customerBalanceTo.CurrencyCode}' to '{toCurrencyCode}' for Customer {order.CustomerId}");
-                customerBalanceTo.CurrencyCode = toCurrencyCode;
-                await _context.SaveChangesAsync();
+                // Ensure CurrencyId is set
+                if (!customerBalanceTo.CurrencyId.HasValue)
+                {
+                    customerBalanceTo.CurrencyId = order.ToCurrencyId;
+                    await _context.SaveChangesAsync();
+                }
             }
             _logger.LogInformation($"CustomerBalanceTo: {customerBalanceTo.Balance}");
 
@@ -193,8 +196,8 @@ namespace ForexExchange.Services
             if (poolBalanceFrom == null)
             {
                 await _currencyPoolService.CreatePoolAsync(order.FromCurrency.Id);
-                _logger.LogError($"Currency pool not found for currency {order.FromCurrency.Code}");
-                throw new Exception($"Currency pool not found for currency {order.FromCurrency.Code}");
+                _logger.LogError($"Currency pool not found for currencyId {order.FromCurrencyId} ({fromCurrencyCode})");
+                throw new Exception($"Currency pool not found for currencyId {order.FromCurrencyId} ({fromCurrencyCode})");
             }
             _logger.LogInformation($"PoolBalanceFrom: {poolBalanceFrom.Balance}");
 
@@ -202,8 +205,8 @@ namespace ForexExchange.Services
             if (poolBalanceTo == null)
             {
                 await _currencyPoolService.CreatePoolAsync(order.ToCurrency.Id);
-                _logger.LogError($"Currency pool not found for currency {order.ToCurrency.Code}");
-                throw new Exception($"Currency pool not found for currency {order.ToCurrency.Code}");
+                _logger.LogError($"Currency pool not found for currencyId {order.ToCurrencyId} ({toCurrencyCode})");
+                throw new Exception($"Currency pool not found for currencyId {order.ToCurrencyId} ({toCurrencyCode})");
             }
             _logger.LogInformation($"PoolBalanceTo: {poolBalanceTo.Balance}");
 
@@ -230,8 +233,8 @@ namespace ForexExchange.Services
             return new OrderPreviewEffectsDto
             {
                 CustomerId = order.CustomerId,
-                FromCurrencyCode = order.FromCurrency.Code,
-                ToCurrencyCode = order.ToCurrency.Code,
+                FromCurrencyCode = fromCurrencyCode, // Get from Currency navigation property
+                ToCurrencyCode = toCurrencyCode, // Get from Currency navigation property
                 OrderFromAmount = order.FromAmount,
                 OrderToAmount = order.ToAmount,
                 OldCustomerBalanceFrom = customerBalanceFrom.Balance,
@@ -327,13 +330,28 @@ namespace ForexExchange.Services
         /// <returns>Preview effects showing before/after balances for customers and bank accounts</returns>
         public async Task<AccountingDocumentPreviewEffectsDto> PreviewAccountingDocumentEffectsAsync(AccountingDocument document)
         {
-            _logger.LogInformation($"[PreviewAccountingDocumentEffectsAsync] Called for DocumentId={document.Id}, Amount={document.Amount}, Currency={document.CurrencyCode}");
+            // Get CurrencyId from document - CurrencyId is REQUIRED, no fallback!
+            int? currencyId = document.CurrencyId;
+            if (!currencyId.HasValue)
+            {
+                throw new ArgumentException($"CurrencyId is required for document {document.Id}. Document must have a valid CurrencyId.");
+            }
+
+            // Get CurrencyCode from Currency for display/logging only
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId.Value);
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with ID {currencyId.Value} not found for document {document.Id}.");
+            }
+            var currencyCode = currency.Code ?? ""; // Get CurrencyCode from Currency for display/logging only
+
+            _logger.LogInformation($"[PreviewAccountingDocumentEffectsAsync] Called for DocumentId={document.Id}, Amount={document.Amount}, CurrencyId={currencyId}, CurrencyCode={currencyCode}");
 
             var effects = new AccountingDocumentPreviewEffectsDto
             {
                 DocumentId = document.Id,
                 Amount = document.Amount,
-                CurrencyCode = document.CurrencyCode,
+                CurrencyCode = currencyCode, // Get from Currency navigation property
                 CustomerEffects = new List<CustomerBalanceEffect>(),
                 BankAccountEffects = new List<BankAccountBalanceEffect>(),
                 Warnings = new List<string>()
@@ -346,11 +364,7 @@ namespace ForexExchange.Services
                 return effects;
             }
 
-            if (string.IsNullOrEmpty(document.CurrencyCode))
-            {
-                effects.Warnings.Add("ارز سند انتخاب نشده است.");
-                return effects;
-            }
+            // CurrencyId validation is already done above, so we don't need to check again here
 
             // Process Payer Customer Effect
             if (document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue)
@@ -358,18 +372,23 @@ namespace ForexExchange.Services
                 var payerCustomer = await _context.Customers.FindAsync(document.PayerCustomerId.Value);
                 if (payerCustomer != null)
                 {
-                    // Get or create customer balance
-                    var customerBalance = await _context.CustomerBalances
-                        .FirstOrDefaultAsync(cb => cb.CustomerId == document.PayerCustomerId.Value && cb.CurrencyCode == document.CurrencyCode);
+                    // Get or create customer balance using CurrencyId directly - this is why we did the refactoring!
+                    CustomerBalance? customerBalance = null;
+                    if (currencyId.HasValue)
+                    {
+                        customerBalance = await _context.CustomerBalances
+                            .FirstOrDefaultAsync(cb => cb.CustomerId == document.PayerCustomerId.Value && cb.CurrencyId == currencyId.Value);
+                    }
 
                     if (customerBalance == null)
                     {
-                        _logger.LogWarning($"Customer balance not found for customer {document.PayerCustomerId.Value} and currency {document.CurrencyCode} - creating with zero balance");
+                        _logger.LogWarning($"Customer balance not found for customer {document.PayerCustomerId.Value} and currencyId {currencyId} - creating with zero balance");
 
                         customerBalance = new CustomerBalance
                         {
                             CustomerId = document.PayerCustomerId.Value,
-                            CurrencyCode = document.CurrencyCode,
+                            CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
+                            CurrencyCode = currencyCode, // Get from Currency navigation property for backward compatibility
                             Balance = 0,
                             LastUpdated = DateTime.Now
                         };
@@ -377,7 +396,13 @@ namespace ForexExchange.Services
                         _context.CustomerBalances.Add(customerBalance);
                         await _context.SaveChangesAsync();
 
-                        _logger.LogInformation($"Created new customer balance record: CustomerId={document.PayerCustomerId.Value}, Currency={document.CurrencyCode}, Balance=0");
+                        _logger.LogInformation($"Created new customer balance record: CustomerId={document.PayerCustomerId.Value}, CurrencyId={currencyId}, CurrencyCode={currencyCode}, Balance=0");
+                    }
+                    else if (currencyId.HasValue && !customerBalance.CurrencyId.HasValue)
+                    {
+                        // Ensure CurrencyId is set
+                        customerBalance.CurrencyId = currencyId;
+                        await _context.SaveChangesAsync();
                     }
 
                     var currentBalance = customerBalance.Balance;
@@ -387,7 +412,7 @@ namespace ForexExchange.Services
                     {
                         CustomerId = document.PayerCustomerId.Value,
                         CustomerName = payerCustomer.FullName,
-                        CurrencyCode = document.CurrencyCode,
+                        CurrencyCode = currencyCode, // Get from Currency navigation property
                         CurrentBalance = currentBalance,
                         TransactionAmount = document.Amount,
                         NewBalance = newBalance,
@@ -396,7 +421,7 @@ namespace ForexExchange.Services
 
                     if (newBalance < 0)
                     {
-                        effects.Warnings.Add($"تراز مشتری {payerCustomer.FullName} در ارز {document.CurrencyCode} منفی خواهد شد ({newBalance:N2}).");
+                        effects.Warnings.Add($"تراز مشتری {payerCustomer.FullName} در ارز {currencyCode} منفی خواهد شد ({newBalance:N2}).");
                     }
                 }
             }
@@ -407,18 +432,23 @@ namespace ForexExchange.Services
                 var receiverCustomer = await _context.Customers.FindAsync(document.ReceiverCustomerId.Value);
                 if (receiverCustomer != null)
                 {
-                    // Get or create customer balance
-                    var customerBalance = await _context.CustomerBalances
-                        .FirstOrDefaultAsync(cb => cb.CustomerId == document.ReceiverCustomerId.Value && cb.CurrencyCode == document.CurrencyCode);
+                    // Get or create customer balance using CurrencyId directly - this is why we did the refactoring!
+                    CustomerBalance? customerBalance = null;
+                    if (currencyId.HasValue)
+                    {
+                        customerBalance = await _context.CustomerBalances
+                            .FirstOrDefaultAsync(cb => cb.CustomerId == document.ReceiverCustomerId.Value && cb.CurrencyId == currencyId.Value);
+                    }
 
                     if (customerBalance == null)
                     {
-                        _logger.LogWarning($"Customer balance not found for customer {document.ReceiverCustomerId.Value} and currency {document.CurrencyCode} - creating with zero balance");
+                        _logger.LogWarning($"Customer balance not found for customer {document.ReceiverCustomerId.Value} and currencyId {currencyId} - creating with zero balance");
 
                         customerBalance = new CustomerBalance
                         {
                             CustomerId = document.ReceiverCustomerId.Value,
-                            CurrencyCode = document.CurrencyCode,
+                            CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
+                            CurrencyCode = currencyCode, // Get from Currency navigation property for backward compatibility
                             Balance = 0,
                             LastUpdated = DateTime.Now
                         };
@@ -426,7 +456,13 @@ namespace ForexExchange.Services
                         _context.CustomerBalances.Add(customerBalance);
                         await _context.SaveChangesAsync();
 
-                        _logger.LogInformation($"Created new customer balance record: CustomerId={document.ReceiverCustomerId.Value}, Currency={document.CurrencyCode}, Balance=0");
+                        _logger.LogInformation($"Created new customer balance record: CustomerId={document.ReceiverCustomerId.Value}, CurrencyId={currencyId}, CurrencyCode={currencyCode}, Balance=0");
+                    }
+                    else if (currencyId.HasValue && !customerBalance.CurrencyId.HasValue)
+                    {
+                        // Ensure CurrencyId is set
+                        customerBalance.CurrencyId = currencyId;
+                        await _context.SaveChangesAsync();
                     }
 
                     var currentBalance = customerBalance.Balance;
@@ -436,7 +472,7 @@ namespace ForexExchange.Services
                     {
                         CustomerId = document.ReceiverCustomerId.Value,
                         CustomerName = receiverCustomer.FullName,
-                        CurrencyCode = document.CurrencyCode,
+                        CurrencyCode = currencyCode, // Get from Currency navigation property
                         CurrentBalance = currentBalance,
                         TransactionAmount = -document.Amount,
                         NewBalance = newBalance,
@@ -445,7 +481,7 @@ namespace ForexExchange.Services
 
                     if (newBalance < 0)
                     {
-                        effects.Warnings.Add($"تراز مشتری {receiverCustomer.FullName} در ارز {document.CurrencyCode} منفی خواهد شد ({newBalance:N2}).");
+                        effects.Warnings.Add($"تراز مشتری {receiverCustomer.FullName} در ارز {currencyCode} منفی خواهد شد ({newBalance:N2}).");
                     }
                 }
             }
@@ -456,10 +492,14 @@ namespace ForexExchange.Services
                 var payerBankAccount = await _context.BankAccounts.FindAsync(document.PayerBankAccountId.Value);
                 if (payerBankAccount != null)
                 {
-                    // Validate currency match
-                    if (payerBankAccount.CurrencyCode != document.CurrencyCode)
+                    // Validate currency match using CurrencyId - CurrencyId is REQUIRED!
+                    if (!payerBankAccount.CurrencyId.HasValue)
                     {
-                        effects.Warnings.Add($"ارز حساب بانکی پرداخت کننده ({payerBankAccount.CurrencyCode}) با ارز سند ({document.CurrencyCode}) مطابقت ندارد.");
+                        effects.Warnings.Add($"حساب بانکی پرداخت کننده (ID: {payerBankAccount.Id}) فاقد CurrencyId است. CurrencyId الزامی است.");
+                    }
+                    else if (payerBankAccount.CurrencyId != currencyId)
+                    {
+                        effects.Warnings.Add($"ارز حساب بانکی پرداخت کننده (CurrencyId: {payerBankAccount.CurrencyId}) با ارز سند (CurrencyId: {currencyId}) مطابقت ندارد.");
                     }
                     else
                     {
@@ -492,7 +532,7 @@ namespace ForexExchange.Services
                             BankAccountId = document.PayerBankAccountId.Value,
                             BankName = payerBankAccount.BankName,
                             AccountNumber = payerBankAccount.AccountNumber,
-                            CurrencyCode = document.CurrencyCode,
+                            CurrencyCode = currencyCode, // Get from Currency navigation property
                             CurrentBalance = currentBalance,
                             TransactionAmount = document.Amount,
                             NewBalance = newBalance,
@@ -513,10 +553,14 @@ namespace ForexExchange.Services
                 var receiverBankAccount = await _context.BankAccounts.FindAsync(document.ReceiverBankAccountId.Value);
                 if (receiverBankAccount != null)
                 {
-                    // Validate currency match
-                    if (receiverBankAccount.CurrencyCode != document.CurrencyCode)
+                    // Validate currency match using CurrencyId - CurrencyId is REQUIRED!
+                    if (!receiverBankAccount.CurrencyId.HasValue)
                     {
-                        effects.Warnings.Add($"ارز حساب بانکی دریافت کننده ({receiverBankAccount.CurrencyCode}) با ارز سند ({document.CurrencyCode}) مطابقت ندارد.");
+                        effects.Warnings.Add($"حساب بانکی دریافت کننده (ID: {receiverBankAccount.Id}) فاقد CurrencyId است. CurrencyId الزامی است.");
+                    }
+                    else if (receiverBankAccount.CurrencyId != currencyId)
+                    {
+                        effects.Warnings.Add($"ارز حساب بانکی دریافت کننده (CurrencyId: {receiverBankAccount.CurrencyId}) با ارز سند (CurrencyId: {currencyId}) مطابقت ندارد.");
                     }
                     else
                     {
@@ -549,7 +593,7 @@ namespace ForexExchange.Services
                             BankAccountId = document.ReceiverBankAccountId.Value,
                             BankName = receiverBankAccount.BankName,
                             AccountNumber = receiverBankAccount.AccountNumber,
-                            CurrencyCode = document.CurrencyCode,
+                            CurrencyCode = currencyCode, // Get from Currency navigation property
                             CurrentBalance = currentBalance,
                             TransactionAmount = -document.Amount,
                             NewBalance = newBalance,
@@ -599,44 +643,50 @@ namespace ForexExchange.Services
 
 
 
-            // Normalize currency codes
-            var fromCurrencyCode = (order.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
-            var toCurrencyCode = (order.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
+            // Get CurrencyCode from navigation properties for display/logging only - use CurrencyId for all operations
+            var fromCurrencyCode = order.FromCurrency?.Code ?? ""; // For display/logging only
+            var toCurrencyCode = order.ToCurrency?.Code ?? ""; // For display/logging only
             var orderDateTime = order.CreatedAt;
 
-            // Load customer balances
-            var customerBalances = await _context.CustomerBalances
-                .Where(cb => cb.CustomerId == order.CustomerId)
-                .ToListAsync();
-
-            var customerBalanceFrom = customerBalances.FirstOrDefault(cb =>
-                (cb.CurrencyCode ?? "").Trim() == fromCurrencyCode);
+            // Load customer balances using CurrencyId
+            var customerBalanceFrom = await _context.CustomerBalances
+                .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyId == order.FromCurrencyId);
 
             if (customerBalanceFrom == null)
             {
                 customerBalanceFrom = new CustomerBalance
                 {
                     CustomerId = order.CustomerId,
-                    CurrencyCode = fromCurrencyCode,
+                    CurrencyId = order.FromCurrencyId,
+                    CurrencyCode = fromCurrencyCode, // Get from Currency navigation property for backward compatibility
                     Balance = 0,
                     LastUpdated = DateTime.Now
                 };
                 _context.CustomerBalances.Add(customerBalanceFrom);
             }
+            else if (!customerBalanceFrom.CurrencyId.HasValue)
+            {
+                customerBalanceFrom.CurrencyId = order.FromCurrencyId;
+            }
 
-            var customerBalanceTo = customerBalances.FirstOrDefault(cb =>
-                (cb.CurrencyCode ?? "").Trim() == toCurrencyCode);
+            var customerBalanceTo = await _context.CustomerBalances
+                .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyId == order.ToCurrencyId);
 
             if (customerBalanceTo == null)
             {
                 customerBalanceTo = new CustomerBalance
                 {
                     CustomerId = order.CustomerId,
+                    CurrencyId = order.ToCurrencyId,
                     CurrencyCode = toCurrencyCode,
                     Balance = 0,
                     LastUpdated = DateTime.Now
                 };
                 _context.CustomerBalances.Add(customerBalanceTo);
+            }
+            else if (!customerBalanceTo.CurrencyId.HasValue)
+            {
+                customerBalanceTo.CurrencyId = order.ToCurrencyId;
             }
 
             // Load pool balances
@@ -661,9 +711,10 @@ namespace ForexExchange.Services
             }
 
             // STEP 1: Process Customer Balance History for FromCurrency with correct chain reconstruction
+            // Use CurrencyId directly - this is why we did the refactoring!
             await ProcessCustomerBalanceHistoryForOrder(
                 order: order,
-                currencyCode: fromCurrencyCode,
+                currencyId: order.FromCurrencyId,
                 transactionAmount: -order.FromAmount, // Customer pays (negative)
                 isFromCurrency: true,
                 performedBy: performedBy,
@@ -671,9 +722,10 @@ namespace ForexExchange.Services
             );
 
             // STEP 2: Process Customer Balance History for ToCurrency with correct chain reconstruction
+            // Use CurrencyId directly - this is why we did the refactoring!
             await ProcessCustomerBalanceHistoryForOrder(
                 order: order,
-                currencyCode: toCurrencyCode,
+                currencyId: order.ToCurrencyId,
                 transactionAmount: order.ToAmount, // Customer receives (positive)
                 isFromCurrency: false,
                 performedBy: performedBy,
@@ -681,9 +733,10 @@ namespace ForexExchange.Services
             );
 
             // STEP 3: Process Pool Balance History for FromCurrency with correct chain reconstruction
+            // Use CurrencyId directly - this is why we did the refactoring!
             await ProcessPoolBalanceHistoryForOrder(
                 order: order,
-                currencyCode: fromCurrencyCode,
+                currencyId: order.FromCurrencyId,
                 transactionAmount: order.FromAmount, // Pool receives (positive)
                 poolTransactionType: "Buy",
                 performedBy: performedBy,
@@ -691,9 +744,10 @@ namespace ForexExchange.Services
             );
 
             // STEP 4: Process Pool Balance History for ToCurrency with correct chain reconstruction
+            // Use CurrencyId directly - this is why we did the refactoring!
             await ProcessPoolBalanceHistoryForOrder(
                 order: order,
-                currencyCode: toCurrencyCode,
+                currencyId: order.ToCurrencyId,
                 transactionAmount: -order.ToAmount, // Pool pays (negative)
                 poolTransactionType: "Sell",
                 performedBy: performedBy,
@@ -721,24 +775,30 @@ namespace ForexExchange.Services
         /// Processes customer balance history with correct chain reconstruction for orders
         /// Simplified version: adds record and rebuilds entire chain from scratch
         /// </summary>
-        private async Task ProcessCustomerBalanceHistoryForOrder(Order order, string currencyCode,
+        private async Task ProcessCustomerBalanceHistoryForOrder(Order order, int currencyId,
             decimal transactionAmount, bool isFromCurrency, string performedBy, CustomerBalance currentBalanceEntity)
         {
             var orderDateTime = order.CreatedAt;
 
+            // Get Currency for CurrencyCode (for display/logging only)
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId);
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with ID {currencyId} not found");
+            }
+            var currencyCode = currency.Code ?? ""; // Get CurrencyCode from Currency for display/logging only
+
             // CRITICAL: Remove existing record for this order to avoid duplicates
-            // Use AsNoTracking to avoid Change Tracker issues
-            // Query first, then filter in memory for case-insensitive comparison
-            var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
+            // Use CurrencyId directly - this is why we did the refactoring!
             var existingRecords = await _context.CustomerBalanceHistory
                 .AsNoTracking()
                 .Where(h => h.ReferenceId == order.Id &&
                            h.CustomerId == order.CustomerId &&
+                           h.CurrencyId == currencyId &&
                            !h.IsDeleted)
                 .ToListAsync();
-            
-            var existingRecord = existingRecords
-                .FirstOrDefault(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode);
+
+            var existingRecord = existingRecords.FirstOrDefault();
 
             if (existingRecord != null)
             {
@@ -762,10 +822,12 @@ namespace ForexExchange.Services
             var note = HistoryDescriptionHelper.GenerateOrderNote(order, currencyCode, isFromCurrency);
 
             // Create new history record for this order (balances will be recalculated in rebuild)
+            // Use CurrencyId directly - this is why we did the refactoring!
             var newHistoryRecord = new CustomerBalanceHistory
             {
                 CustomerId = order.CustomerId,
-                CurrencyCode = currencyCode,
+                CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
+                CurrencyCode = currencyCode, // Get from Currency navigation property for backward compatibility
                 TransactionType = CustomerBalanceTransactionType.Order,
                 ReferenceId = order.Id,
                 BalanceBefore = 0, // Will be recalculated in rebuild
@@ -773,6 +835,7 @@ namespace ForexExchange.Services
                 BalanceAfter = 0, // Will be recalculated in rebuild
                 Description = description,
                 Note = note,
+                TransactionNumber = order.Id.ToString(), // Use Order ID as Transaction Number
                 TransactionDate = orderDateTime,
                 CreatedAt = DateTime.Now,
                 CreatedBy = performedBy,
@@ -783,11 +846,12 @@ namespace ForexExchange.Services
             await _context.SaveChangesAsync();
 
             // Rebuild entire chain from scratch (simpler and more reliable)
-            await RebuildCustomerBalanceChain(order.CustomerId, currencyCode);
+            // Use CurrencyId directly - this is why we did the refactoring!
+            await RebuildCustomerBalanceChain(order.CustomerId, currencyId, currencyCode);
 
-            // Update the current balance entity
+            // Update the current balance entity using CurrencyId directly
             var updatedBalance = await _context.CustomerBalances
-                .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyCode == currencyCode);
+                .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyId == currencyId);
 
             if (updatedBalance != null)
             {
@@ -800,23 +864,29 @@ namespace ForexExchange.Services
         /// Processes pool balance history with correct chain reconstruction for orders
         /// Simplified version: adds record and rebuilds entire chain from scratch
         /// </summary>
-        private async Task ProcessPoolBalanceHistoryForOrder(Order order, string currencyCode,
+        private async Task ProcessPoolBalanceHistoryForOrder(Order order, int currencyId,
             decimal transactionAmount, string poolTransactionType, string performedBy, CurrencyPool currentBalanceEntity)
         {
             var orderDateTime = order.CreatedAt;
 
+            // Get Currency for CurrencyCode (for display/logging only)
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId);
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with ID {currencyId} not found");
+            }
+            var currencyCode = currency.Code ?? ""; // Get CurrencyCode from Currency for display/logging only
+
             // CRITICAL: Remove existing record for this order to avoid duplicates
-            // Use AsNoTracking to avoid Change Tracker issues
-            // Query first, then filter in memory for case-insensitive comparison
-            var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
+            // Use CurrencyId directly - this is why we did the refactoring!
             var existingRecords = await _context.CurrencyPoolHistory
                 .AsNoTracking()
                 .Where(h => h.ReferenceId == order.Id &&
+                           h.CurrencyId == currencyId &&
                            !h.IsDeleted)
                 .ToListAsync();
-            
-            var existingRecord = existingRecords
-                .FirstOrDefault(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode);
+
+            var existingRecord = existingRecords.FirstOrDefault();
 
             if (existingRecord != null)
             {
@@ -830,16 +900,18 @@ namespace ForexExchange.Services
 
             // Use helper to generate English description
             var description = HistoryDescriptionHelper.GeneratePoolHistoryDescription(
-                currencyCode, 
-                transactionAmount, 
-                poolTransactionType, 
-                order.Id > 0 ? order.Id : null, 
+                currencyCode,
+                transactionAmount,
+                poolTransactionType,
+                order.Id > 0 ? order.Id : null,
                 order.Rate);
 
             // Create new history record for this order (balances will be recalculated in rebuild)
+            // Use CurrencyId directly - this is why we did the refactoring!
             var newHistoryRecord = new CurrencyPoolHistory
             {
-                CurrencyCode = currencyCode,
+                CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
+                CurrencyCode = currencyCode, // Get from Currency navigation property for backward compatibility
                 TransactionType = CurrencyPoolTransactionType.Order,
                 ReferenceId = order.Id,
                 BalanceBefore = 0, // Will be recalculated in rebuild
@@ -857,22 +929,17 @@ namespace ForexExchange.Services
             await _context.SaveChangesAsync();
 
             // Rebuild entire chain from scratch (simpler and more reliable)
-            await RebuildPoolBalanceChain(currencyCode);
+            // Use CurrencyId directly - this is why we did the refactoring!
+            await RebuildPoolBalanceChain(currencyId, currencyCode);
 
-            // Update the current balance entity
-            var currency = await _context.Currencies
-                .FirstOrDefaultAsync(c => c.Code == currencyCode);
+            // Update the current balance entity using CurrencyId directly
+            var updatedPool = await _context.CurrencyPools
+                .FirstOrDefaultAsync(p => p.CurrencyId == currencyId);
 
-            if (currency != null)
+            if (updatedPool != null)
             {
-                var updatedPool = await _context.CurrencyPools
-                    .FirstOrDefaultAsync(p => p.CurrencyId == currency.Id);
-
-                if (updatedPool != null)
-                {
-                    currentBalanceEntity.Balance = updatedPool.Balance;
-                    currentBalanceEntity.LastUpdated = updatedPool.LastUpdated;
-                }
+                currentBalanceEntity.Balance = updatedPool.Balance;
+                currentBalanceEntity.LastUpdated = updatedPool.LastUpdated;
             }
         }
 
@@ -885,18 +952,31 @@ namespace ForexExchange.Services
         {
             _logger.LogInformation($"Fast balance update for Document ID: {document.Id}");
 
+            // Get CurrencyId from document - CurrencyId is REQUIRED, no fallback!
+            int? currencyId = document.CurrencyId;
+            if (!currencyId.HasValue)
+            {
+                throw new ArgumentException($"CurrencyId is required for document {document.Id}. Document must have a valid CurrencyId.");
+            }
 
-            var currencyCode = CurrencyHelper.NormalizeCurrencyCode(document.CurrencyCode);
+            // Get CurrencyCode from Currency for display/logging only
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId.Value);
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with ID {currencyId.Value} not found for document {document.Id}.");
+            }
+            var currencyCode = currency.Code ?? ""; // Get CurrencyCode from Currency for display/logging only
             var documentDate = document.DocumentDate;
 
             // STEP 1: Process Payer (based on type)
             if (document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue)
             {
                 // ✅ مشتری پرداخت کننده: افزایش موجودی (مثبت)
+                // Use CurrencyId directly - this is why we did the refactoring!
                 await ProcessCustomerBalanceHistoryForDocument(
                     document: document,
                     customerId: document.PayerCustomerId.Value,
-                    currencyCode: currencyCode,
+                    currencyId: currencyId.Value,
                     transactionAmount: document.Amount, // ➕ افزایش موجودی مشتری پرداخت کننده
                     role: "پرداخت کننده",
                     performedBy: performedBy
@@ -918,10 +998,11 @@ namespace ForexExchange.Services
             if (document.ReceiverType == ReceiverType.Customer && document.ReceiverCustomerId.HasValue)
             {
                 // ✅ مشتری دریافت کننده: کاهش موجودی (منفی)
+                // Use CurrencyId directly - this is why we did the refactoring!
                 await ProcessCustomerBalanceHistoryForDocument(
                     document: document,
                     customerId: document.ReceiverCustomerId.Value,
-                    currencyCode: currencyCode,
+                    currencyId: currencyId.Value,
                     transactionAmount: -document.Amount, // ➖ کاهش موجودی مشتری دریافت کننده
                     role: "دریافت کننده",
                     performedBy: performedBy
@@ -946,44 +1027,51 @@ namespace ForexExchange.Services
         /// Processes customer balance history with correct chain reconstruction for documents
         /// </summary>
         private async Task ProcessCustomerBalanceHistoryForDocument(AccountingDocument document, int customerId,
-            string currencyCode, decimal transactionAmount, string role, string performedBy)
+            int currencyId, decimal transactionAmount, string role, string performedBy)
         {
             var documentDate = document.DocumentDate;
 
-            // Load ALL customer balances for this customer first, then filter in memory
-            var customerBalances = await _context.CustomerBalances
-                .Where(cb => cb.CustomerId == customerId)
-                .ToListAsync();
+            // Get Currency for CurrencyCode (for display/logging only)
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId);
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with ID {currencyId} not found");
+            }
+            var currencyCode = currency.Code ?? ""; // Get CurrencyCode from Currency for display/logging only
 
-            // Filter by currency code in memory (case-insensitive)
-            var customerBalance = customerBalances
-                .FirstOrDefault(cb => string.Equals((cb.CurrencyCode ?? "").Trim(), currencyCode, StringComparison.OrdinalIgnoreCase));
+            // Load customer balance using CurrencyId directly - this is why we did the refactoring!
+            var customerBalance = await _context.CustomerBalances
+                .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyId == currencyId);
 
             if (customerBalance == null)
             {
                 customerBalance = new CustomerBalance
                 {
                     CustomerId = customerId,
-                    CurrencyCode = currencyCode,
+                    CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
+                    CurrencyCode = currencyCode, // Get from Currency navigation property for backward compatibility
                     Balance = 0,
                     LastUpdated = DateTime.Now
                 };
                 _context.CustomerBalances.Add(customerBalance);
             }
+            else if (!customerBalance.CurrencyId.HasValue)
+            {
+                // Ensure CurrencyId is set
+                customerBalance.CurrencyId = currencyId;
+            }
 
             // CRITICAL: Remove existing record for this document to avoid duplicates
-            // Use AsNoTracking to avoid Change Tracker issues
-            // Query first, then filter in memory for case-insensitive comparison
-            var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
+            // Use CurrencyId directly - this is why we did the refactoring!
             var existingRecords = await _context.CustomerBalanceHistory
                 .AsNoTracking()
                 .Where(h => h.ReferenceId == document.Id &&
                            h.CustomerId == customerId &&
+                           h.CurrencyId == currencyId &&
                            !h.IsDeleted)
                 .ToListAsync();
-            
-            var existingRecord = existingRecords
-                .FirstOrDefault(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode);
+
+            var existingRecord = existingRecords.FirstOrDefault();
 
             if (existingRecord != null)
             {
@@ -1008,9 +1096,18 @@ namespace ForexExchange.Services
             var description = HistoryDescriptionHelper.GenerateDocumentDescription(documentWithDetails, role);
             var note = HistoryDescriptionHelper.GenerateDocumentNote(documentWithDetails);
 
-            // If document has Description, append it to Note
+            // If document has Description, append it to both Description and Note
             if (!string.IsNullOrWhiteSpace(documentWithDetails.Description))
             {
+                if (!string.IsNullOrWhiteSpace(description))
+                {
+                    description = $"{description}\n\nDescription: {documentWithDetails.Description}";
+                }
+                else
+                {
+                    description = $"Description: {documentWithDetails.Description}";
+                }
+
                 if (!string.IsNullOrWhiteSpace(note))
                 {
                     note = $"{note}\n\nDescription: {documentWithDetails.Description}";
@@ -1022,10 +1119,12 @@ namespace ForexExchange.Services
             }
 
             // Create new history record for this document (balances will be recalculated in rebuild)
+            // Use CurrencyId directly - this is why we did the refactoring!
             var newHistoryRecord = new CustomerBalanceHistory
             {
                 CustomerId = customerId,
-                CurrencyCode = currencyCode,
+                CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
+                CurrencyCode = currencyCode, // Get from Currency navigation property for backward compatibility
                 TransactionType = CustomerBalanceTransactionType.AccountingDocument,
                 ReferenceId = document.Id,
                 BalanceBefore = 0, // Will be recalculated in rebuild
@@ -1044,11 +1143,12 @@ namespace ForexExchange.Services
             await _context.SaveChangesAsync();
 
             // Rebuild entire chain from scratch (simpler and more reliable)
-            await RebuildCustomerBalanceChain(customerId, currencyCode);
+            // Use CurrencyId directly - this is why we did the refactoring!
+            await RebuildCustomerBalanceChain(customerId, currencyId, currencyCode);
 
-            // Update the current balance entity
+            // Update the current balance entity using CurrencyId directly
             var updatedBalance = await _context.CustomerBalances
-                .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyCode == currencyCode);
+                .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyId == currencyId);
 
             if (updatedBalance != null)
             {
@@ -1403,10 +1503,12 @@ namespace ForexExchange.Services
                 // PERFORMANCE OPTIMIZATION: Load all existing manual records from database once and cache them
                 // This eliminates N+1 queries in loops below
                 _logger.LogInformation("Loading existing manual records from database for cache...");
+                // Group by CurrencyId (preferred) or CurrencyCode (fallback) - use CurrencyId directly
                 var existingManualPoolRecordsCache = (await _context.CurrencyPoolHistory
                     .Where(h => h.TransactionType == CurrencyPoolTransactionType.ManualEdit && !h.IsDeleted)
                     .ToListAsync())
-                    .GroupBy(h => (h.CurrencyCode ?? "").ToUpperInvariant().Trim())
+                    .GroupBy(h => h.CurrencyId ?? 0) // Group by CurrencyId - this is why we did the refactoring!
+                    .Where(g => g.Key > 0) // Only groups with valid CurrencyId
                     .ToDictionary(
                         g => g.Key,
                         g => g.ToDictionary(h => h.Id)
@@ -1421,10 +1523,12 @@ namespace ForexExchange.Services
                         g => g.ToDictionary(h => h.Id)
                     );
 
+                // Group by CustomerId + CurrencyId (preferred) - use CurrencyId directly
                 var existingManualCustomerRecordsCache = (await _context.CustomerBalanceHistory
                     .Where(h => h.TransactionType == CustomerBalanceTransactionType.Manual && !h.IsDeleted)
                     .ToListAsync())
-                    .GroupBy(h => (h.CustomerId, CurrencyCode: (h.CurrencyCode ?? "").ToUpperInvariant().Trim()))
+                    .GroupBy(h => (h.CustomerId, CurrencyId: h.CurrencyId ?? 0)) // Group by CurrencyId - this is why we did the refactoring!
+                    .Where(g => g.Key.CurrencyId > 0) // Only groups with valid CurrencyId
                     .ToDictionary(
                         g => g.Key,
                         g => g.ToDictionary(h => h.Id)
@@ -1457,10 +1561,10 @@ namespace ForexExchange.Services
                 logMessages.Add($"Processing {activeOrders.Count} active (non-deleted, non-frozen) orders and {manualPoolRecords.Count} manual pool records...");
 
                 // Pre-allocate collections with estimated capacity for better performance
-                var poolTransactionItems = new List<(string CurrencyCode, DateTime TransactionDate, string TransactionType, int? ReferenceId, decimal Amount, string PoolTransactionType, string Description, decimal Rate)>(activeOrders.Count * 2);
+                var poolTransactionItems = new List<(int? CurrencyId, string CurrencyCode, DateTime TransactionDate, string TransactionType, int? ReferenceId, decimal Amount, string PoolTransactionType, string Description, decimal Rate)>(activeOrders.Count * 2);
 
                 // Add order transactions (eliminated N+1 query by pre-loading data)
-                // IMPORTANT: Normalize currency codes to UPPERCASE to handle case sensitivity issues (e.g., USDT vs usdt)
+                // IMPORTANT: Use CurrencyId (preferred) and CurrencyCode (for display/description)
                 foreach (var o in activeOrders)
                 {
                     var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
@@ -1471,19 +1575,25 @@ namespace ForexExchange.Services
                     var sellDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(toCurrencyCode, -o.ToAmount, "Sell", o.Id, o.Rate);
 
                     // Institution receives FromAmount in FromCurrency (pool increases)
-                    poolTransactionItems.Add((fromCurrencyCode, o.CreatedAt, "Order", o.Id, o.FromAmount, "Buy", buyDescription, o.Rate));
+                    poolTransactionItems.Add((o.FromCurrencyId, fromCurrencyCode, o.CreatedAt, "Order", o.Id, o.FromAmount, "Buy", buyDescription, o.Rate));
 
                     // Institution pays ToAmount in ToCurrency (pool decreases)
-                    poolTransactionItems.Add((toCurrencyCode, o.CreatedAt, "Order", o.Id, -o.ToAmount, "Sell", sellDescription, o.Rate));
+                    poolTransactionItems.Add((o.ToCurrencyId, toCurrencyCode, o.CreatedAt, "Order", o.Id, -o.ToAmount, "Sell", sellDescription, o.Rate));
                 }
 
                 // Add manual pool records as transactions for balance calculation
                 // IMPORTANT: These will be used for balance calculation but we'll check for duplicates before creating new records
-                // Normalize currency codes to UPPERCASE for consistency
-                foreach (var manual in manualPoolRecords)
+                // Load CurrencyId for manual records
+                var manualPoolRecordsWithCurrencyId = await _context.CurrencyPoolHistory
+                    .Where(h => h.TransactionType == CurrencyPoolTransactionType.ManualEdit && !h.IsDeleted)
+                    .Select(h => new { h.Id, h.CurrencyId, h.CurrencyCode, h.TransactionAmount, h.TransactionDate, h.Description })
+                    .ToListAsync();
+
+                foreach (var manual in manualPoolRecordsWithCurrencyId)
                 {
                     var currencyCode = (manual.CurrencyCode ?? "").ToUpperInvariant().Trim();
                     poolTransactionItems.Add((
+                        manual.CurrencyId,
                         currencyCode,
                         manual.TransactionDate,
                         "Manual",
@@ -1494,37 +1604,42 @@ namespace ForexExchange.Services
                         0m // No rate for manual records
                     ));
                 }
-                logMessages.Add($"Added {manualPoolRecords.Count} manual pool records to transaction items for balance calculation");
+                logMessages.Add($"Added {manualPoolRecordsWithCurrencyId.Count} manual pool records to transaction items for balance calculation");
 
-                // Group by currency code (now normalized to uppercase) to create coherent history per currency
+                // Group by CurrencyId (preferred) or CurrencyCode (fallback) to create coherent history per currency
                 var currencyGroups = poolTransactionItems
-                    .GroupBy(x => x.CurrencyCode, StringComparer.OrdinalIgnoreCase)
+                    .GroupBy(x => x.CurrencyId ?? 0, x => x) // Group by CurrencyId, use 0 for null
+                    .Where(g => g.Key > 0) // Only process groups with valid CurrencyId
                     .ToList();
 
                 // Process pool transactions in batches for better performance
                 // PERFORMANCE OPTIMIZATION: Increased batch size from 1000 to 5000 to reduce database round trips
                 const int batchSize = 5000;
                 var poolHistoryRecords = new List<CurrencyPoolHistory>();
-                var poolBalanceUpdates = new Dictionary<string, (decimal Balance, int BuyCount, int SellCount, decimal TotalBought, decimal TotalSold)>();
+                var poolBalanceUpdates = new Dictionary<int, (decimal Balance, int BuyCount, int SellCount, decimal TotalBought, decimal TotalSold)>(); // Use CurrencyId as key - this is why we did the refactoring!
 
                 foreach (var currencyGroup in currencyGroups)
                 {
-                    var currencyCode = currencyGroup.Key;
+                    var currencyId = currencyGroup.Key;
                     var currencyTransactions = currencyGroup.OrderBy(x => x.TransactionDate).ToList();
 
                     if (!currencyTransactions.Any()) continue;
+
+                    // Get currency info
+                    var currency = await _context.Currencies.FindAsync(currencyId);
+                    if (currency == null) continue;
+
+                    var currencyCode = currency.Code ?? ""; // Get CurrencyCode from Currency for display/logging only
 
                     // Process transactions chronologically for this currency
                     decimal runningBalance = 0;
                     int buyCount = 0, sellCount = 0;
                     decimal totalBought = 0, totalSold = 0;
 
-                    // Normalize currency code for comparison (client-side)
-                    var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
-
                     // PERFORMANCE OPTIMIZATION: Use cached manual records instead of querying database
                     // This eliminates N+1 query problem
-                    var existingManualPoolRecords = existingManualPoolRecordsCache.TryGetValue(normalizedCurrencyCode, out var poolRecords)
+                    // Use CurrencyId for cache lookup - this is why we did the refactoring!
+                    var existingManualPoolRecords = existingManualPoolRecordsCache.TryGetValue(currencyId, out var poolRecords)
                         ? poolRecords
                         : new Dictionary<long, CurrencyPoolHistory>();
 
@@ -1546,6 +1661,7 @@ namespace ForexExchange.Services
                             var existingRecord = existingManualPoolRecords[transaction.ReferenceId.Value];
                             existingRecord.BalanceBefore = runningBalance;
                             existingRecord.BalanceAfter = runningBalance + transaction.Amount;
+                            existingRecord.CurrencyId = currencyId; // Ensure CurrencyId is set
                             runningBalance = existingRecord.BalanceAfter;
                             // Don't create new record - just update the existing one
                             continue;
@@ -1555,7 +1671,8 @@ namespace ForexExchange.Services
                         // Use the description from transaction (already formatted correctly)
                         poolHistoryRecords.Add(new CurrencyPoolHistory
                         {
-                            CurrencyCode = currencyCode,
+                            CurrencyId = currencyId,
+                            CurrencyCode = transaction.CurrencyCode,
                             TransactionType = transactionType,
                             ReferenceId = transaction.ReferenceId,
                             BalanceBefore = runningBalance,
@@ -1597,8 +1714,8 @@ namespace ForexExchange.Services
                         }
                     }
 
-                    // Store final balance for update
-                    poolBalanceUpdates[currencyCode] = (runningBalance, buyCount, sellCount, totalBought, totalSold);
+                    // Store final balance for update using CurrencyId as key - this is why we did the refactoring!
+                    poolBalanceUpdates[currencyId] = (runningBalance, buyCount, sellCount, totalBought, totalSold);
                 }
 
                 // Save remaining pool history records
@@ -1608,21 +1725,12 @@ namespace ForexExchange.Services
                     await _context.SaveChangesAsync();
                 }
 
-                // Update pool balances in batch
-                // IMPORTANT: Normalize currency code lookup to handle case sensitivity (SQLite is case-sensitive by default)
-                // Load all pools first for case-insensitive matching
-                var allPools = await _context.CurrencyPools
-                    .Include(p => p.Currency)
-                    .ToListAsync();
-
-                foreach (var (currencyCode, balances) in poolBalanceUpdates)
+                // Update pool balances in batch using CurrencyId directly - this is why we did the refactoring!
+                foreach (var (currencyId, balances) in poolBalanceUpdates)
                 {
-                    var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
-
-                    // Case-insensitive lookup in memory (since SQLite doesn't support ToUpper in LINQ)
-                    var pool = allPools.FirstOrDefault(p =>
-                        (p.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode ||
-                        (p.Currency?.Code ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode);
+                    // Use CurrencyId directly for lookup - this is why we did the refactoring!
+                    var pool = await _context.CurrencyPools
+                        .FirstOrDefaultAsync(p => p.CurrencyId == currencyId);
 
                     if (pool != null)
                     {
@@ -1632,17 +1740,10 @@ namespace ForexExchange.Services
                         pool.TotalBought = balances.TotalBought;
                         pool.TotalSold = balances.TotalSold;
                         pool.LastUpdated = DateTime.Now;
-
-                        // Ensure CurrencyCode is normalized to uppercase for consistency
-                        if (pool.CurrencyCode != normalizedCurrencyCode)
-                        {
-                            _logger.LogWarning($"Normalizing CurrencyCode from '{pool.CurrencyCode}' to '{normalizedCurrencyCode}' for pool {pool.Id}");
-                            pool.CurrencyCode = normalizedCurrencyCode;
-                        }
                     }
                     else
                     {
-                        _logger.LogWarning($"Currency pool not found for currency code: {normalizedCurrencyCode}. Balance update skipped. Available pools: {string.Join(", ", allPools.Select(p => p.CurrencyCode))}");
+                        _logger.LogWarning($"Currency pool not found for currencyId: {currencyId}. Balance update skipped.");
                     }
                 }
                 await _context.SaveChangesAsync();
@@ -1689,7 +1790,7 @@ namespace ForexExchange.Services
                         {
                             payerDescription = $"Description: {d.Description}";
                         }
-                        
+
                         if (!string.IsNullOrWhiteSpace(receiverDescription))
                         {
                             receiverDescription = $"{receiverDescription}\n\nDescription: {d.Description}";
@@ -1859,22 +1960,41 @@ namespace ForexExchange.Services
 
                 // Create unified transaction items for customers from orders, documents, and manual records
                 var estimatedCapacity = allValidOrders.Count * 2 + allValidDocuments.Count * 2 + manualCustomerRecords.Count;
-                var customerTransactionItems = new List<(int CustomerId, string CurrencyCode, DateTime TransactionDate, string TransactionType, string transactionCode, int? ReferenceId, decimal Amount, string Description, string Note)>(estimatedCapacity);
+                var customerTransactionItems = new List<(int CustomerId, int? CurrencyId, string CurrencyCode, DateTime TransactionDate, string TransactionType, string transactionCode, int? ReferenceId, decimal Amount, string Description, string Note)>(estimatedCapacity);
 
                 // Add document transactions
-                // IMPORTANT: Normalize currency codes to UPPERCASE for consistency
+                // IMPORTANT: Use CurrencyId (preferred) and CurrencyCode (for display)
                 foreach (var d in allValidDocuments)
                 {
                     var currencyCode = (d.CurrencyCode ?? "").ToUpperInvariant().Trim();
+                    var currencyId = d.CurrencyId;
 
                     // Use helper to generate English descriptions
                     var payerDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Payer");
                     var receiverDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Receiver");
                     var note = HistoryDescriptionHelper.GenerateDocumentNote(d);
 
-                    // If document has Description, append it to Note
+                    // If document has Description, append it to both Description and Note
                     if (!string.IsNullOrWhiteSpace(d.Description))
                     {
+                        if (!string.IsNullOrWhiteSpace(payerDescription))
+                        {
+                            payerDescription = $"{payerDescription}\n\nDescription: {d.Description}";
+                        }
+                        else
+                        {
+                            payerDescription = $"Description: {d.Description}";
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(receiverDescription))
+                        {
+                            receiverDescription = $"{receiverDescription}\n\nDescription: {d.Description}";
+                        }
+                        else
+                        {
+                            receiverDescription = $"Description: {d.Description}";
+                        }
+
                         if (!string.IsNullOrWhiteSpace(note))
                         {
                             note = $"{note}\n\nDescription: {d.Description}";
@@ -1888,21 +2008,21 @@ namespace ForexExchange.Services
                     if (d.PayerType == PayerType.Customer && d.PayerCustomerId.HasValue && d.ReceiverType == ReceiverType.Customer && d.ReceiverCustomerId.HasValue)
                     {
                         // Both sides are customers: create two transactions
-                        customerTransactionItems.Add((d.PayerCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, payerDescription, note));
-                        customerTransactionItems.Add((d.ReceiverCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, receiverDescription, note));
+                        customerTransactionItems.Add((d.PayerCustomerId.Value, currencyId, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, payerDescription, note));
+                        customerTransactionItems.Add((d.ReceiverCustomerId.Value, currencyId, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, receiverDescription, note));
                     }
                     else
                     {
                         // Single side customer transactions
                         if (d.PayerType == PayerType.Customer && d.PayerCustomerId.HasValue)
-                            customerTransactionItems.Add((d.PayerCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, payerDescription, note));
+                            customerTransactionItems.Add((d.PayerCustomerId.Value, currencyId, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, payerDescription, note));
                         if (d.ReceiverType == ReceiverType.Customer && d.ReceiverCustomerId.HasValue)
-                            customerTransactionItems.Add((d.ReceiverCustomerId.Value, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, receiverDescription, note));
+                            customerTransactionItems.Add((d.ReceiverCustomerId.Value, currencyId, currencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, receiverDescription, note));
                     }
                 }
 
                 // Add order transactions for customer history
-                // IMPORTANT: Normalize currency codes to UPPERCASE for consistency
+                // IMPORTANT: Use CurrencyId (preferred) and CurrencyCode (for display)
                 foreach (var o in allValidOrders)
                 {
                     var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
@@ -1915,54 +2035,55 @@ namespace ForexExchange.Services
                     var toNote = HistoryDescriptionHelper.GenerateOrderNote(o, toCurrencyCode, false);
 
                     // Customer pays FromAmount in FromCurrency
-                    customerTransactionItems.Add((o.CustomerId, fromCurrencyCode, o.CreatedAt, "Order", string.Empty, o.Id, -o.FromAmount, fromDescription, fromNote));
+                    customerTransactionItems.Add((o.CustomerId, o.FromCurrencyId, fromCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, -o.FromAmount, fromDescription, fromNote));
 
                     // Customer receives ToAmount in ToCurrency
-                    customerTransactionItems.Add((o.CustomerId, toCurrencyCode, o.CreatedAt, "Order", string.Empty, o.Id, o.ToAmount, toDescription, toNote));
+                    customerTransactionItems.Add((o.CustomerId, o.ToCurrencyId, toCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, o.ToAmount, toDescription, toNote));
                 }
 
                 logMessages.Add($"Manual customer records in database: [{manualCustomerRecords.Count}]");
                 logMessages.Add($"Customer transaction items before adding manual: [{customerTransactionItems.Count}]");
 
                 // Add manual customer records as transactions for balance calculation
-                // IMPORTANT: These will be used for balance calculation but we'll check for duplicates before creating new records
-                // Normalize currency codes to UPPERCASE for consistency
-                foreach (var manual in manualCustomerRecords)
+                // IMPORTANT: Load CurrencyId for manual records
+                var manualCustomerRecordsWithCurrencyId = await _context.CustomerBalanceHistory
+                    .Where(h => h.TransactionType == CustomerBalanceTransactionType.Manual && !h.IsDeleted)
+                    .Select(h => new { h.Id, h.CustomerId, h.CurrencyId, h.CurrencyCode, h.TransactionAmount, h.TransactionDate, h.Description })
+                    .ToListAsync();
+
+                foreach (var manual in manualCustomerRecordsWithCurrencyId)
                 {
                     var currencyCode = (manual.CurrencyCode ?? "").ToUpperInvariant().Trim();
+                    // Use helper to generate English description for manual records
+                    var manualDescription = HistoryDescriptionHelper.GenerateManualDescription(
+                        manual.Description ?? "Manual adjustment",
+                        manual.TransactionAmount,
+                        currencyCode);
+                    var manualNote = $"Manual Adjustment - Amount: {manual.TransactionAmount.FormatCurrency(currencyCode)} {currencyCode}";
+                    if (!string.IsNullOrWhiteSpace(manual.Description))
+                    {
+                        manualNote += $" | Reason: {manual.Description}";
+                    }
+
                     customerTransactionItems.Add((
                         manual.CustomerId,
+                        manual.CurrencyId,
                         currencyCode,
                         manual.TransactionDate,
                         "Manual",
                         string.Empty,
                         (int?)manual.Id, // Use existing ID to identify duplicates
                         manual.TransactionAmount,
-                        manual.Description ?? "Manual adjustment",
-                        string.Empty // No note for manual records
+                        manualDescription,
+                        manualNote
                     ));
                 }
                 logMessages.Add($"Customer transaction items after adding manual: [{customerTransactionItems.Count}]");
 
-                // Group by customer + currency and create coherent history (process in chunks for memory efficiency)
-                // Normalize currency codes to uppercase before grouping for case-insensitive matching
-                var normalizedCustomerTransactions = customerTransactionItems
-                    .Select(x => new
-                    {
-                        x.CustomerId,
-                        CurrencyCode = (x.CurrencyCode ?? "").ToUpperInvariant().Trim(),
-                        x.TransactionDate,
-                        x.TransactionType,
-                        x.transactionCode,
-                        x.ReferenceId,
-                        x.Amount,
-                        x.Description,
-                        x.Note
-                    })
-                    .ToList();
-
-                var customerGroups = normalizedCustomerTransactions
-                    .GroupBy(x => new { x.CustomerId, x.CurrencyCode })
+                // Group by customer + CurrencyId - use CurrencyId directly (this is why we did the refactoring!)
+                var customerGroups = customerTransactionItems
+                    .GroupBy(x => new { x.CustomerId, CurrencyId = x.CurrencyId ?? 0 })
+                    .Where(g => g.Key.CurrencyId > 0) // Only groups with valid CurrencyId
                     .ToList();
 
                 logMessages.Add($"Creating coherent history for {customerGroups.Count} customer + currency combinations...");
@@ -1974,12 +2095,20 @@ namespace ForexExchange.Services
                 foreach (var chunk in customerChunks)
                 {
                     var customerHistoryRecords = new List<CustomerBalanceHistory>();
-                    var customerBalanceUpdates = new Dictionary<(int CustomerId, string CurrencyCode), decimal>();
+                    var customerBalanceUpdates = new Dictionary<(int CustomerId, int CurrencyId), decimal>(); // Use CurrencyId as key - this is why we did the refactoring!
 
                     foreach (var customerGroup in chunk)
                     {
                         var customerId = customerGroup.Key.CustomerId;
-                        var currencyCode = customerGroup.Key.CurrencyCode;
+                        var currencyId = customerGroup.Key.CurrencyId > 0 ? (int?)customerGroup.Key.CurrencyId : null;
+
+                        if (!currencyId.HasValue) continue; // Skip if CurrencyId is not available
+
+                        // Get Currency for CurrencyCode (for display/logging only)
+                        var currency = await _context.Currencies.FindAsync(currencyId.Value);
+                        if (currency == null) continue;
+
+                        var currencyCode = currency.Code ?? ""; // Get CurrencyCode from Currency for display/logging only
 
                         // Order all transactions chronologically by TransactionDate
                         var orderedTransactions = customerGroup.OrderBy(x => x.TransactionDate).ToList();
@@ -1989,12 +2118,10 @@ namespace ForexExchange.Services
                         // Process transactions chronologically for this customer + currency
                         decimal runningBalance = 0;
 
-                        // Normalize currency code for comparison (client-side)
-                        var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
-
                         // PERFORMANCE OPTIMIZATION: Use cached manual records instead of querying database
                         // This eliminates N+1 query problem
-                        var cacheKey = (customerId, CurrencyCode: normalizedCurrencyCode);
+                        // Use CurrencyId for cache lookup - this is why we did the refactoring!
+                        var cacheKey = (customerId, CurrencyId: currencyId.Value);
                         var existingManualRecords = existingManualCustomerRecordsCache.TryGetValue(cacheKey, out var customerRecords)
                             ? customerRecords
                             : new Dictionary<long, CustomerBalanceHistory>();
@@ -2018,6 +2145,7 @@ namespace ForexExchange.Services
                                 var existingRecord = existingManualRecords[transaction.ReferenceId.Value];
                                 existingRecord.BalanceBefore = runningBalance;
                                 existingRecord.BalanceAfter = runningBalance + transaction.Amount;
+                                existingRecord.CurrencyId = currencyId; // Ensure CurrencyId is set
                                 runningBalance = existingRecord.BalanceAfter;
                                 // Don't create new record - just update the existing one
                                 continue;
@@ -2025,14 +2153,18 @@ namespace ForexExchange.Services
 
                             // For non-manual or new manual records, create new history record
                             // Use the Note from transaction if available (already formatted correctly)
-                            var note = !string.IsNullOrEmpty(transaction.Note) ? transaction.Note : 
-                                $"{transactionType} - مبلغ: {transaction.Amount} {transaction.CurrencyCode}";
+                            var transactionTypeDisplay = transactionType == CustomerBalanceTransactionType.Manual
+                                ? "Manual Adjustment"
+                                : transactionType.ToString();
+                            var note = !string.IsNullOrEmpty(transaction.Note) ? transaction.Note :
+                                $"{transactionTypeDisplay} - Amount: {transaction.Amount.FormatCurrency(transaction.CurrencyCode)} {transaction.CurrencyCode}";
                             if (string.IsNullOrEmpty(transaction.Note) && !string.IsNullOrEmpty(transaction.transactionCode))
-                                note += $" - شناسه تراکنش: {transaction.transactionCode}";
+                                note += $" - Transaction ID: {transaction.transactionCode}";
 
                             customerHistoryRecords.Add(new CustomerBalanceHistory
                             {
                                 CustomerId = customerId,
+                                CurrencyId = currencyId,
                                 CurrencyCode = currencyCode,
                                 TransactionType = transactionType,
                                 ReferenceId = transaction.ReferenceId,
@@ -2061,8 +2193,8 @@ namespace ForexExchange.Services
                             }
                         }
 
-                        // Store final balance for update
-                        customerBalanceUpdates[(customerId, currencyCode)] = runningBalance;
+                        // Store final balance for update using CurrencyId as key - this is why we did the refactoring!
+                        customerBalanceUpdates[(customerId, currencyId.Value)] = runningBalance;
                     }
 
                     // Save remaining customer history records for this chunk
@@ -2072,29 +2204,32 @@ namespace ForexExchange.Services
                         await _context.SaveChangesAsync();
                     }
 
-                    // Update customer balances for this chunk
-                    // Load all customer balances for this chunk first for case-insensitive matching
+                    // Update customer balances for this chunk using CurrencyId directly - this is why we did the refactoring!
+                    // Load all customer balances for this chunk first
                     var customerIds = customerBalanceUpdates.Keys.Select(k => k.CustomerId).Distinct().ToList();
+                    var currencyIds = customerBalanceUpdates.Keys.Select(k => k.CurrencyId).Distinct().ToList();
                     var allCustomerBalances = await _context.CustomerBalances
-                        .Where(b => customerIds.Contains(b.CustomerId))
+                        .Where(b => customerIds.Contains(b.CustomerId) && currencyIds.Contains(b.CurrencyId ?? 0))
                         .ToListAsync();
 
-                    foreach (var ((customerId, currencyCode), balance) in customerBalanceUpdates)
+                    foreach (var ((customerId, currencyId), balance) in customerBalanceUpdates)
                     {
-                        var normalizedCurrencyCode = (currencyCode ?? "").ToUpperInvariant().Trim();
-
-                        // Case-insensitive lookup in memory
+                        // Use CurrencyId directly for lookup - this is why we did the refactoring!
                         var customerBalance = allCustomerBalances.FirstOrDefault(b =>
-                            b.CustomerId == customerId &&
-                            (b.CurrencyCode ?? "").ToUpperInvariant().Trim() == normalizedCurrencyCode);
+                            b.CustomerId == customerId && b.CurrencyId == currencyId);
 
                         if (customerBalance == null)
                         {
+                            // Get Currency for CurrencyCode (for backward compatibility)
+                            var currency = await _context.Currencies.FindAsync(currencyId);
+                            var currencyCode = currency?.Code ?? "";
+
                             customerBalance = new CustomerBalance
                             {
                                 CustomerId = customerId,
-                                CurrencyCode = normalizedCurrencyCode,
-                                Balance = 0,
+                                CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
+                                CurrencyCode = currencyCode, // Get from Currency navigation property for backward compatibility
+                                Balance = balance,
                                 LastUpdated = DateTime.Now
                             };
                             _context.CustomerBalances.Add(customerBalance);
@@ -2102,13 +2237,13 @@ namespace ForexExchange.Services
                         }
                         else
                         {
-                            // Ensure CurrencyCode is normalized to uppercase for consistency
-                            if (customerBalance.CurrencyCode != normalizedCurrencyCode)
+                            // Ensure CurrencyId is set
+                            if (!customerBalance.CurrencyId.HasValue)
                             {
-                                _logger.LogWarning($"Normalizing CustomerBalance CurrencyCode from '{customerBalance.CurrencyCode}' to '{normalizedCurrencyCode}' for Customer {customerId}");
-                                customerBalance.CurrencyCode = normalizedCurrencyCode;
+                                customerBalance.CurrencyId = currencyId;
                             }
                         }
+
                         customerBalance.Balance = balance;
                         customerBalance.LastUpdated = DateTime.Now;
                     }
@@ -2155,15 +2290,19 @@ namespace ForexExchange.Services
         /// This method gets all non-deleted transactions and rebuilds the entire chain.
         /// Used for both creation and deletion operations.
         /// </summary>
-        private async Task RebuildCustomerBalanceChain(int customerId, string currencyCode)
+        private async Task RebuildCustomerBalanceChain(int customerId, int? currencyId, string? currencyCode = null)
         {
-            if (string.IsNullOrEmpty(currencyCode)) return;
+            // CurrencyId is REQUIRED, no fallback!
+            if (!currencyId.HasValue)
+            {
+                throw new ArgumentException($"CurrencyId is required for rebuilding customer balance chain for customer {customerId}.");
+            }
 
-            // Get all non-deleted transactions for this customer and currency
-            var allTransactions = await _context.CustomerBalanceHistory
-                .Where(h => h.CustomerId == customerId &&
-                           !h.IsDeleted &&
-                           h.CurrencyCode == currencyCode)
+            // Get all non-deleted transactions for this customer and currency using CurrencyId directly
+            var query = _context.CustomerBalanceHistory
+                .Where(h => h.CustomerId == customerId && h.CurrencyId == currencyId.Value && !h.IsDeleted);
+
+            var allTransactions = await query
                 .OrderBy(h => h.TransactionDate)
                 .ThenBy(h => h.Id)
                 .ToListAsync();
@@ -2177,27 +2316,40 @@ namespace ForexExchange.Services
                 runningBalance = transaction.BalanceAfter;
             }
 
-            // Update customer balance
+            // Update customer balance using CurrencyId directly - CurrencyId is REQUIRED!
             var customerBalance = await _context.CustomerBalances
-                .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyCode == currencyCode);
+                .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyId == currencyId.Value);
 
             if (customerBalance != null)
             {
                 customerBalance.Balance = runningBalance;
                 customerBalance.LastUpdated = DateTime.Now;
+
+                // Ensure CurrencyId is set if we have it
+                if (currencyId.HasValue && !customerBalance.CurrencyId.HasValue)
+                {
+                    customerBalance.CurrencyId = currencyId.Value;
+                }
             }
             else if (allTransactions.Any())
             {
+                // Get CurrencyCode from Currency for backward compatibility
+                var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId.Value);
+                var currencyCodeForBalance = currency?.Code ?? "";
+
                 // Create balance record if it doesn't exist but we have transactions
                 customerBalance = new CustomerBalance
                 {
                     CustomerId = customerId,
-                    CurrencyCode = currencyCode,
+                    CurrencyId = currencyId.Value, // CurrencyId is REQUIRED!
+                    CurrencyCode = currencyCodeForBalance, // Get from Currency navigation property for backward compatibility
                     Balance = runningBalance,
                     LastUpdated = DateTime.Now
                 };
                 _context.CustomerBalances.Add(customerBalance);
             }
+
+            await _context.SaveChangesAsync();
         }
 
         /// <summary>
@@ -2205,13 +2357,19 @@ namespace ForexExchange.Services
         /// This method gets all non-deleted transactions and rebuilds the entire chain.
         /// Used for both creation and deletion operations.
         /// </summary>
-        private async Task RebuildPoolBalanceChain(string currencyCode)
+        private async Task RebuildPoolBalanceChain(int? currencyId, string? currencyCode = null)
         {
-            if (string.IsNullOrEmpty(currencyCode)) return;
+            // CurrencyId is REQUIRED, no fallback!
+            if (!currencyId.HasValue)
+            {
+                throw new ArgumentException($"CurrencyId is required for rebuilding pool balance chain.");
+            }
 
-            // Get all non-deleted pool transactions for this currency
-            var allTransactions = await _context.CurrencyPoolHistory
-                .Where(h => !h.IsDeleted && h.CurrencyCode == currencyCode)
+            // Get all non-deleted pool transactions for this currency using CurrencyId directly
+            var query = _context.CurrencyPoolHistory
+                .Where(h => h.CurrencyId == currencyId.Value && !h.IsDeleted);
+
+            var allTransactions = await query
                 .OrderBy(h => h.TransactionDate)
                 .ThenBy(h => h.Id)
                 .ToListAsync();
@@ -2223,23 +2381,34 @@ namespace ForexExchange.Services
                 transaction.BalanceBefore = runningBalance;
                 transaction.BalanceAfter = runningBalance + transaction.TransactionAmount;
                 runningBalance = transaction.BalanceAfter;
-            }
 
-            // Load and update the CurrencyPool entity
-            var currency = await _context.Currencies
-                .FirstOrDefaultAsync(c => c.Code == currencyCode);
-
-            if (currency != null)
-            {
-                var poolBalance = await _context.CurrencyPools
-                    .FirstOrDefaultAsync(p => p.CurrencyId == currency.Id);
-
-                if (poolBalance != null)
+                // Ensure CurrencyId is set if we have it
+                if (currencyId.HasValue && !transaction.CurrencyId.HasValue)
                 {
-                    poolBalance.Balance = runningBalance;
-                    poolBalance.LastUpdated = DateTime.Now;
+                    transaction.CurrencyId = currencyId.Value;
                 }
             }
+
+            // Load and update the CurrencyPool entity using CurrencyId directly
+            var currency = await _context.Currencies
+                .FirstOrDefaultAsync(c => c.Id == currencyId.Value);
+            
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with ID {currencyId.Value} not found.");
+            }
+
+            // Currency is already validated above, so it cannot be null here
+            var poolBalance = await _context.CurrencyPools
+                .FirstOrDefaultAsync(p => p.CurrencyId == currency.Id);
+
+            if (poolBalance != null)
+            {
+                poolBalance.Balance = runningBalance;
+                poolBalance.LastUpdated = DateTime.Now;
+            }
+
+            await _context.SaveChangesAsync();
         }
 
         /// <summary>
@@ -2323,12 +2492,12 @@ namespace ForexExchange.Services
                     // 3. Rebuild balance chains without the deleted records
 
                     // Rebuild customer balance chains for both currencies
-                    await RebuildCustomerBalanceChain(order.CustomerId, order.FromCurrency?.Code);
-                    await RebuildCustomerBalanceChain(order.CustomerId, order.ToCurrency?.Code);
+                    await RebuildCustomerBalanceChain(order.CustomerId, order.FromCurrencyId, order.FromCurrency?.Code);
+                    await RebuildCustomerBalanceChain(order.CustomerId, order.ToCurrencyId, order.ToCurrency?.Code);
 
                     // Rebuild pool balance chains for both currencies
-                    await RebuildPoolBalanceChain(order.FromCurrency?.Code);
-                    await RebuildPoolBalanceChain(order.ToCurrency?.Code);
+                    await RebuildPoolBalanceChain(order.FromCurrencyId, order.FromCurrency?.Code);
+                    await RebuildPoolBalanceChain(order.ToCurrencyId, order.ToCurrency?.Code);
 
                     // Update pool statistics (decrement counts and totals)
                     await UpdatePoolStatisticsForOrderDeletion(order);
@@ -2512,16 +2681,30 @@ namespace ForexExchange.Services
         /// </summary>
         private async Task RebuildBalanceChainsForDocumentDeletion(AccountingDocument document)
         {
-            var currencyCode = document.CurrencyCode;
+            // Get CurrencyId from document - CurrencyId is REQUIRED, no fallback!
+            int? currencyId = document.CurrencyId;
+            if (!currencyId.HasValue)
+            {
+                throw new ArgumentException($"CurrencyId is required for document {document.Id}. Document must have a valid CurrencyId.");
+            }
+
+            // Get CurrencyCode from Currency for display/logging only
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId.Value);
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with ID {currencyId.Value} not found for document {document.Id}.");
+            }
+            var currencyCode = currency.Code ?? ""; // Get CurrencyCode from Currency for display/logging only
 
             // Rebuild customer balance chains for affected customers
+            // Use CurrencyId directly - this is why we did the refactoring!
             if (document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue)
             {
-                await RebuildCustomerBalanceChain(document.PayerCustomerId.Value, currencyCode);
+                await RebuildCustomerBalanceChain(document.PayerCustomerId.Value, currencyId, currencyCode);
             }
             if (document.ReceiverType == ReceiverType.Customer && document.ReceiverCustomerId.HasValue)
             {
-                await RebuildCustomerBalanceChain(document.ReceiverCustomerId.Value, currencyCode);
+                await RebuildCustomerBalanceChain(document.ReceiverCustomerId.Value, currencyId, currencyCode);
             }
 
             // Rebuild bank balance chains for affected bank accounts
@@ -2549,7 +2732,7 @@ namespace ForexExchange.Services
         /// </summary>
         public async Task CreateManualCustomerBalanceHistoryAsync(
             int customerId,
-            string currencyCode,
+            int currencyId,
             decimal amount,
             string reason,
             DateTime transactionDate,
@@ -2557,9 +2740,6 @@ namespace ForexExchange.Services
             string? transactionNumber = null,
             string? performingUserId = null)
         {
-            _logger.LogInformation($"Creating manual customer balance history: Customer {customerId}, Currency {currencyCode}, Amount {amount}, Date {transactionDate:yyyy-MM-dd}");
-
-
             // Validate customer exists
             var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == customerId);
             if (customer == null)
@@ -2567,25 +2747,43 @@ namespace ForexExchange.Services
                 throw new ArgumentException($"Customer with ID {customerId} not found");
             }
 
-            // Validate currency exists
-            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == currencyCode);
+            // Get currency by CurrencyId directly - this is why we did the refactoring!
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId);
             if (currency == null)
             {
-                throw new ArgumentException($"Currency with code {currencyCode} not found");
+                throw new ArgumentException($"Currency with ID {currencyId} not found");
             }
 
+            var currencyCode = currency.Code ?? ""; // Get CurrencyCode from currency for display/logging
+
+            _logger.LogInformation($"Creating manual customer balance history: Customer {customerId}, CurrencyId {currencyId} ({currencyCode}), Amount {amount}, Date {transactionDate:yyyy-MM-dd}");
+
+            // Use helper to generate English descriptions for manual adjustment
+            var description = HistoryDescriptionHelper.GenerateManualDescription(reason, amount, currencyCode);
+            var note = $"Manual Adjustment - Amount: {amount.FormatCurrency(currencyCode)} {currencyCode}";
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                note += $" | Reason: {reason}";
+            }
+            if (!string.IsNullOrWhiteSpace(transactionNumber))
+            {
+                note += $" | Transaction ID: {transactionNumber}";
+            }
 
             // Create the manual history record with proper coherent balance calculations
+            // Use CurrencyId directly - this is why we did the refactoring!
             var historyRecord = new CustomerBalanceHistory
             {
                 CustomerId = customerId,
-                CurrencyCode = currencyCode,
+                CurrencyCode = currencyCode, // Keep for backward compatibility
+                CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
                 BalanceBefore = 0, //will update to corect value in rebuild 
                 TransactionAmount = amount,
                 BalanceAfter = 0, //will update to corect value in rebuild 
                 TransactionType = CustomerBalanceTransactionType.Manual,
                 ReferenceId = null, // Manual entries don't have reference IDs
-                Description = reason,
+                Description = description,
+                Note = note,
                 TransactionNumber = transactionNumber,
                 TransactionDate = transactionDate, // Use the specified date
                 CreatedAt = DateTime.Now,
@@ -2593,15 +2791,14 @@ namespace ForexExchange.Services
                 IsDeleted = false // Manual transactions are never deleted via soft delete
             };
 
-
-
             _context.CustomerBalanceHistory.Add(historyRecord);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation($"Manual customer balance history created with coherent balances: ID {historyRecord.Id}, Customer {customerId}, Currency {currencyCode}, Amount {amount}");
+            _logger.LogInformation($"Manual customer balance history created with coherent balances: ID {historyRecord.Id}, Customer {customerId}, CurrencyId {currencyId} ({currencyCode}), Amount {amount}");
 
             // Rebuild balance chain for this specific customer and currency only
-            await RebuildCustomerBalanceChain(customerId, currencyCode);
+            // Use CurrencyId directly - CurrencyId is REQUIRED!
+            await RebuildCustomerBalanceChain(customerId, currencyId, currencyCode);
             await _context.SaveChangesAsync();
         }
 
@@ -2636,7 +2833,7 @@ namespace ForexExchange.Services
             _logger.LogInformation($"Manual customer balance history deleted: ID {transactionId}, Customer {historyRecord.CustomerId}, Currency {historyRecord.CurrencyCode}, Amount {historyRecord.TransactionAmount}");
 
             // Rebuild balance chain for this specific customer and currency only
-            await RebuildCustomerBalanceChain(historyRecord.CustomerId, historyRecord.CurrencyCode);
+            await RebuildCustomerBalanceChain(historyRecord.CustomerId, historyRecord.CurrencyId, historyRecord.CurrencyCode);
             await _context.SaveChangesAsync();
             // Send notification to admin users (excluding the performing user)
 
@@ -2663,7 +2860,7 @@ namespace ForexExchange.Services
         /// Manual transactions are never frozen and always affect current balance calculations.
         /// </summary>
         public async Task CreateManualPoolBalanceHistoryAsync(
-            string currencyCode,
+            int currencyId,
             decimal adjustmentAmount,
             string reason,
             DateTime transactionDate,
@@ -2671,19 +2868,23 @@ namespace ForexExchange.Services
             string? transactionNumber = null,
             string? performingUserId = null)
         {
-            _logger.LogInformation($"Creating manual pool balance history: Currency {currencyCode}, Amount {adjustmentAmount}, Date {transactionDate:yyyy-MM-dd}");
-
-            // Validate currency exists
-            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == currencyCode);
+            // Get currency by CurrencyId directly - this is why we did the refactoring!
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId);
             if (currency == null)
             {
-                throw new ArgumentException($"Currency with code {currencyCode} not found");
+                throw new ArgumentException($"Currency with ID {currencyId} not found");
             }
 
+            var currencyCode = currency.Code ?? ""; // Get CurrencyCode from currency for display/logging
+
+            _logger.LogInformation($"Creating manual pool balance history: CurrencyId {currencyId} ({currencyCode}), Amount {adjustmentAmount}, Date {transactionDate:yyyy-MM-dd}");
+
             // Create the manual history record with proper coherent balance calculations
+            // Use CurrencyId directly - this is why we did the refactoring!
             var historyRecord = new CurrencyPoolHistory
             {
-                CurrencyCode = currencyCode,
+                CurrencyCode = currencyCode, // Keep for backward compatibility
+                CurrencyId = currencyId, // Use CurrencyId directly - this is why we did the refactoring!
                 BalanceBefore = 0, //will update to correct value in rebuild
                 TransactionAmount = adjustmentAmount,
                 BalanceAfter = 0, //will update to correct value in rebuild
@@ -2700,10 +2901,10 @@ namespace ForexExchange.Services
             _context.CurrencyPoolHistory.Add(historyRecord);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation($"Manual pool balance history created with coherent balances: ID {historyRecord.Id}, Currency {currencyCode}, Amount {adjustmentAmount}");
+            _logger.LogInformation($"Manual pool balance history created with coherent balances: ID {historyRecord.Id}, CurrencyId {currencyId} ({currencyCode}), Amount {adjustmentAmount}");
 
             // Rebuild balance chain for this specific currency only
-            await RebuildPoolBalanceChain(currencyCode);
+            await RebuildPoolBalanceChain(currencyId, currencyCode);
             await _context.SaveChangesAsync();
         }
 
@@ -2732,6 +2933,7 @@ namespace ForexExchange.Services
             }
 
             var currencyCode = historyRecord.CurrencyCode;
+            var currencyId = historyRecord.CurrencyId;
             var amount = historyRecord.TransactionAmount;
 
             // Delete the manual transaction
@@ -2741,7 +2943,7 @@ namespace ForexExchange.Services
             _logger.LogInformation($"Manual pool balance history deleted: ID {transactionId}, Currency {currencyCode}, Amount {amount}");
 
             // Rebuild balance chain for this specific currency only
-            await RebuildPoolBalanceChain(currencyCode);
+            await RebuildPoolBalanceChain(currencyId, currencyCode);
             await _context.SaveChangesAsync();
         }
 

@@ -41,6 +41,9 @@ namespace ForexExchange.Models
         [Display(Name = "Currency Code - کد ارز")]
         public string CurrencyCode { get; set; } = string.Empty;
 
+        [Display(Name = "Currency ID - شناسه ارز")]
+        public int? CurrencyId { get; set; }
+
         [Required]
         [Display(Name = "Transaction Type - نوع تراکنش")]
         public CustomerBalanceTransactionType TransactionType { get; set; }
@@ -101,6 +104,8 @@ namespace ForexExchange.Models
 
         // Navigation properties
         public virtual Customer Customer { get; set; } = null!;
+
+        public virtual Currency? Currency { get; set; }
 
         /// <summary>
         /// Validates that BalanceAfter = BalanceBefore + TransactionAmount

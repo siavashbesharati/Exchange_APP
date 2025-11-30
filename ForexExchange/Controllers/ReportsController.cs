@@ -2276,13 +2276,23 @@ namespace ForexExchange.Controllers
                 var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == customerId);
                 var customerName = customer?.FullName ?? $"مشتری {customerId}";
 
+                // Resolve CurrencyId from CurrencyCode - use CurrencyId directly (this is why we did the refactoring!)
+                var currency = await _context.Currencies
+                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                if (currency == null)
+                {
+                    TempData["Error"] = $"ارز با کد {currencyCode} یافت نشد";
+                    return RedirectToAction("Index");
+                }
+
                 // Get current user for notification exclusion
                 var currentUser = await _userManager.GetUserAsync(User);
 
                 // Create the manual history record with notification handling in service layer
+                // Use CurrencyId directly - this is why we did the refactoring!
                 await _centralFinancialService.CreateManualCustomerBalanceHistoryAsync(
                     customerId: customerId,
-                    currencyCode: currencyCode,
+                    currencyId: currency.Id,
                     amount: amount,
                     reason: reason,
                     transactionDate: transactionDate,
@@ -2410,9 +2420,20 @@ namespace ForexExchange.Controllers
                     TempData["Error"] = "لطفاً دلیل تراکنش را وارد کنید";
                     return RedirectToAction("Index");
                 }
+
+                // Resolve CurrencyId from CurrencyCode - use CurrencyId directly (this is why we did the refactoring!)
+                var currency = await _context.Currencies
+                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                if (currency == null)
+                {
+                    TempData["Error"] = $"ارز با کد {currencyCode} یافت نشد";
+                    return RedirectToAction("Index");
+                }
+
                 var currentUser = await _userManager.GetUserAsync(User);
+                // Use CurrencyId directly - this is why we did the refactoring!
                 await _centralFinancialService.CreateManualPoolBalanceHistoryAsync(
-                    currencyCode: currencyCode,
+                    currencyId: currency.Id,
                     adjustmentAmount: amount,
                     reason: reason,
                     transactionDate: transactionDate,

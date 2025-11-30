@@ -37,6 +37,9 @@ namespace ForexExchange.Models
         [Display(Name = "Currency Code - کد ارز")]
         public string CurrencyCode { get; set; } = string.Empty;
 
+        [Display(Name = "Currency ID - شناسه ارز")]
+        public int? CurrencyId { get; set; }
+
         [Required]
         [Display(Name = "Transaction Type - نوع تراکنش")]
         public CurrencyPoolTransactionType TransactionType { get; set; } = CurrencyPoolTransactionType.Order;
@@ -94,6 +97,9 @@ namespace ForexExchange.Models
         [StringLength(100)]
         [Display(Name = "Deleted By - حذف شده توسط")]
         public string? DeletedBy { get; set; }
+
+        // Navigation properties
+        public virtual Currency? Currency { get; set; }
 
         /// <summary>
         /// Validates that BalanceAfter = BalanceBefore + TransactionAmount

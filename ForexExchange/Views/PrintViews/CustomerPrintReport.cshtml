@@ -291,7 +291,8 @@
         }
 
         .type-manual {
-            color: black;
+            background: #ffc107 !important;
+            color: #000 !important;
         }
 
         .amount-cell {
@@ -392,6 +393,14 @@
             .type-receipt {
                 background: #17a2b8 !important;
                 color: white !important;
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .type-manual {
+                background: #ffc107 !important;
+                color: #000 !important;
                 -webkit-print-color-adjust: exact !important;
                 color-adjust: exact !important;
                 print-color-adjust: exact !important;
@@ -658,7 +667,7 @@
                                         </td>
 
                                         <td style="text-align: center;">@transaction.CurrencyCode</td>
-                                        <td style="text-align: center;">@transaction.TransactionNumber</td>
+                                        <td style="text-align: center;">@(transaction.TransactionNumber ?? (transaction.ReferenceId.HasValue ? transaction.ReferenceId.Value.ToString() : "-"))</td>
 
 
                                         <td style="text-align: right;">@transaction.Note</td>

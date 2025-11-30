@@ -66,6 +66,9 @@ namespace ForexExchange.Models
         [Display(Name = "Currency - ارز")]
         public string CurrencyCode { get; set; } = string.Empty;
 
+        [Display(Name = "Currency ID - شناسه ارز")]
+        public int? CurrencyId { get; set; }
+
         [Required]
         [StringLength(100)]
         [Display(Name = "Document Title - عنوان سند")]
@@ -145,6 +148,9 @@ namespace ForexExchange.Models
 
         [Display(Name = "Receiver Bank Account - حساب بانکی دریافت کننده")]
         public BankAccount? ReceiverBankAccount { get; set; }
+
+        [Display(Name = "Currency - ارز")]
+        public Currency? Currency { get; set; }
 
         // Legacy navigation properties (for backward compatibility)
         [NotMapped]
