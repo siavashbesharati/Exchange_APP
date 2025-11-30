@@ -503,15 +503,37 @@ namespace ForexExchange.Controllers
                     .Where(d => !d.IsDeleted)
                     .ToListAsync();
 
+                int documentsWithDescription = 0;
                 foreach (var doc in documents)
                 {
                     // Use helper to generate English description (for Payer side)
                     var note = HistoryDescriptionHelper.GenerateDocumentDescription(doc, "Payer");
-                    doc.Notes = note;
+                    
+                    // If document has Description, append it to Notes
+                    if (!string.IsNullOrWhiteSpace(doc.Description))
+                    {
+                        if (!string.IsNullOrWhiteSpace(note))
+                        {
+                            doc.Notes = $"{note}\n\nDescription: {doc.Description}";
+                        }
+                        else
+                        {
+                            doc.Notes = $"Description: {doc.Description}";
+                        }
+                        documentsWithDescription++;
+                    }
+                    else
+                    {
+                        doc.Notes = note;
+                    }
                 }
 
                 var documentsUpdated = await _context.SaveChangesAsync();
                 logMessages.Add($"✓ Updated {documentsUpdated} accounting document notes");
+                if (documentsWithDescription > 0)
+                {
+                    logMessages.Add($"  → {documentsWithDescription} documents had Description field that was added to Notes");
+                }
 
                 // STEP 3: Update CustomerBalanceHistory Descriptions
                 logMessages.Add("");

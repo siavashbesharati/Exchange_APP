@@ -1008,6 +1008,19 @@ namespace ForexExchange.Services
             var description = HistoryDescriptionHelper.GenerateDocumentDescription(documentWithDetails, role);
             var note = HistoryDescriptionHelper.GenerateDocumentNote(documentWithDetails);
 
+            // If document has Description, append it to Note
+            if (!string.IsNullOrWhiteSpace(documentWithDetails.Description))
+            {
+                if (!string.IsNullOrWhiteSpace(note))
+                {
+                    note = $"{note}\n\nDescription: {documentWithDetails.Description}";
+                }
+                else
+                {
+                    note = $"Description: {documentWithDetails.Description}";
+                }
+            }
+
             // Create new history record for this document (balances will be recalculated in rebuild)
             var newHistoryRecord = new CustomerBalanceHistory
             {
@@ -1091,6 +1104,19 @@ namespace ForexExchange.Services
 
             // Use helper to generate English description
             var description = HistoryDescriptionHelper.GenerateBankHistoryDescription(document, bankAccount);
+
+            // If document has Description, append it to description
+            if (!string.IsNullOrWhiteSpace(document.Description))
+            {
+                if (!string.IsNullOrWhiteSpace(description))
+                {
+                    description = $"{description}\n\nDescription: {document.Description}";
+                }
+                else
+                {
+                    description = $"Description: {document.Description}";
+                }
+            }
 
             // Create new history record for this document (balances will be recalculated in rebuild)
             var newHistoryRecord = new BankAccountBalanceHistory
@@ -1652,6 +1678,28 @@ namespace ForexExchange.Services
                     var payerDescription = HistoryDescriptionHelper.GenerateBankHistoryDescription(d, d.PayerBankAccount);
                     var receiverDescription = HistoryDescriptionHelper.GenerateBankHistoryDescription(d, d.ReceiverBankAccount);
 
+                    // If document has Description, append it to descriptions
+                    if (!string.IsNullOrWhiteSpace(d.Description))
+                    {
+                        if (!string.IsNullOrWhiteSpace(payerDescription))
+                        {
+                            payerDescription = $"{payerDescription}\n\nDescription: {d.Description}";
+                        }
+                        else
+                        {
+                            payerDescription = $"Description: {d.Description}";
+                        }
+                        
+                        if (!string.IsNullOrWhiteSpace(receiverDescription))
+                        {
+                            receiverDescription = $"{receiverDescription}\n\nDescription: {d.Description}";
+                        }
+                        else
+                        {
+                            receiverDescription = $"Description: {d.Description}";
+                        }
+                    }
+
                     if (d.PayerType == PayerType.System && d.PayerBankAccountId.HasValue && d.ReceiverType == ReceiverType.System && d.ReceiverBankAccountId.HasValue)
                     {
                         // Both sides are system bank accounts: create two transactions
@@ -1823,6 +1871,19 @@ namespace ForexExchange.Services
                     var payerDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Payer");
                     var receiverDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Receiver");
                     var note = HistoryDescriptionHelper.GenerateDocumentNote(d);
+
+                    // If document has Description, append it to Note
+                    if (!string.IsNullOrWhiteSpace(d.Description))
+                    {
+                        if (!string.IsNullOrWhiteSpace(note))
+                        {
+                            note = $"{note}\n\nDescription: {d.Description}";
+                        }
+                        else
+                        {
+                            note = $"Description: {d.Description}";
+                        }
+                    }
 
                     if (d.PayerType == PayerType.Customer && d.PayerCustomerId.HasValue && d.ReceiverType == ReceiverType.Customer && d.ReceiverCustomerId.HasValue)
                     {
