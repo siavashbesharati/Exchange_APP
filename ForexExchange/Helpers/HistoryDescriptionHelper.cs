@@ -55,53 +55,92 @@ namespace ForexExchange.Helpers
 
         /// <summary>
         /// Generates description for AccountingDocument transaction in CustomerBalanceHistory
-        /// Format: "RECEIVE {amount} {currency} from {payerName}" or "SEND {amount} {currency} to {receiverName}"
+        /// Format: "{from} Transfer {amount} {currencyCode} To {to} via {documentType} transaction_id : {trackingCode}, {description}"
         /// </summary>
         public static string GenerateDocumentDescription(AccountingDocument document, string role)
         {
             var amount = document.Amount;
-            var currencyCode = document.CurrencyCode;
-            var title = document.Title;
+            var currencyCode = document.Currency?.Code ?? document.CurrencyCode;
+            var documentType = document.Type == DocumentType.Cash ? "cash" : "havala";
+            var trackingCode = document.ReferenceNumber ?? "";
+            var description = document.Description ?? "";
 
             if (role == "پرداخت کننده" || role == "Payer")
             {
-                // Payer receives money (positive transaction)
-                var receiverName = document.ReceiverType == ReceiverType.Customer && document.ReceiverCustomerId.HasValue
-                    ? document.ReceiverCustomer?.FullName ?? "Unknown Customer"
-                    : document.ReceiverType == ReceiverType.System && document.ReceiverBankAccountId.HasValue
-                        ? $"{document.ReceiverBankAccount?.BankName ?? "Bank"} ({document.ReceiverBankAccount?.AccountNumber ?? ""})"
-                        : "System";
-
-                return $"RECEIVE {amount.FormatCurrency(currencyCode)} {currencyCode} from {title} | To: {receiverName}";
-            }
-            else // Receiver
-            {
-                // Receiver sends money (negative transaction)
-                var payerName = document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue
+                // Payer perspective: "From {payerName} Transfer {amount} {currency} To {receiverName} via {type}"
+                var fromName = document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue
                     ? document.PayerCustomer?.FullName ?? "Unknown Customer"
                     : document.PayerType == PayerType.System && document.PayerBankAccountId.HasValue
                         ? $"{document.PayerBankAccount?.BankName ?? "Bank"} ({document.PayerBankAccount?.AccountNumber ?? ""})"
                         : "System";
 
-                return $"SEND {amount.FormatCurrency(currencyCode)} {currencyCode} to {title} | From: {payerName}";
+                var toName = document.ReceiverType == ReceiverType.Customer && document.ReceiverCustomerId.HasValue
+                    ? document.ReceiverCustomer?.FullName ?? "Unknown Customer"
+                    : document.ReceiverType == ReceiverType.System && document.ReceiverBankAccountId.HasValue
+                        ? $"{document.ReceiverBankAccount?.BankName ?? "Bank"} ({document.ReceiverBankAccount?.AccountNumber ?? ""})"
+                        : "System";
+
+                var result = $"{fromName} Transfer {amount.FormatCurrency(currencyCode)} {currencyCode} To {toName} via {documentType}";
+                if (!string.IsNullOrWhiteSpace(trackingCode))
+                {
+                    result += $" transaction_id : {trackingCode}";
+                }
+                if (!string.IsNullOrWhiteSpace(description))
+                {
+                    result += $", {description}";
+                }
+                return result;
+            }
+            else // Receiver
+            {
+                // Receiver perspective: "From {payerName} Transfer {amount} {currency} To {receiverName} via {type}"
+                var fromName = document.PayerType == PayerType.Customer && document.PayerCustomerId.HasValue
+                    ? document.PayerCustomer?.FullName ?? "Unknown Customer"
+                    : document.PayerType == PayerType.System && document.PayerBankAccountId.HasValue
+                        ? $"{document.PayerBankAccount?.BankName ?? "Bank"} ({document.PayerBankAccount?.AccountNumber ?? ""})"
+                        : "System";
+
+                var toName = document.ReceiverType == ReceiverType.Customer && document.ReceiverCustomerId.HasValue
+                    ? document.ReceiverCustomer?.FullName ?? "Unknown Customer"
+                    : document.ReceiverType == ReceiverType.System && document.ReceiverBankAccountId.HasValue
+                        ? $"{document.ReceiverBankAccount?.BankName ?? "Bank"} ({document.ReceiverBankAccount?.AccountNumber ?? ""})"
+                        : "System";
+
+                var result = $"{fromName} Transfer {amount.FormatCurrency(currencyCode)} {currencyCode} To {toName} via {documentType}";
+                if (!string.IsNullOrWhiteSpace(trackingCode))
+                {
+                    result += $" transaction_id : {trackingCode}";
+                }
+                if (!string.IsNullOrWhiteSpace(description))
+                {
+                    result += $", {description}";
+                }
+                return result;
             }
         }
 
         /// <summary>
-        /// Generates note for AccountingDocument transaction (without customer info)
-        /// Format: "{DocumentType} - Amount: {amount} {currency}"
+        /// Generates note for AccountingDocument transaction
+        /// Format: "{DocumentType} - Amount: {amount} {currency} transaction_id : {trackingCode}, {description}"
         /// </summary>
         public static string GenerateDocumentNote(AccountingDocument document)
         {
             // Use Type.ToString() to get English enum name instead of GetDisplayName() which returns Persian
-            var documentType = document.Type.ToString();
+            var documentType = document.Type == DocumentType.Cash ? "cash" : "havala";
             var amount = document.Amount;
-            var currencyCode = document.CurrencyCode;
+            var currencyCode = document.Currency?.Code ?? document.CurrencyCode;
+            var trackingCode = document.ReferenceNumber ?? "";
+            var description = document.Description ?? "";
+            
             var note = $"{documentType} - Amount: {amount.FormatCurrency(currencyCode)} {currencyCode}";
-
-            if (!string.IsNullOrEmpty(document.ReferenceNumber))
+            
+            if (!string.IsNullOrWhiteSpace(trackingCode))
             {
-                note += $" | Transaction ID: {document.ReferenceNumber}";
+                note += $" transaction_id : {trackingCode}";
+            }
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                note += $", {description}";
             }
 
             return note;

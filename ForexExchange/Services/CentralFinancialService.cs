@@ -1097,33 +1097,12 @@ namespace ForexExchange.Services
                 .Include(d => d.ReceiverCustomer)
                 .Include(d => d.PayerBankAccount)
                 .Include(d => d.ReceiverBankAccount)
+                .Include(d => d.Currency)
                 .FirstOrDefaultAsync(d => d.Id == document.Id) ?? document;
 
-            // Use helper to generate English descriptions
+            // Use helper to generate English descriptions (Description is already included in the format)
             var description = HistoryDescriptionHelper.GenerateDocumentDescription(documentWithDetails, role);
             var note = HistoryDescriptionHelper.GenerateDocumentNote(documentWithDetails);
-
-            // If document has Description, append it to both Description and Note
-            if (!string.IsNullOrWhiteSpace(documentWithDetails.Description))
-            {
-                if (!string.IsNullOrWhiteSpace(description))
-                {
-                    description = $"{description}\n\nDescription: {documentWithDetails.Description}";
-                }
-                else
-                {
-                    description = $"Description: {documentWithDetails.Description}";
-                }
-
-                if (!string.IsNullOrWhiteSpace(note))
-                {
-                    note = $"{note}\n\nDescription: {documentWithDetails.Description}";
-                }
-                else
-                {
-                    note = $"Description: {documentWithDetails.Description}";
-                }
-            }
 
             // Create new history record for this document (balances will be recalculated in rebuild)
             // Use CurrencyId directly - this is why we did the refactoring!
@@ -1954,6 +1933,7 @@ namespace ForexExchange.Services
                     .Include(d => d.ReceiverCustomer)
                     .Include(d => d.PayerBankAccount)
                     .Include(d => d.ReceiverBankAccount)
+                    .Include(d => d.Currency)
                     .ToListAsync();
 
                 var allValidOrders = await _context.Orders
@@ -1976,41 +1956,10 @@ namespace ForexExchange.Services
                     var currencyCode = (d.CurrencyCode ?? "").ToUpperInvariant().Trim();
                     var currencyId = d.CurrencyId;
 
-                    // Use helper to generate English descriptions
+                    // Use helper to generate English descriptions (Description is already included in the format)
                     var payerDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Payer");
                     var receiverDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Receiver");
                     var note = HistoryDescriptionHelper.GenerateDocumentNote(d);
-
-                    // If document has Description, append it to both Description and Note
-                    if (!string.IsNullOrWhiteSpace(d.Description))
-                    {
-                        if (!string.IsNullOrWhiteSpace(payerDescription))
-                        {
-                            payerDescription = $"{payerDescription}\n\nDescription: {d.Description}";
-                        }
-                        else
-                        {
-                            payerDescription = $"Description: {d.Description}";
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(receiverDescription))
-                        {
-                            receiverDescription = $"{receiverDescription}\n\nDescription: {d.Description}";
-                        }
-                        else
-                        {
-                            receiverDescription = $"Description: {d.Description}";
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(note))
-                        {
-                            note = $"{note}\n\nDescription: {d.Description}";
-                        }
-                        else
-                        {
-                            note = $"Description: {d.Description}";
-                        }
-                    }
 
                     if (d.PayerType == PayerType.Customer && d.PayerCustomerId.HasValue && d.ReceiverType == ReceiverType.Customer && d.ReceiverCustomerId.HasValue)
                     {

@@ -510,6 +510,7 @@ namespace ForexExchange.Controllers
                     .Include(d => d.ReceiverCustomer)
                     .Include(d => d.PayerBankAccount)
                     .Include(d => d.ReceiverBankAccount)
+                    .Include(d => d.Currency)
                     .Where(d => !d.IsDeleted)
                     .ToListAsync();
 
@@ -517,24 +518,13 @@ namespace ForexExchange.Controllers
                 foreach (var doc in documents)
                 {
                     // Use helper to generate English description (for Payer side)
-                    var note = HistoryDescriptionHelper.GenerateDocumentDescription(doc, "Payer");
+                    // Description is already included in the format
+                    var note = HistoryDescriptionHelper.GenerateDocumentNote(doc);
+                    doc.Notes = note;
                     
-                    // If document has Description, append it to Notes
                     if (!string.IsNullOrWhiteSpace(doc.Description))
                     {
-                        if (!string.IsNullOrWhiteSpace(note))
-                        {
-                            doc.Notes = $"{note}\n\nDescription: {doc.Description}";
-                        }
-                        else
-                        {
-                            doc.Notes = $"Description: {doc.Description}";
-                        }
                         documentsWithDescription++;
-                    }
-                    else
-                    {
-                        doc.Notes = note;
                     }
                 }
 
@@ -570,6 +560,7 @@ namespace ForexExchange.Controllers
 
                 // Update descriptions for AccountingDocument transactions
                 var documentHistoryRecords = await _context.CustomerBalanceHistory
+                    .Include(h => h.Currency)
                     .Where(h => h.TransactionType == CustomerBalanceTransactionType.AccountingDocument && !h.IsDeleted)
                     .ToListAsync();
 
@@ -582,37 +573,16 @@ namespace ForexExchange.Controllers
                         // Determine role based on transaction amount (positive = Payer, negative = Receiver)
                         var role = history.TransactionAmount > 0 ? "Payer" : "Receiver";
                         
-                        // Use helper to generate English descriptions
+                        // Use helper to generate English descriptions (Description is already included in the format)
                         var description = HistoryDescriptionHelper.GenerateDocumentDescription(document, role);
                         var note = HistoryDescriptionHelper.GenerateDocumentNote(document);
                         
-                        // If document has Description, append it to both Description and Note in CustomerBalanceHistory
+                        history.Description = description;
+                        history.Note = note;
+                        
                         if (!string.IsNullOrWhiteSpace(document.Description))
                         {
-                            if (!string.IsNullOrWhiteSpace(description))
-                            {
-                                history.Description = $"{description}\n\nDescription: {document.Description}";
-                            }
-                            else
-                            {
-                                history.Description = $"Description: {document.Description}";
-                            }
-                            
-                            if (!string.IsNullOrWhiteSpace(note))
-                            {
-                                history.Note = $"{note}\n\nDescription: {document.Description}";
-                            }
-                            else
-                            {
-                                history.Note = $"Description: {document.Description}";
-                            }
-                            
                             historyRecordsWithDocumentDescription++;
-                        }
-                        else
-                        {
-                            history.Description = description;
-                            history.Note = note;
                         }
                     }
                 }
