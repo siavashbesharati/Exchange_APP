@@ -561,7 +561,9 @@
             const payerType = document.getElementById('payerType').value;
             const receiverType = document.getElementById('receiverType').value;
             const amount = document.querySelector('[name="Amount"]').value;
-            const currency = document.querySelector('[name="CurrencyCode"]').value;
+            const currencySelect = document.getElementById('CurrencySelect');
+            const selectedOption = currencySelect ? currencySelect.options[currencySelect.selectedIndex] : null;
+            const currency = selectedOption ? selectedOption.getAttribute('data-currency-code') || '' : '';
             const docType = document.querySelector('[name="Type"]').value;
             
             let payerName = '';
@@ -1601,7 +1603,13 @@
             console.log(`Total FormData entries: ${formDataCount}`);
             
             // Basic validation before sending
-            const requiredFields = ['Type', 'PayerType', 'ReceiverType', 'Amount', 'CurrencyCode'];
+            const currencyId = formData.get('CurrencyId');
+            if (!currencyId || currencyId === '0' || currencyId === '') {
+                alert('لطفاً ارز را انتخاب کنید');
+                return false;
+            }
+            
+            const requiredFields = ['Type', 'PayerType', 'ReceiverType', 'Amount'];
             const missingFields = [];
             
             for (let field of requiredFields) {
