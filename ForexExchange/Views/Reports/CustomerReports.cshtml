@@ -205,6 +205,7 @@
 
                     <!-- Hidden customer ID field -->
                     <input type="hidden" id="modalCustomerId" name="customerId" value="">
+                    <input type="hidden" id="modalCurrencyId" name="currencyId" value="">
 
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -295,7 +296,7 @@
 
                 if (Array.isArray(currencies)) {
                     currencies.forEach(currency => {
-                        select.innerHTML += `<option value="${currency.code}">${currency.name} (${currency.code})</option>`;
+                        select.innerHTML += `<option value="${currency.code}" data-currency-id="${currency.id}">${currency.name} (${currency.code})</option>`;
                     });
                 } else {
                 }
@@ -404,7 +405,15 @@
 
         const fromDate = document.getElementById('fromDate').value || null;
         const toDate = document.getElementById('toDate').value || null;
-        const currencyCode = document.getElementById('currencyFilter').value || null;
+        const currencyFilter = document.getElementById('currencyFilter');
+        const currencyCode = currencyFilter.value || null;
+        
+        // Get CurrencyId from selected option
+        let currencyId = null;
+        if (currencyCode) {
+            const selectedOption = currencyFilter.options[currencyFilter.selectedIndex];
+            currencyId = selectedOption ? selectedOption.getAttribute('data-currency-id') : null;
+        }
 
         // Show loading state
         showTimelineLoading();
@@ -417,7 +426,7 @@
             customerId: customerId,
             fromDate: fromDate,
             toDate: toDate,
-            currencyCode: currencyCode,
+            currencyId: currencyId,
             page: page,
             pageSize: pageSize
         })
@@ -692,14 +701,22 @@
 
         const fromDate = document.getElementById('fromDate').value || '';
         const toDate = document.getElementById('toDate').value || '';
-        const currencyCode = document.getElementById('currencyFilter').value || '';
+        const currencyFilter = document.getElementById('currencyFilter');
+        const currencyCode = currencyFilter.value || '';
+        
+        // Get CurrencyId from selected option
+        let currencyId = null;
+        if (currencyCode) {
+            const selectedOption = currencyFilter.options[currencyFilter.selectedIndex];
+            currencyId = selectedOption ? selectedOption.getAttribute('data-currency-id') : null;
+        }
 
         const params = new URLSearchParams({
             type: 'customer',
             customerId: customerId,
             fromDate: fromDate,
             toDate: toDate,
-            currencyCode: currencyCode
+            currencyId: currencyId || ''
         });
 
         // Download Excel file
@@ -753,7 +770,15 @@
 
         const fromDate = document.getElementById('fromDate').value || '';
         const toDate = document.getElementById('toDate').value || '';
-        const currencyCode = document.getElementById('currencyFilter').value || '';
+        const currencyFilter = document.getElementById('currencyFilter');
+        const currencyCode = currencyFilter.value || '';
+        
+        // Get CurrencyId from selected option
+        let currencyId = null;
+        if (currencyCode) {
+            const selectedOption = currencyFilter.options[currencyFilter.selectedIndex];
+            currencyId = selectedOption ? selectedOption.getAttribute('data-currency-id') : null;
+        }
         // const bankAccountId = document.getElementById('bankAccountFilter').value || '';
 
         // Build URL with query parameters
@@ -761,7 +786,7 @@
             customerId: customerId,
             fromDate: fromDate,
             toDate: toDate,
-            currencyCode: currencyCode
+            currencyId: currencyId || ''
             // bankAccountId: bankAccountId
         });
 
@@ -825,10 +850,17 @@
 
                 if (Array.isArray(currencies)) {
                     currencies.forEach(currency => {
-                        select.innerHTML += `<option value="${currency.code}">${currency.name} (${currency.code})</option>`;
+                        select.innerHTML += `<option value="${currency.code}" data-currency-id="${currency.id}">${currency.name} (${currency.code})</option>`;
                     });
                 } else {
                 }
+                
+                // Update CurrencyId when currency changes
+                select.addEventListener('change', function() {
+                    const selectedOption = this.options[this.selectedIndex];
+                    const currencyId = selectedOption.getAttribute('data-currency-id');
+                    document.getElementById('modalCurrencyId').value = currencyId || '';
+                });
             })
             .catch(error => {
                 const select = document.getElementById('modalCurrencyCode');
@@ -849,16 +881,17 @@
         const formData = new FormData(form);
 
         // Create URL-encoded data for the request
+        const currencyId = formData.get('currencyId');
         const data = {
             customerId: formData.get('customerId'),
-            currencyCode: formData.get('currencyCode'),
+            currencyId: currencyId ? parseInt(currencyId) : null,
             amount: parseFloat(formData.get('amount')),
             reason: formData.get('reason'),
             transactionDate: formData.get('transactionDate')
         };
 
         // Validate required fields
-        if (!data.customerId || !data.currencyCode || !data.amount || !data.reason || !data.transactionDate) {
+        if (!data.customerId || !data.currencyId || !data.amount || !data.reason || !data.transactionDate) {
             alert('لطفاً همه فیلدهای الزامی را پر کنید');
             return;
         }

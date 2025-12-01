@@ -481,19 +481,18 @@ namespace ForexExchange.Services
             {
                 // Get the currency for this document - prefer CurrencyId, fallback to CurrencyCode
                 Currency? currency = null;
-                if (document.CurrencyId.HasValue)
+                // Use CurrencyId directly - this is why we did the refactoring!
+                if (!document.CurrencyId.HasValue)
                 {
-                    currency = await _context.Currencies.FindAsync(document.CurrencyId.Value);
+                    _logger.LogWarning($"CurrencyId is required for document {document.Id}. Document must have a valid CurrencyId.");
+                    return;
                 }
-                else if (!string.IsNullOrEmpty(document.CurrencyCode))
-                {
-                    currency = await _context.Currencies
-                        .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == document.CurrencyCode.ToUpperInvariant().Trim());
-                }
+
+                currency = await _context.Currencies.FindAsync(document.CurrencyId.Value);
 
                 if (currency == null)
                 {
-                    _logger.LogWarning($"Currency not found for CurrencyId={document.CurrencyId}, CurrencyCode={document.CurrencyCode}");
+                    _logger.LogWarning($"Currency not found for CurrencyId={document.CurrencyId.Value}");
                     return;
                 }
 

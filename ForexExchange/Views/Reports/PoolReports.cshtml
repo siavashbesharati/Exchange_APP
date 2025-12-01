@@ -156,6 +156,7 @@
             </div>
             <form id="manualAdjustmentForm">
                 <input type="hidden" id="manualAdjustmentCurrencyCode" name="currencyCode">
+                <input type="hidden" id="manualAdjustmentCurrencyId" name="currencyId">
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -224,7 +225,7 @@
 
                 if (Array.isArray(currencies)) {
                     currencies.forEach(currency => {
-                        select.innerHTML += `<option value="${currency.code}">${currency.name} (${currency.code})</option>`;
+                        select.innerHTML += `<option value="${currency.code}" data-currency-id="${currency.id}">${currency.name} (${currency.code})</option>`;
                     });
                 } else {
                 }
@@ -259,8 +260,20 @@
     }
 
     function loadPoolTimelineData(page = 1) {
-        const currencyCode = document.getElementById('currencySelect').value;
+        const currencySelect = document.getElementById('currencySelect');
+        const currencyCode = currencySelect.value;
         if (!currencyCode) {
+            showTimelineEmptyState();
+            hideTimelineSections();
+            return;
+        }
+
+        // Get CurrencyId from selected option
+        const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+        const currencyId = selectedOption.getAttribute('data-currency-id');
+        
+        if (!currencyId) {
+            console.error('CurrencyId not found for selected currency');
             showTimelineEmptyState();
             hideTimelineSections();
             return;
@@ -277,7 +290,7 @@
         currentPage.timeline = page;
 
         const params = new URLSearchParams({
-            currencyCode: currencyCode,
+            currencyId: currencyId,
             fromDate: fromDate || '',
             toDate: toDate || '',
             page: page,
@@ -592,15 +605,21 @@
 
     // Manual Adjustment Functions
     function showManualAdjustmentModal() {
-        const currencyCode = document.getElementById('currencySelect').value;
+        const currencySelect = document.getElementById('currencySelect');
+        const currencyCode = currencySelect.value;
         if (!currencyCode) {
             alert('لطفاً ابتدا ارز را انتخاب کنید');
             return;
         }
 
+        // Get CurrencyId from selected option
+        const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+        const currencyId = selectedOption.getAttribute('data-currency-id');
+
         // Reset form
         document.getElementById('manualAdjustmentForm').reset();
         document.getElementById('manualAdjustmentCurrencyCode').value = currencyCode;
+        document.getElementById('manualAdjustmentCurrencyId').value = currencyId || '';
 
         // Set current date/time as default
         const now = new Date();
@@ -632,9 +651,12 @@
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>در حال ثبت...';
 
+        // Get CurrencyId from hidden field
+        const currencyId = document.getElementById('manualAdjustmentCurrencyId').value;
+
         // Prepare form data
         const formData = new FormData();
-        formData.append('currencyCode', currencyCode);
+        formData.append('currencyId', currencyId);
         formData.append('amount', amount);
         formData.append('reason', reason);
         formData.append('transactionDate', transactionDate);

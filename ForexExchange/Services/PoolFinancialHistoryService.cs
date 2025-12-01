@@ -22,29 +22,27 @@ namespace ForexExchange.Services
 
         protected override async Task<List<PoolTimelineItem>> GetTimelineItemsAsync(DateTime fromDate, DateTime toDate, object? filter = null)
         {
-            var currencyCode = filter as string;
+            // Filter MUST be CurrencyId (int) - NO CurrencyCode fallback!
+            int? currencyId = null;
+            
+            if (filter is int id)
+            {
+                currencyId = id;
+            }
+            else if (filter is string)
+            {
+                // CurrencyCode is not supported - return empty list
+                return new List<PoolTimelineItem>();
+            }
             
             // Build query for CurrencyPoolHistory - EXCLUDE ONLY DELETED RECORDS FOR REPORTING
             var query = _context.CurrencyPoolHistory.Where(h => !h.IsDeleted);
 
-            // Apply currency filter - prioritize CurrencyId over CurrencyCode
-            if (!string.IsNullOrEmpty(currencyCode))
+            // Apply currency filter - use CurrencyId directly (no fallback to CurrencyCode)
+            if (currencyId.HasValue)
             {
-                // Try to find CurrencyId from CurrencyCode for better performance
-                var currency = await _context.Currencies
-                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
-                
-                if (currency != null)
-                {
-                    // Use CurrencyId if available, otherwise fallback to CurrencyCode
-                    query = query.Where(h => h.CurrencyId == currency.Id || 
-                                            (h.CurrencyId == null && h.CurrencyCode == currencyCode));
-                }
-                else
-                {
-                    // Fallback to CurrencyCode if currency not found
-                    query = query.Where(h => h.CurrencyCode == currencyCode);
-                }
+                // Use CurrencyId directly - this is why we did the refactoring!
+                query = query.Where(h => h.CurrencyId == currencyId.Value);
             }
 
             // Apply date filter
@@ -88,27 +86,33 @@ namespace ForexExchange.Services
 
         protected override async Task<PoolSummary> GetSummaryStatisticsAsync(object? filter = null)
         {
-            var currencyCode = filter as string;
+            // Filter MUST be CurrencyId (int) - NO CurrencyCode fallback!
+            int? currencyId = null;
             
+            if (filter is int id)
+            {
+                currencyId = id;
+            }
+            else if (filter is string)
+            {
+                // CurrencyCode is not supported - return empty summary
+                return new PoolSummary
+                {
+                    TotalTransactions = 0,
+                    TodayTransactions = 0,
+                    CurrencyBalances = new Dictionary<string, decimal>(),
+                    LastUpdateTime = DateTime.Now
+                };
+            }
+
+            // Build query for CurrencyPoolHistory - EXCLUDE ONLY DELETED RECORDS FOR REPORTING
             var query = _context.CurrencyPoolHistory.Where(h => !h.IsDeleted);
 
-            if (!string.IsNullOrEmpty(currencyCode))
+            // Apply currency filter - use CurrencyId directly (no fallback to CurrencyCode)
+            if (currencyId.HasValue)
             {
-                // Try to find CurrencyId from CurrencyCode for better performance
-                var currency = await _context.Currencies
-                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
-                
-                if (currency != null)
-                {
-                    // Use CurrencyId if available, otherwise fallback to CurrencyCode
-                    query = query.Where(h => h.CurrencyId == currency.Id || 
-                                            (h.CurrencyId == null && h.CurrencyCode == currencyCode));
-                }
-                else
-                {
-                    // Fallback to CurrencyCode if currency not found
-                    query = query.Where(h => h.CurrencyCode == currencyCode);
-                }
+                // Use CurrencyId directly - this is why we did the refactoring!
+                query = query.Where(h => h.CurrencyId == currencyId.Value);
             }
 
             var today = DateTime.Today;
@@ -122,21 +126,10 @@ namespace ForexExchange.Services
                 .Include(h => h.Currency)
                 .Where(h => !h.IsDeleted);
             
-            if (!string.IsNullOrEmpty(currencyCode))
+            if (currencyId.HasValue)
             {
-                var currency = await _context.Currencies
-                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
-                
-                if (currency != null)
-                {
-                    latestBalancesQuery = latestBalancesQuery.Where(h => 
-                        h.CurrencyId == currency.Id || 
-                        (h.CurrencyId == null && h.CurrencyCode == currencyCode));
-                }
-                else
-                {
-                    latestBalancesQuery = latestBalancesQuery.Where(h => h.CurrencyCode == currencyCode);
-                }
+                // Use CurrencyId directly - this is why we did the refactoring!
+                latestBalancesQuery = latestBalancesQuery.Where(h => h.CurrencyId == currencyId.Value);
             }
             
             var latestBalances = await latestBalancesQuery
@@ -180,11 +173,11 @@ namespace ForexExchange.Services
         /// دریافت جدول زمانی مالی داشبورد  از جدول CurrencyPoolHistory
         /// </summary>
         public async Task<List<PoolTimelineItem>> GetPoolTimelineAsync(
-            string? currencyCode = null,
+            object? currencyFilter = null,
             DateTime? fromDate = null,
             DateTime? toDate = null)
         {
-            return await GetTimelineAsync(fromDate, toDate, currencyCode);
+            return await GetTimelineAsync(fromDate, toDate, currencyFilter);
         }
 
     
@@ -193,9 +186,9 @@ namespace ForexExchange.Services
         /// Get pool summary statistics
         /// دریافت آمار خلاصه پول
         /// </summary>
-        public async Task<PoolSummary> GetPoolSummaryAsync(string? currencyCode = null)
+        public async Task<PoolSummary> GetPoolSummaryAsync(object? currencyFilter = null)
         {
-            return await GetSummaryAsync(currencyCode);
+            return await GetSummaryAsync(currencyFilter);
         }
     }
 

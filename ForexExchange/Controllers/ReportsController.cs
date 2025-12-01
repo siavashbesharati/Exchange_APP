@@ -1760,10 +1760,19 @@ namespace ForexExchange.Controllers
 
         // GET: Reports/GetPoolTimeline
         [HttpGet]
-        public async Task<IActionResult> GetPoolTimeline(string? currencyCode = null, string? fromDate = null, string? toDate = null)
+        public async Task<IActionResult> GetPoolTimeline(int? currencyId = null, string? fromDate = null, string? toDate = null)
         {
             try
             {
+                _logger.LogInformation($"GetPoolTimeline called with currencyId: {currencyId}");
+                
+                // Validate CurrencyId is required
+                if (!currencyId.HasValue)
+                {
+                    _logger.LogWarning("GetPoolTimeline called without currencyId");
+                    return Json(new { success = false, error = "CurrencyId الزامی است" });
+                }
+
                 DateTime? fromDateTime = null;
                 DateTime? toDateTime = null;
 
@@ -1785,15 +1794,18 @@ namespace ForexExchange.Controllers
                     toDateTime = formattedToDateTime;
                 }
 
-                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyCode, fromDateTime, toDateTime);
-                var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyCode);
+                // Use CurrencyId directly - NO CurrencyCode fallback!
+                object? currencyFilter = currencyId.Value;
+                
+                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyFilter, fromDateTime, toDateTime);
+                var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyFilter);
 
                 // Return timeline as-is (oldest first)
                 return Json(new { success = true, timeline, summary });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error loading pool timeline for currency: {CurrencyCode}", currencyCode);
+                _logger.LogError(ex, "Error loading pool timeline for currencyId: {CurrencyId}", currencyId);
                 return Json(new { success = false, error = "خطا در بارگذاری تاریخچه تراز" });
             }
         }
@@ -2246,7 +2258,7 @@ namespace ForexExchange.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateManualCustomerBalanceHistory(
             int customerId,
-            string currencyCode,
+            int? currencyId,
             decimal amount,
             string reason,
             DateTime transactionDate)
@@ -2260,7 +2272,7 @@ namespace ForexExchange.Controllers
                     return RedirectToAction("Index");
                 }
 
-                if (string.IsNullOrWhiteSpace(currencyCode))
+                if (!currencyId.HasValue || currencyId.Value <= 0)
                 {
                     TempData["Error"] = "لطفاً ارز معتبری انتخاب کنید";
                     return RedirectToAction("Index");
@@ -2276,14 +2288,14 @@ namespace ForexExchange.Controllers
                 var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == customerId);
                 var customerName = customer?.FullName ?? $"مشتری {customerId}";
 
-                // Resolve CurrencyId from CurrencyCode - use CurrencyId directly (this is why we did the refactoring!)
-                var currency = await _context.Currencies
-                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                // Get currency for display
+                var currency = await _context.Currencies.FindAsync(currencyId.Value);
                 if (currency == null)
                 {
-                    TempData["Error"] = $"ارز با کد {currencyCode} یافت نشد";
+                    TempData["Error"] = $"ارز با شناسه {currencyId.Value} یافت نشد";
                     return RedirectToAction("Index");
                 }
+                var currencyCode = currency.Code ?? "";
 
                 // Get current user for notification exclusion
                 var currentUser = await _userManager.GetUserAsync(User);
@@ -2403,14 +2415,14 @@ namespace ForexExchange.Controllers
         // ===== Manual Pool (CurrencyPoolHistory) Adjustment =====
         [HttpPost]
         public async Task<IActionResult> CreateManualPoolBalanceHistory(
-            string currencyCode,
+            int? currencyId,
             decimal amount,
             string reason,
             DateTime transactionDate)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(currencyCode))
+                if (!currencyId.HasValue || currencyId.Value <= 0)
                 {
                     TempData["Error"] = "لطفاً ارز معتبری انتخاب کنید";
                     return RedirectToAction("Index");
@@ -2421,14 +2433,14 @@ namespace ForexExchange.Controllers
                     return RedirectToAction("Index");
                 }
 
-                // Resolve CurrencyId from CurrencyCode - use CurrencyId directly (this is why we did the refactoring!)
-                var currency = await _context.Currencies
-                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                // Get currency for display
+                var currency = await _context.Currencies.FindAsync(currencyId.Value);
                 if (currency == null)
                 {
-                    TempData["Error"] = $"ارز با کد {currencyCode} یافت نشد";
+                    TempData["Error"] = $"ارز با شناسه {currencyId.Value} یافت نشد";
                     return RedirectToAction("Index");
                 }
+                var currencyCode = currency.Code ?? "";
 
                 var currentUser = await _userManager.GetUserAsync(User);
                 // Use CurrencyId directly - this is why we did the refactoring!
@@ -3950,16 +3962,27 @@ namespace ForexExchange.Controllers
         // GET: Reports/ExportToExcel - Main export routing method
         [HttpGet]
         public async Task<IActionResult> ExportToExcel(string type, int? customerId = null, int? bankAccountId = null,
-            string? currencyCode = null, DateTime? fromDate = null, DateTime? toDate = null,
+            string? currencyCode = null, int? currencyId = null, DateTime? fromDate = null, DateTime? toDate = null,
             string? customer = null, string? referenceId = null, decimal? fromAmount = null, decimal? toAmount = null,
             string? bankAccount = null, string? fromCurrency = null, string? toCurrency = null, string? orderStatus = null)
         {
             try
             {
+                // Convert currencyCode to currencyId if provided (for backward compatibility)
+                if (!currencyId.HasValue && !string.IsNullOrEmpty(currencyCode))
+                {
+                    var currency = await _context.Currencies
+                        .FirstOrDefaultAsync(c => c.Code == currencyCode);
+                    if (currency != null)
+                    {
+                        currencyId = currency.Id;
+                    }
+                }
+                
                 return type.ToLower() switch
                 {
                     "allcustomersbalances" => await ExportAllCustomersBalances(currencyCode, customer),
-                    "customer" => await ExportCustomerTimeline(customerId, fromDate, toDate, currencyCode),
+                    "customer" => await ExportCustomerTimeline(customerId, fromDate, toDate, currencyId),
                     "documents" => await ExportDocuments(fromDate, toDate, currencyCode, customer, referenceId, fromAmount, toAmount, bankAccount),
                     "orders" => await ExportOrdersData(fromDate, toDate, fromCurrency, toCurrency),
                     "pool" => await ExportPoolTimeline(currencyCode, fromDate, toDate),
@@ -3975,7 +3998,7 @@ namespace ForexExchange.Controllers
         }
 
         // Customer Timeline Excel Export
-        private async Task<IActionResult> ExportCustomerTimeline(int? customerId, DateTime? fromDate, DateTime? toDate, string? currencyCode)
+        private async Task<IActionResult> ExportCustomerTimeline(int? customerId, DateTime? fromDate, DateTime? toDate, int? currencyId)
         {
             if (!customerId.HasValue)
             {
@@ -4002,8 +4025,11 @@ namespace ForexExchange.Controllers
                     formattedToDate = toDateTime;
                 }
 
+                // Convert currencyCode to currencyId if provided
+               
+                
                 // Get timeline data
-                var timeline = await _customerHistoryService.GetCustomerTimelineAsync(customerId.Value, formattedFromDate, formattedToDate, currencyCode);
+                var timeline = await _customerHistoryService.GetCustomerTimelineAsync(customerId.Value, formattedFromDate, formattedToDate, currencyId);
 
                 // Generate Excel file
                 var excelData = _excelExportService.GenerateCustomerTimelineExcel(

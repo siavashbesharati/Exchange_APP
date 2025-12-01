@@ -35,14 +35,14 @@ namespace ForexExchange.Controllers
         /// Get complete customer financial timeline
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetCustomerTimeline(int customerId, DateTime? fromDate = null, DateTime? toDate = null, string? currencyCode = null, int page = 1, int pageSize = 10)
+        public async Task<IActionResult> GetCustomerTimeline(int customerId, DateTime? fromDate = null, DateTime? toDate = null, int? currencyId = null, int page = 1, int pageSize = 10)
         {
             try
             {
                 if (customerId <= 0)
                     return BadRequest("Invalid customer ID");
 
-                var timeline = await _historyService.GetCustomerTimelineAsync(customerId, fromDate, toDate, currencyCode);
+                var timeline = await _historyService.GetCustomerTimelineAsync(customerId, fromDate, toDate, currencyId);
                 
                 // Apply pagination to transactions
                 if (timeline?.Transactions != null)
@@ -194,14 +194,14 @@ namespace ForexExchange.Controllers
         /// Display customer timeline in bank receipt format
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> PrintFinancialReport(int customerId, DateTime? fromDate = null, DateTime? toDate = null, string? currencyCode = null)
+        public async Task<IActionResult> PrintFinancialReport(int customerId, DateTime? fromDate = null, DateTime? toDate = null, int? currencyId = null)
         {
             try
             {
                 if (customerId <= 0)
                     return BadRequest("Invalid customer ID");
 
-                var timeline = await _historyService.GetCustomerTimelineAsync(customerId, fromDate, toDate, currencyCode);
+                var timeline = await _historyService.GetCustomerTimelineAsync(customerId, fromDate, toDate, currencyId);
                 
                 if (timeline == null)
                     return NotFound("Timeline not found");

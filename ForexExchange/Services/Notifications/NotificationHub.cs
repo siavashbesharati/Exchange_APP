@@ -296,8 +296,12 @@ namespace ForexExchange.Services.Notifications
                 ? await _context.Customers.FindAsync(document.ReceiverCustomerId.Value) 
                 : null;
             
-            // Use FirstOrDefaultAsync for string CurrencyCode (not int Id)
-            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == document.CurrencyCode);
+            // Use CurrencyId directly - this is why we did the refactoring!
+            Currency? currency = null;
+            if (document.CurrencyId.HasValue)
+            {
+                currency = await _context.Currencies.FindAsync(document.CurrencyId.Value);
+            }
 
             var title = eventType switch
             {

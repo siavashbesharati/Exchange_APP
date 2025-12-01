@@ -178,16 +178,17 @@
                             <!-- Currency -->
                             <div class="col-md-6 mb-3">
                                 <label asp-for="CurrencyCode" class="form-label">ارز <span class="text-danger">*</span></label>
-                                <select asp-for="CurrencyCode" class="form-select" required>
+                                <select asp-for="CurrencyCode" id="CurrencyCode" class="form-select" required>
                                     <option value="">انتخاب کنید...</option>
                                     @if (ViewData["Currencies"] is List<ForexExchange.Models.Currency> currencies)
                                     {
                                         @foreach (var currency in currencies)
                                         {
-                                            <option value="@currency.Code">@currency.PersianName (@currency.Code)</option>
+                                            <option value="@currency.Code" data-currency-id="@currency.Id">@currency.PersianName (@currency.Code)</option>
                                         }
                                     }
                                 </select>
+                                <input type="hidden" asp-for="CurrencyId" id="CurrencyId" />
                                 <span asp-validation-for="CurrencyCode" class="text-danger"></span>
                             </div>
                         </div>
@@ -417,6 +418,9 @@
             const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
             const formatted = localDateTime.toISOString().slice(0, 16);
             document.getElementById('DocumentDate').value = formatted;
+            
+            // Initialize CurrencyId from selected currency
+            initializeCurrencyId();
         });
 
         // Dynamic show/hide based on payer and receiver types
@@ -508,8 +512,28 @@
             warningDiv.style.display = hasConflict ? 'block' : 'none';
         }
 
-        // Add currency validation on all relevant changes (Select2 compatible)
-        document.getElementById('CurrencyCode').addEventListener('change', validateCurrency);
+        // Initialize CurrencyId from selected option on page load
+        function initializeCurrencyId() {
+            const currencySelect = document.getElementById('CurrencyCode');
+            if (currencySelect && currencySelect.value) {
+                const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+                if (selectedOption) {
+                    const currencyId = selectedOption.getAttribute('data-currency-id');
+                    const currencyIdField = document.getElementById('CurrencyId');
+                    if (currencyIdField && currencyId) {
+                        currencyIdField.value = currencyId;
+                    }
+                }
+            }
+        }
+
+        // Update CurrencyId when CurrencyCode changes and validate currency
+        document.getElementById('CurrencyCode').addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const currencyId = selectedOption.getAttribute('data-currency-id');
+            document.getElementById('CurrencyId').value = currencyId || '';
+            validateCurrency();
+        });
         
         // Use jQuery event delegation for Select2 elements
         $(document).on('change', '[name="PayerBankAccountId"]', function() {
@@ -1247,6 +1271,7 @@
                 ReceiverBankAccountId: form.querySelector('[name="ReceiverBankAccountId"]').value ? parseInt(form.querySelector('[name="ReceiverBankAccountId"]').value) : null,
                 Amount: parseFloat(form.querySelector('[name="Amount"]').value) || 0,
                 CurrencyCode: form.querySelector('[name="CurrencyCode"]').value || '',
+                CurrencyId: form.querySelector('[name="CurrencyId"]').value ? parseInt(form.querySelector('[name="CurrencyId"]').value) : null,
                 Title: form.querySelector('[name="Title"]').value || '',
                 Description: form.querySelector('[name="Description"]').value || '',
                 DocumentDate: form.querySelector('[name="DocumentDate"]').value || '',

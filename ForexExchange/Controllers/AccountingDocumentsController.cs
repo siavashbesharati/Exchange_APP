@@ -496,22 +496,17 @@ namespace ForexExchange.Controllers
                 }
             }
 
+            // Validate CurrencyId is required (no fallback to CurrencyCode)
+            if (!accountingDocument.CurrencyId.HasValue)
+            {
+                ModelState.AddModelError("CurrencyId", "CurrencyId الزامی است. لطفاً ارز را انتخاب کنید.");
+            }
+
             if (ModelState.IsValid)
             {
                 try
                 {
                     accountingDocument.CreatedAt = DateTime.Now;
-
-                    // Set CurrencyId from CurrencyCode if not already set
-                    if (!accountingDocument.CurrencyId.HasValue && !string.IsNullOrEmpty(accountingDocument.CurrencyCode))
-                    {
-                        var currency = await _context.Currencies
-                            .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == accountingDocument.CurrencyCode.ToUpperInvariant().Trim());
-                        if (currency != null)
-                        {
-                            accountingDocument.CurrencyId = currency.Id;
-                        }
-                    }
 
                     // Handle file upload only if a file is provided
                     if (documentFile != null && documentFile.Length > 0)
@@ -731,15 +726,14 @@ namespace ForexExchange.Controllers
                         return NotFound();
                     }
 
-                    // Set CurrencyId from CurrencyCode if not already set
-                    if (!accountingDocument.CurrencyId.HasValue && !string.IsNullOrEmpty(accountingDocument.CurrencyCode))
+                    // Validate CurrencyId is required (no fallback to CurrencyCode)
+                    if (!accountingDocument.CurrencyId.HasValue)
                     {
-                        var currency = await _context.Currencies
-                            .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == accountingDocument.CurrencyCode.ToUpperInvariant().Trim());
-                        if (currency != null)
-                        {
-                            accountingDocument.CurrencyId = currency.Id;
-                        }
+                        ModelState.AddModelError("CurrencyId", "CurrencyId الزامی است. لطفاً ارز را انتخاب کنید.");
+                        ViewData["Customers"] = _context.Customers.Where(c => c.IsActive && !c.IsSystem).ToList();
+                        ViewData["Currencies"] = _context.Currencies.Where(c => c.IsActive).ToList();
+                        ViewData["BankAccounts"] = _context.BankAccounts.ToList();
+                        return View(accountingDocument);
                     }
 
                     // Handle file upload if a new file is provided
@@ -868,6 +862,7 @@ namespace ForexExchange.Controllers
                         ReceiverBankAccountId = a.ReceiverBankAccountId,
                         Amount = a.Amount,
                         CurrencyCode = a.CurrencyCode,
+                        CurrencyId = a.CurrencyId,
                         Title = a.Title,
                         Description = a.Description,
                         DocumentDate = a.DocumentDate,
@@ -937,6 +932,18 @@ namespace ForexExchange.Controllers
                 {
                     try
                     {
+                        // Validate CurrencyId is required - NO FALLBACK TO CurrencyCode!
+                        if (!accountingDocument.CurrencyId.HasValue)
+                        {
+                            var errorMsg = $"سند ID: {accountingDocument.Id} فاقد CurrencyId است. CurrencyId الزامی است. لطفاً Migration Script را اجرا کنید.";
+                            if (isAjax)
+                            {
+                                return Json(new { success = false, message = errorMsg });
+                            }
+                            TempData["ErrorMessage"] = errorMsg;
+                            return RedirectToAction("Details", new { id });
+                        }
+
                         // CRITICAL: Detach document from Change Tracker before processing to avoid tracking conflicts
                         var documentId = accountingDocument.Id;
                         _context.Entry(accountingDocument).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
@@ -1247,7 +1254,17 @@ namespace ForexExchange.Controllers
         {
             try
             {
-                _logger.LogInformation($"[PreviewTransactionEffects] Called for Amount={accountingDocument.Amount}, Currency={accountingDocument.CurrencyCode}");
+                _logger.LogInformation($"[PreviewTransactionEffects] Called for Amount={accountingDocument.Amount}, CurrencyId={accountingDocument.CurrencyId}, CurrencyCode={accountingDocument.CurrencyCode}");
+
+                // Validate CurrencyId is required (should come from form now)
+                if (!accountingDocument.CurrencyId.HasValue)
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        message = "CurrencyId الزامی است. لطفاً ارز را انتخاب کنید."
+                    });
+                }
 
                 // Use centralized CentralFinancialService for preview calculation with auto-balance creation
                 var previewEffects = await _centralFinancialService.PreviewAccountingDocumentEffectsAsync(accountingDocument);

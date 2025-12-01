@@ -1022,5 +1022,198 @@ namespace ForexExchange.Controllers
             return RedirectToAction("Index");
         }
 
+        /// <summary>
+        /// Populates CurrencyId fields from CurrencyCode in all tables
+        /// This migration script fills CurrencyId for records that have CurrencyCode but missing CurrencyId
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PopulateCurrencyIds()
+        {
+            try
+            {
+                var user = await _userManager.GetUserAsync(User);
+                var performedBy = user?.UserName ?? "Admin";
+                var logMessages = new List<string>();
+
+                logMessages.Add("=== POPULATING CurrencyId FROM CurrencyCode ===");
+                logMessages.Add($"Started at: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                logMessages.Add($"Performed by: {performedBy}");
+                logMessages.Add("");
+
+                using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+                // STEP 1: Populate CustomerBalances.CurrencyId
+                logMessages.Add("STEP 1: Populating CustomerBalances.CurrencyId...");
+                var customerBalancesUpdated = await _context.Database.ExecuteSqlRawAsync(@"
+                    UPDATE CustomerBalances 
+                    SET CurrencyId = (SELECT Id FROM Currencies WHERE UPPER(TRIM(Code)) = UPPER(TRIM(CustomerBalances.CurrencyCode)))
+                    WHERE CurrencyId IS NULL AND CurrencyCode IS NOT NULL AND CurrencyCode != '';
+                ");
+                logMessages.Add($"✓ Updated {customerBalancesUpdated} CustomerBalances records");
+
+                // STEP 2: Populate CustomerBalanceHistory.CurrencyId
+                logMessages.Add("");
+                logMessages.Add("STEP 2: Populating CustomerBalanceHistory.CurrencyId...");
+                var customerHistoryUpdated = await _context.Database.ExecuteSqlRawAsync(@"
+                    UPDATE CustomerBalanceHistory 
+                    SET CurrencyId = (SELECT Id FROM Currencies WHERE UPPER(TRIM(Code)) = UPPER(TRIM(CustomerBalanceHistory.CurrencyCode)))
+                    WHERE CurrencyId IS NULL AND CurrencyCode IS NOT NULL AND CurrencyCode != '';
+                ");
+                logMessages.Add($"✓ Updated {customerHistoryUpdated} CustomerBalanceHistory records");
+
+                // STEP 3: Populate CurrencyPoolHistory.CurrencyId
+                logMessages.Add("");
+                logMessages.Add("STEP 3: Populating CurrencyPoolHistory.CurrencyId...");
+                var poolHistoryUpdated = await _context.Database.ExecuteSqlRawAsync(@"
+                    UPDATE CurrencyPoolHistory 
+                    SET CurrencyId = (SELECT Id FROM Currencies WHERE UPPER(TRIM(Code)) = UPPER(TRIM(CurrencyPoolHistory.CurrencyCode)))
+                    WHERE CurrencyId IS NULL AND CurrencyCode IS NOT NULL AND CurrencyCode != '';
+                ");
+                logMessages.Add($"✓ Updated {poolHistoryUpdated} CurrencyPoolHistory records");
+
+                // STEP 4: Populate AccountingDocuments.CurrencyId
+                logMessages.Add("");
+                logMessages.Add("STEP 4: Populating AccountingDocuments.CurrencyId...");
+                var documentsUpdated = await _context.Database.ExecuteSqlRawAsync(@"
+                    UPDATE AccountingDocuments 
+                    SET CurrencyId = (SELECT Id FROM Currencies WHERE UPPER(TRIM(Code)) = UPPER(TRIM(AccountingDocuments.CurrencyCode)))
+                    WHERE CurrencyId IS NULL AND CurrencyCode IS NOT NULL AND CurrencyCode != '';
+                ");
+                logMessages.Add($"✓ Updated {documentsUpdated} AccountingDocuments records");
+
+                // STEP 5: Populate BankAccounts.CurrencyId
+                logMessages.Add("");
+                logMessages.Add("STEP 5: Populating BankAccounts.CurrencyId...");
+                var bankAccountsUpdated = await _context.Database.ExecuteSqlRawAsync(@"
+                    UPDATE BankAccounts 
+                    SET CurrencyId = (SELECT Id FROM Currencies WHERE UPPER(TRIM(Code)) = UPPER(TRIM(BankAccounts.CurrencyCode)))
+                    WHERE CurrencyId IS NULL AND CurrencyCode IS NOT NULL AND CurrencyCode != '';
+                ");
+                logMessages.Add($"✓ Updated {bankAccountsUpdated} BankAccounts records");
+
+                // STEP 6: Populate BankAccountBalances.CurrencyId
+                logMessages.Add("");
+                logMessages.Add("STEP 6: Populating BankAccountBalances.CurrencyId...");
+                var bankAccountBalancesUpdated = await _context.Database.ExecuteSqlRawAsync(@"
+                    UPDATE BankAccountBalances 
+                    SET CurrencyId = (SELECT Id FROM Currencies WHERE UPPER(TRIM(Code)) = UPPER(TRIM(BankAccountBalances.CurrencyCode)))
+                    WHERE CurrencyId IS NULL AND CurrencyCode IS NOT NULL AND CurrencyCode != '';
+                ");
+                logMessages.Add($"✓ Updated {bankAccountBalancesUpdated} BankAccountBalances records");
+
+                // STEP 7: Check for records that couldn't be updated (CurrencyCode not found in Currencies table)
+                logMessages.Add("");
+                logMessages.Add("STEP 7: Checking for records with invalid CurrencyCode...");
+
+                var invalidCustomerBalances = await _context.CustomerBalances
+                    .Where(cb => cb.CurrencyId == null && !string.IsNullOrEmpty(cb.CurrencyCode))
+                    .Select(cb => cb.CurrencyCode)
+                    .Distinct()
+                    .ToListAsync();
+
+                var invalidCustomerHistory = await _context.CustomerBalanceHistory
+                    .Where(h => h.CurrencyId == null && !string.IsNullOrEmpty(h.CurrencyCode))
+                    .Select(h => h.CurrencyCode)
+                    .Distinct()
+                    .ToListAsync();
+
+                var invalidPoolHistory = await _context.CurrencyPoolHistory
+                    .Where(h => h.CurrencyId == null && !string.IsNullOrEmpty(h.CurrencyCode))
+                    .Select(h => h.CurrencyCode)
+                    .Distinct()
+                    .ToListAsync();
+
+                var invalidDocuments = await _context.AccountingDocuments
+                    .Where(d => d.CurrencyId == null && !string.IsNullOrEmpty(d.CurrencyCode))
+                    .Select(d => d.CurrencyCode)
+                    .Distinct()
+                    .ToListAsync();
+
+                var invalidBankAccounts = await _context.BankAccounts
+                    .Where(ba => ba.CurrencyId == null && !string.IsNullOrEmpty(ba.CurrencyCode))
+                    .Select(ba => ba.CurrencyCode)
+                    .Distinct()
+                    .ToListAsync();
+
+                var invalidBankAccountBalances = await _context.BankAccountBalances
+                    .Where(bab => bab.CurrencyId == null && !string.IsNullOrEmpty(bab.CurrencyCode))
+                    .Select(bab => bab.CurrencyCode)
+                    .Distinct()
+                    .ToListAsync();
+
+                var allInvalidCodes = invalidCustomerBalances
+                    .Union(invalidCustomerHistory)
+                    .Union(invalidPoolHistory)
+                    .Union(invalidDocuments)
+                    .Union(invalidBankAccounts)
+                    .Union(invalidBankAccountBalances)
+                    .Distinct()
+                    .ToList();
+
+                if (allInvalidCodes.Any())
+                {
+                    logMessages.Add($"⚠️ Warning: Found {allInvalidCodes.Count} invalid CurrencyCode(s) that don't exist in Currencies table:");
+                    foreach (var code in allInvalidCodes)
+                    {
+                        logMessages.Add($"   - {code}");
+                    }
+                }
+                else
+                {
+                    logMessages.Add("✓ All CurrencyCode values were successfully matched to CurrencyId");
+                }
+
+                await dbTransaction.CommitAsync();
+
+                logMessages.Add("");
+                logMessages.Add("=== MIGRATION COMPLETED SUCCESSFULLY ===");
+                var totalUpdated = customerBalancesUpdated + customerHistoryUpdated + poolHistoryUpdated + documentsUpdated + bankAccountsUpdated + bankAccountBalancesUpdated;
+                logMessages.Add($"Total records updated: {totalUpdated}");
+                logMessages.Add($"  - CustomerBalances: {customerBalancesUpdated}");
+                logMessages.Add($"  - CustomerBalanceHistory: {customerHistoryUpdated}");
+                logMessages.Add($"  - CurrencyPoolHistory: {poolHistoryUpdated}");
+                logMessages.Add($"  - AccountingDocuments: {documentsUpdated}");
+                logMessages.Add($"  - BankAccounts: {bankAccountsUpdated}");
+                logMessages.Add($"  - BankAccountBalances: {bankAccountBalancesUpdated}");
+
+                // Log admin activity
+                _context.AdminActivities.Add(new AdminActivity
+                {
+                    AdminUserId = user?.Id ?? "Unknown",
+                    ActivityType = AdminActivityType.BulkOperation,
+                    Description = $"Populated CurrencyId from CurrencyCode: {totalUpdated} records updated",
+                    Timestamp = DateTime.UtcNow,
+                    IpAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString()
+                });
+                await _context.SaveChangesAsync();
+
+                // Check if this is an AJAX request
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    return Json(new
+                    {
+                        success = true,
+                        message = $"Migration completed successfully. {totalUpdated} records updated.",
+                        details = logMessages
+                    });
+                }
+
+                TempData["Success"] = string.Join("<br/>", logMessages);
+            }
+            catch (Exception ex)
+            {
+                // Check if this is an AJAX request
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    return Json(new { success = false, error = $"خطا در migration: {ex.Message}" });
+                }
+
+                TempData["Error"] = $"خطا در migration: {ex.Message}";
+            }
+
+            return RedirectToAction("Index");
+        }
+
     }
 }

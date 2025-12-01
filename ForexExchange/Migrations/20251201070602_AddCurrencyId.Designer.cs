@@ -3,6 +3,7 @@ using System;
 using ForexExchange.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ForexExchange.Migrations
 {
     [DbContext(typeof(ForexDbContext))]
-    partial class ForexDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251201070602_AddCurrencyId")]
+    partial class AddCurrencyId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.8");
