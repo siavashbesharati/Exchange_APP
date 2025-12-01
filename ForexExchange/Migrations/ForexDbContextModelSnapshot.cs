@@ -38,9 +38,6 @@ namespace ForexExchange.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("CurrencyId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("TEXT");
 
@@ -132,8 +129,6 @@ namespace ForexExchange.Migrations
                     b.HasIndex("ReferenceNumber");
 
                     b.HasIndex("Type");
-
-                    b.HasIndex("CurrencyId");
 
                     b.ToTable("AccountingDocuments");
                 });
@@ -350,9 +345,6 @@ namespace ForexExchange.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("CurrencyId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("CustomerId")
                         .HasColumnType("INTEGER");
 
@@ -382,8 +374,6 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CustomerId", "IsActive");
 
-                    b.HasIndex("CurrencyId");
-
                     b.ToTable("BankAccounts");
                 });
 
@@ -404,9 +394,6 @@ namespace ForexExchange.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("CurrencyId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime>("LastUpdated")
                         .HasColumnType("TEXT");
 
@@ -418,12 +405,6 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("BankAccountId", "CurrencyCode")
                         .IsUnique();
-
-                    b.HasIndex("BankAccountId", "CurrencyId")
-                        .IsUnique()
-                        .HasFilter("[CurrencyId] IS NOT NULL");
-
-                    b.HasIndex("CurrencyId");
 
                     b.ToTable("BankAccountBalances");
                 });
@@ -626,9 +607,6 @@ namespace ForexExchange.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("CurrencyId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("TEXT");
 
@@ -677,12 +655,6 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CurrencyCode", "TransactionDate", "Id")
                         .HasDatabaseName("IX_CurrencyPoolHistory_Currency_Latest");
-
-                    b.HasIndex("CurrencyId", "TransactionDate", "Id")
-                        .HasDatabaseName("IX_CurrencyPoolHistory_CurrencyId_Latest")
-                        .HasFilter("[CurrencyId] IS NOT NULL");
-
-                    b.HasIndex("CurrencyId");
 
                     b.ToTable("CurrencyPoolHistory");
                 });
@@ -755,9 +727,6 @@ namespace ForexExchange.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("CurrencyId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("CustomerId")
                         .HasColumnType("INTEGER");
 
@@ -772,12 +741,6 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CustomerId", "CurrencyCode")
                         .IsUnique();
-
-                    b.HasIndex("CustomerId", "CurrencyId")
-                        .IsUnique()
-                        .HasFilter("[CurrencyId] IS NOT NULL");
-
-                    b.HasIndex("CurrencyId");
 
                     b.ToTable("CustomerBalances");
                 });
@@ -805,9 +768,6 @@ namespace ForexExchange.Migrations
                         .IsRequired()
                         .HasMaxLength(3)
                         .HasColumnType("TEXT");
-
-                    b.Property<int?>("CurrencyId")
-                        .HasColumnType("INTEGER");
 
                     b.Property<int>("CustomerId")
                         .HasColumnType("INTEGER");
@@ -860,12 +820,6 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CustomerId", "CurrencyCode", "TransactionDate", "Id")
                         .HasDatabaseName("IX_CustomerBalanceHistory_Customer_Currency_Latest");
-
-                    b.HasIndex("CustomerId", "CurrencyId", "TransactionDate", "Id")
-                        .HasDatabaseName("IX_CustomerBalanceHistory_Customer_CurrencyId_Latest")
-                        .HasFilter("[CurrencyId] IS NOT NULL");
-
-                    b.HasIndex("CurrencyId");
 
                     b.ToTable("CustomerBalanceHistory");
                 });
@@ -1500,11 +1454,6 @@ namespace ForexExchange.Migrations
                         .HasForeignKey("ReceiverCustomerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("ForexExchange.Models.Currency", "Currency")
-                        .WithMany("CurrencyDocuments")
-                        .HasForeignKey("CurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("PayerBankAccount");
 
                     b.Navigation("PayerCustomer");
@@ -1512,8 +1461,6 @@ namespace ForexExchange.Migrations
                     b.Navigation("ReceiverBankAccount");
 
                     b.Navigation("ReceiverCustomer");
-
-                    b.Navigation("Currency");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.ApplicationUser", b =>
@@ -1534,14 +1481,7 @@ namespace ForexExchange.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ForexExchange.Models.Currency", "Currency")
-                        .WithMany("BankAccounts")
-                        .HasForeignKey("CurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Customer");
-
-                    b.Navigation("Currency");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.BankAccountBalance", b =>
@@ -1552,14 +1492,7 @@ namespace ForexExchange.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ForexExchange.Models.Currency", "Currency")
-                        .WithMany("BankAccountBalances")
-                        .HasForeignKey("CurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("BankAccount");
-
-                    b.Navigation("Currency");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.BankAccountBalanceHistory", b =>
@@ -1592,14 +1525,7 @@ namespace ForexExchange.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ForexExchange.Models.Currency", "Currency")
-                        .WithMany("CustomerBalances")
-                        .HasForeignKey("CurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Customer");
-
-                    b.Navigation("Currency");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CustomerBalanceHistory", b =>
@@ -1610,14 +1536,7 @@ namespace ForexExchange.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ForexExchange.Models.Currency", "Currency")
-                        .WithMany("CustomerBalanceHistories")
-                        .HasForeignKey("CurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Customer");
-
-                    b.Navigation("Currency");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.ExchangeRate", b =>
@@ -1720,16 +1639,6 @@ namespace ForexExchange.Migrations
                     b.Navigation("Customer");
                 });
 
-            modelBuilder.Entity("ForexExchange.Models.CurrencyPoolHistory", b =>
-                {
-                    b.HasOne("ForexExchange.Models.Currency", "Currency")
-                        .WithMany("CurrencyPoolHistories")
-                        .HasForeignKey("CurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Currency");
-                });
-
             modelBuilder.Entity("ForexExchange.Models.TaskItem", b =>
                 {
                     b.HasOne("ForexExchange.Models.ApplicationUser", "AssignedToUser")
@@ -1798,19 +1707,7 @@ namespace ForexExchange.Migrations
 
             modelBuilder.Entity("ForexExchange.Models.Currency", b =>
                 {
-                    b.Navigation("BankAccountBalances");
-
-                    b.Navigation("BankAccounts");
-
-                    b.Navigation("CurrencyDocuments");
-
-                    b.Navigation("CurrencyPoolHistories");
-
                     b.Navigation("CurrencyPools");
-
-                    b.Navigation("CustomerBalanceHistories");
-
-                    b.Navigation("CustomerBalances");
 
                     b.Navigation("FromCurrencyOrders");
 
