@@ -508,6 +508,15 @@ namespace ForexExchange.Controllers
             {
                 ModelState.AddModelError("CurrencyId", "CurrencyId الزامی است. لطفاً ارز را انتخاب کنید.");
             }
+            else
+            {
+                // Populate CurrencyCode from CurrencyId for backward compatibility
+                var currency = await _context.Currencies.FindAsync(accountingDocument.CurrencyId.Value);
+                if (currency != null)
+                {
+                    accountingDocument.CurrencyCode = currency.Code;
+                }
+            }
 
             if (ModelState.IsValid)
             {

@@ -61,11 +61,12 @@ namespace ForexExchange.Models
         [Display(Name = "Amount - مبلغ")]
         public decimal Amount { get; set; }
 
-        [Required]
+        // CurrencyCode kept for backward compatibility and display purposes only
         [StringLength(4)]
         [Display(Name = "Currency - ارز")]
         public string CurrencyCode { get; set; } = string.Empty;
 
+        [Required]
         [Display(Name = "Currency ID - شناسه ارز")]
         public int? CurrencyId { get; set; }
 
@@ -298,6 +299,14 @@ namespace ForexExchange.Models
                 results.Add(new ValidationResult(
                     "حساب بانکی نمی‌تواند به خودش انتقال داشته باشد.",
                     new[] { nameof(PayerBankAccountId), nameof(ReceiverBankAccountId) }));
+            }
+
+            // Validate CurrencyId is required (replacing CurrencyCode requirement)
+            if (!CurrencyId.HasValue || CurrencyId.Value <= 0)
+            {
+                results.Add(new ValidationResult(
+                    "لطفاً ارز را انتخاب کنید.",
+                    new[] { nameof(CurrencyId) }));
             }
 
             return results;
