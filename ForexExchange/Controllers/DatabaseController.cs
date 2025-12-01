@@ -316,7 +316,7 @@ namespace ForexExchange.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateManualCustomerBalanceHistory(
             int customerId,
-            string currencyCode,
+            int currencyId,
             decimal amount,
             string reason,
             DateTime transactionDate)
@@ -330,7 +330,7 @@ namespace ForexExchange.Controllers
                     return RedirectToAction("Index");
                 }
 
-                if (string.IsNullOrWhiteSpace(currencyCode))
+                if (currencyId <= 0)
                 {
                     TempData["Error"] = "لطفاً ارز معتبری انتخاب کنید";
                     return RedirectToAction("Index");
@@ -348,10 +348,10 @@ namespace ForexExchange.Controllers
 
                 // Resolve CurrencyId from CurrencyCode - use CurrencyId directly (this is why we did the refactoring!)
                 var currency = await _context.Currencies
-                    .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+                    .FindAsync(currencyId);
                 if (currency == null)
                 {
-                    TempData["Error"] = $"ارز با کد {currencyCode} یافت نشد";
+                    TempData["Error"] = $"ارز با کد {currency.Code} یافت نشد";
                     return RedirectToAction("Index");
                 }
 
@@ -374,11 +374,10 @@ namespace ForexExchange.Controllers
                 {
                     "✅ رکورد دستی تاریخچه موجودی ایجاد شد",
                     $"👤 مشتری: {customerName}",
-                    $"💰 مبلغ: {amount:N2} {currencyCode}",
+                    $"💰 مبلغ: {amount:N2} {currency.Code}",
                     $"📅 تاریخ تراکنش: {transactionDate:yyyy-MM-dd}",
                     $"📝 دلیل: {reason}",
-                    "",
-                    "⚠️ مهم: برای اطمینان از انسجام موجودی‌ها، حتماً دکمه 'بازمحاسبه بر اساس تاریخ تراکنش' را اجرا کنید"
+                    ""
                 };
 
                 // Check if this is an AJAX request
@@ -411,6 +410,7 @@ namespace ForexExchange.Controllers
                 // Find the manual transaction record
                 var transaction = await _context.CustomerBalanceHistory
                     .Include(h => h.Customer)
+                    .Include(h => h.Currency)
                     .FirstOrDefaultAsync(h => h.Id == transactionId &&
                                            h.TransactionType == CustomerBalanceTransactionType.Manual);
 
@@ -428,7 +428,7 @@ namespace ForexExchange.Controllers
 
                 var customerName = transaction.Customer?.FullName ?? $"مشتری {transaction.CustomerId}";
                 var amount = transaction.TransactionAmount;
-                var currencyCode = transaction.CurrencyCode;
+                var currencyCode = transaction.Currency != null ? transaction.Currency.Code : transaction.CurrencyCode; // Display from navigation
 
                 // Get current user for notification exclusion
                 var currentUser = await _userManager.GetUserAsync(User);

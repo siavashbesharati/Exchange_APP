@@ -213,7 +213,8 @@ namespace ForexExchange.Controllers
                     TransactionType = t.Type.GetDisplayName(),
                     Description = t.Description,
                     Note = t.Notes ?? "",
-                    CurrencyCode = t.CurrencyCode,
+                    CurrencyId = t.CurrencyId,
+                    CurrencyCode = t.CurrencyCode, // Display property
                     Amount = t.Amount,
                     RunningBalance = t.RunningBalance,
                     ReferenceId = t.ReferenceId,

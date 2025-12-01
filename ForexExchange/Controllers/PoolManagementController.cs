@@ -128,7 +128,8 @@ namespace ForexExchange.Controllers
                     success = true,
                     pool = new {
                         id = pool.Id,
-                        currencyCode = pool.Currency?.Code,
+                        currencyId = pool.CurrencyId,
+                        currencyCode = pool.Currency?.Code ?? pool.CurrencyCode, // Display from navigation
                         currencyName = pool.Currency?.PersianName,
                         balance = pool.Balance,
                         totalBought = pool.TotalBought,
@@ -159,7 +160,8 @@ namespace ForexExchange.Controllers
             {
                 var pools = await _poolService.GetAllPoolsAsync();
                 var poolData = pools.Select(p => new {
-                    currencyCode = p.Currency?.Code ?? p.CurrencyCode,
+                    currencyId = p.CurrencyId,
+                    currencyCode = p.Currency?.Code ?? p.CurrencyCode, // Display from navigation
                     balance = p.Balance
                 }).ToList();
 

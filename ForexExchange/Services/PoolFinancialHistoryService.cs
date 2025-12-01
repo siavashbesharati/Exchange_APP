@@ -71,7 +71,8 @@ namespace ForexExchange.Services
                     Time = FormatTime(record.TransactionDate),
                     TransactionType = record.TransactionType.ToString(),
                     Description = record.Description ?? GenerateTransactionDescription(record),
-                    CurrencyCode = record.CurrencyCode,
+                    CurrencyId = record.CurrencyId ?? 0,
+                    CurrencyCode = record.Currency != null ? record.Currency.Code : record.CurrencyCode, // Display from navigation
                     Amount = record.TransactionAmount,
                     Balance = record.BalanceAfter,
                     ReferenceId = record.ReferenceId,
@@ -133,10 +134,12 @@ namespace ForexExchange.Services
             }
             
             var latestBalances = await latestBalancesQuery
-                .GroupBy(h => h.CurrencyId.HasValue && h.Currency != null ? h.Currency.Code : h.CurrencyCode)
+                .Where(h => h.CurrencyId.HasValue)
+                .GroupBy(h => h.CurrencyId.Value)
                 .Select(g => new
                 {
-                    CurrencyCode = g.Key,
+                    CurrencyId = g.Key,
+                    CurrencyCode = g.First().Currency != null ? g.First().Currency.Code : g.First().CurrencyCode, // Display from navigation
                     Balance = g.OrderByDescending(h => h.TransactionDate)
                               .ThenByDescending(h => h.Id)
                               .First().BalanceAfter
@@ -214,6 +217,8 @@ namespace ForexExchange.Services
 
         // Pool specific properties
         public string CurrencyCode { get; set; } = string.Empty;
+
+        public int CurrencyId { get; set; }
     }
 
     /// <summary>

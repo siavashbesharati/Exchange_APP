@@ -34,12 +34,13 @@ function showPreviewModal(order, effects) {
         });
     }
 
-    // Currency labels
+    // Currency labels - use CurrencyCode for display (from DTO)
     let fromCurrencyCode = getProp(effects, 'FromCurrencyCode') || '';
     let toCurrencyCode = getProp(effects, 'ToCurrencyCode') || '';
     let fromCurrencyName = getProp(effects, 'FromCurrencyName') || fromCurrencyCode;
     let toCurrencyName = getProp(effects, 'ToCurrencyName') || toCurrencyCode;
 
+    // CurrencyCode is kept in DTO for display purposes only
     let fromCurrency = fromCurrencyName && fromCurrencyCode ? `${fromCurrencyName} (${fromCurrencyCode})` : (fromCurrencyCode || 'نامشخص');
     let toCurrency = toCurrencyName && toCurrencyCode ? `${toCurrencyName} (${toCurrencyCode})` : (toCurrencyCode || 'نامشخص');
 

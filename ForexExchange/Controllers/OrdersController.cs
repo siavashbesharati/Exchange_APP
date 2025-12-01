@@ -60,10 +60,12 @@ namespace ForexExchange.Controllers
             // Use the prepared order for preview (same logic as Create method)
             var effects = await _centralFinancialService.PreviewOrderEffectsAsync(orderResult.Order!);
 
-            // Add currency codes and names for client display
+            // Add currency IDs and codes for client display
             var result = new
             {
                 effects.CustomerId,
+                effects.FromCurrencyId,
+                effects.ToCurrencyId,
                 effects.FromCurrencyCode,
                 effects.ToCurrencyCode,
                 effects.OrderFromAmount,
@@ -76,10 +78,7 @@ namespace ForexExchange.Controllers
                 effects.OldPoolBalanceTo,
                 effects.NewPoolBalanceFrom,
                 effects.NewPoolBalanceTo,
-                FromCurrencyName = orderResult.FromCurrency?.Name,
-                ToCurrencyName = orderResult.ToCurrency?.Name,
-                FromCurrencyId = orderResult.FromCurrency?.Id,
-                ToCurrencyId = orderResult.ToCurrency?.Id
+               
             };
             return Json(result);
         }
@@ -166,15 +165,20 @@ namespace ForexExchange.Controllers
 
             if (!String.IsNullOrEmpty(currencyFilter))
             {
-                // Try to parse currency filter as currency code or ID
+                // Try to parse currency filter as currency ID
                 if (int.TryParse(currencyFilter, out var currencyId))
                 {
                     ordersQuery = ordersQuery.Where(o => o.FromCurrencyId == currencyId || o.ToCurrencyId == currencyId);
                 }
                 else
                 {
-                    // Filter by currency code
-                    ordersQuery = ordersQuery.Where(o => o.FromCurrency.Code == currencyFilter || o.ToCurrency.Code == currencyFilter);
+                    // Fallback: try to find currency by code (for backward compatibility)
+                    var currencyByCode = await _context.Currencies
+                        .FirstOrDefaultAsync(c => c.Code == currencyFilter);
+                    if (currencyByCode != null)
+                    {
+                        ordersQuery = ordersQuery.Where(o => o.FromCurrencyId == currencyByCode.Id || o.ToCurrencyId == currencyByCode.Id);
+                    }
                 }
             }
 
@@ -190,13 +194,39 @@ namespace ForexExchange.Controllers
             // New filter: From Currency
             if (!String.IsNullOrEmpty(fromCurrencyFilter))
             {
-                ordersQuery = ordersQuery.Where(o => o.FromCurrency.Code == fromCurrencyFilter);
+                if (int.TryParse(fromCurrencyFilter, out var fromCurrencyId))
+                {
+                    ordersQuery = ordersQuery.Where(o => o.FromCurrencyId == fromCurrencyId);
+                }
+                else
+                {
+                    // Fallback: try to find currency by code
+                    var currencyByCode = await _context.Currencies
+                        .FirstOrDefaultAsync(c => c.Code == fromCurrencyFilter);
+                    if (currencyByCode != null)
+                    {
+                        ordersQuery = ordersQuery.Where(o => o.FromCurrencyId == currencyByCode.Id);
+                    }
+                }
             }
 
             // New filter: To Currency
             if (!String.IsNullOrEmpty(toCurrencyFilter))
             {
-                ordersQuery = ordersQuery.Where(o => o.ToCurrency.Code == toCurrencyFilter);
+                if (int.TryParse(toCurrencyFilter, out var toCurrencyId))
+                {
+                    ordersQuery = ordersQuery.Where(o => o.ToCurrencyId == toCurrencyId);
+                }
+                else
+                {
+                    // Fallback: try to find currency by code
+                    var currencyByCode = await _context.Currencies
+                        .FirstOrDefaultAsync(c => c.Code == toCurrencyFilter);
+                    if (currencyByCode != null)
+                    {
+                        ordersQuery = ordersQuery.Where(o => o.ToCurrencyId == currencyByCode.Id);
+                    }
+                }
             }
 
             // New filter: Minimum Amount
@@ -554,12 +584,13 @@ namespace ForexExchange.Controllers
 
             ViewBag.IsAdminOrStaff = true;
 
-            // Simplified: load a dictionary mapping currency code to balance
+            // Simplified: load a dictionary mapping currency ID to balance
             var pools = await _poolService.GetAllPoolsAsync();
-            // Use p.Currency.Code if available, else p.CurrencyCode
+            // Use CurrencyId for grouping, CurrencyCode for display
             var poolDict = pools
-                .GroupBy(p => !string.IsNullOrWhiteSpace(p.Currency?.Code) ? p.Currency.Code : p.CurrencyCode)
-                .ToDictionary(g => g.Key, g => g.Sum(p => p.Balance));
+                .Where(p => p.CurrencyId > 0)
+                .GroupBy(p => p.CurrencyId)
+                .ToDictionary(g => g.First().Currency?.Code ?? g.First().CurrencyCode ?? "UNKNOWN", g => g.Sum(p => p.Balance));
             ViewBag.PoolData = poolDict;
 
 

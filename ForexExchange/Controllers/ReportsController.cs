@@ -208,11 +208,11 @@ namespace ForexExchange.Controllers
 
         // GET: Reports/GetAllCustomersBalances
         [HttpGet]
-        public async Task<IActionResult> GetAllCustomersBalances(string? currencyFilter = null, string? customerFilter = null)
+        public async Task<IActionResult> GetAllCustomersBalances(int? currencyId = null, string? customerFilter = null)
         {
             try
             {
-                _logger.LogInformation("Starting GetAllCustomersBalances with currency filter: {CurrencyFilter}, customer filter: {CustomerFilter}", currencyFilter, customerFilter);
+                _logger.LogInformation("Starting GetAllCustomersBalances with currency filter: {CurrencyId}, customer filter: {CustomerFilter}", currencyId, customerFilter);
 
                 // First, let's test if basic customers query works
                 var customersCount = await _context.Customers
@@ -246,11 +246,12 @@ namespace ForexExchange.Controllers
                         createdAt = c.CreatedAt,
                         isActive = c.IsActive,
                         balances = c.Balances
-                            .Where(b => string.IsNullOrEmpty(currencyFilter) || b.CurrencyCode == currencyFilter)
+                            .Where(b => !currencyId.HasValue || b.CurrencyId == currencyId.Value)
                             .Where(b => b.Balance != 0) // Only show non-zero balances
                             .Select(b => new
                             {
-                                currencyCode = b.CurrencyCode,
+                                currencyId = b.CurrencyId,
+                                currencyCode = b.Currency != null ? b.Currency.Code : b.CurrencyCode, // Display from navigation
                                 balance = b.Balance,
                                 lastUpdated = b.LastUpdated,
                                 balanceStatus = b.Balance > 0 ? "اعتبار" : (b.Balance < 0 ? "بدهی" : "تسویه"),
@@ -266,7 +267,7 @@ namespace ForexExchange.Controllers
                 _logger.LogInformation("Successfully retrieved {Count} customers", customers.Count);
 
                 // Apply currency filter and only include customers with balances
-                if (!string.IsNullOrEmpty(currencyFilter))
+                if (currencyId.HasValue)
                 {
                     customers = customers.Where(c => c.balances.Any()).ToList();
                 }
@@ -287,15 +288,17 @@ namespace ForexExchange.Controllers
 
                 try
                 {
-                    if (string.IsNullOrEmpty(currencyFilter))
+                    if (!currencyId.HasValue)
                     {
-                        // Get totals for all currencies
+                        // Get totals for all currencies - group by CurrencyId
                         var allCurrencies = await _context.CustomerBalances
-                            .Where(cb => cb.Balance != 0)
-                            .GroupBy(cb => cb.CurrencyCode)
+                            .Include(cb => cb.Currency)
+                            .Where(cb => cb.Balance != 0 && cb.CurrencyId.HasValue)
+                            .GroupBy(cb => cb.CurrencyId.Value)
                             .Select(g => new
                             {
-                                currencyCode = g.Key,
+                                currencyId = g.Key,
+                                currencyCode = g.First().Currency != null ? g.First().Currency.Code : g.First().CurrencyCode, // Display from navigation
                                 totalCredit = g.Where(cb => cb.Balance > 0).Sum(cb => cb.Balance),
                                 totalDebt = g.Where(cb => cb.Balance < 0).Sum(cb => -cb.Balance), // Use negation instead of Math.Abs
                                 customerCount = g.Select(cb => cb.CustomerId).Distinct().Count()
@@ -306,6 +309,7 @@ namespace ForexExchange.Controllers
                         {
                             currencyTotals[currency.currencyCode] = new
                             {
+                                currencyId = currency.currencyId,
                                 totalCredit = currency.totalCredit,
                                 totalDebt = currency.totalDebt,
                                 netBalance = currency.totalCredit - currency.totalDebt,
@@ -317,10 +321,12 @@ namespace ForexExchange.Controllers
                     {
                         // Get totals for filtered currency
                         var currencyTotal = await _context.CustomerBalances
-                            .Where(cb => cb.CurrencyCode == currencyFilter && cb.Balance != 0)
-                            .GroupBy(cb => cb.CurrencyCode)
+                            .Where(cb => cb.CurrencyId == currencyId.Value && cb.Balance != 0)
+                            .GroupBy(cb => cb.CurrencyId.Value)
                             .Select(g => new
                             {
+                                currencyId = g.Key,
+                                currencyCode = g.First().Currency != null ? g.First().Currency.Code : g.First().CurrencyCode, // Display from navigation
                                 totalCredit = g.Where(cb => cb.Balance > 0).Sum(cb => cb.Balance),
                                 totalDebt = g.Where(cb => cb.Balance < 0).Sum(cb => -cb.Balance), // Use negation instead of Math.Abs
                                 customerCount = g.Select(cb => cb.CustomerId).Distinct().Count()
@@ -329,8 +335,9 @@ namespace ForexExchange.Controllers
 
                         if (currencyTotal != null)
                         {
-                            currencyTotals[currencyFilter] = new
+                            currencyTotals[currencyTotal.currencyCode] = new
                             {
+                                currencyId = currencyTotal.currencyId,
                                 totalCredit = currencyTotal.totalCredit,
                                 totalDebt = currencyTotal.totalDebt,
                                 netBalance = currencyTotal.totalCredit - currencyTotal.totalDebt,
@@ -353,7 +360,7 @@ namespace ForexExchange.Controllers
                         totalCustomersWithBalances,
                         totalCustomersWithDebt,
                         totalCustomersWithCredit,
-                        currencyFilter,
+                        currencyId,
                         currencyTotals
                     }
                 };
@@ -363,7 +370,7 @@ namespace ForexExchange.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting all customers balances with currency filter: {CurrencyFilter}, customer filter: {CustomerFilter}", currencyFilter, customerFilter);
+                _logger.LogError(ex, "Error getting all customers balances with currency filter: {CurrencyFilter}, customer filter: {CustomerFilter}", currencyId, customerFilter);
                 return Json(new { error = $"خطا در دریافت موجودی مشتریان: {ex.Message}" });
             }
         }
@@ -499,7 +506,8 @@ namespace ForexExchange.Controllers
                         type = "سند حسابداری",
                         customerName = ad.PayerCustomer != null ? ad.PayerCustomer.FullName : (ad.ReceiverCustomer != null ? ad.ReceiverCustomer.FullName : "نامشخص"),
                         amount = ad.Amount,
-                        currencyCode = ad.CurrencyCode,
+                        currencyId = ad.CurrencyId,
+                        currencyCode = ad.Currency != null ? ad.Currency.Code : ad.CurrencyCode, // Display from navigation
                         referenceNumber = ad.ReferenceNumber,
                         description = ad.Description,
                         status = "تایید شده"
@@ -564,7 +572,8 @@ namespace ForexExchange.Controllers
                         ReceiverCustomerId = ad.ReceiverCustomerId,
                         ReceiverBankAccountId = ad.ReceiverBankAccountId,
                         Amount = ad.Amount,
-                        CurrencyCode = ad.CurrencyCode,
+                        CurrencyId = ad.CurrencyId,
+                        CurrencyCode = ad.Currency != null ? ad.Currency.Code : ad.CurrencyCode, // Display from navigation
                         Title = ad.Title,
                         Description = ad.Description,
                         DocumentDate = ad.DocumentDate,
@@ -599,7 +608,8 @@ namespace ForexExchange.Controllers
                     documentType = document.Type.ToString(),
                     documentDate = document.DocumentDate,
                     amount = document.Amount,
-                    currencyCode = document.CurrencyCode,
+                    currencyId = document.CurrencyId,
+                    currencyCode = document.Currency != null ? document.Currency.Code : document.CurrencyCode, // Display from navigation
                     description = document.Description,
                     notes = document.Notes,
                     referenceNumber = document.ReferenceNumber,

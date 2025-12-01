@@ -402,7 +402,8 @@ namespace ForexExchange.Controllers
                     bankName = b.BankName,
                     accountNumber = b.AccountNumber,
                     accountHolderName = b.AccountHolderName,
-                    currencyCode = b.CurrencyCode,
+                    currencyId = b.CurrencyId,
+                    currencyCode = b.Currency != null ? b.Currency.Code : b.CurrencyCode, // Display from navigation
                     isDefault = b.IsDefault
                 })
                 .ToListAsync();

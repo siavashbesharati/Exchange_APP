@@ -177,19 +177,19 @@
 
                             <!-- Currency -->
                             <div class="col-md-6 mb-3">
-                                <label asp-for="CurrencyCode" class="form-label">ارز <span class="text-danger">*</span></label>
-                                <select asp-for="CurrencyCode" id="CurrencyCode" class="form-select" required>
+                                <label for="CurrencySelect" class="form-label">ارز <span class="text-danger">*</span></label>
+                                <select id="CurrencySelect" class="form-select" required>
                                     <option value="">انتخاب کنید...</option>
                                     @if (ViewData["Currencies"] is List<ForexExchange.Models.Currency> currencies)
                                     {
                                         @foreach (var currency in currencies)
                                         {
-                                            <option value="@currency.Code" data-currency-id="@currency.Id">@currency.PersianName (@currency.Code)</option>
+                                            <option value="@currency.Id" data-currency-code="@currency.Code">@currency.PersianName (@currency.Code)</option>
                                         }
                                     }
                                 </select>
                                 <input type="hidden" asp-for="CurrencyId" id="CurrencyId" />
-                                <span asp-validation-for="CurrencyCode" class="text-danger"></span>
+                                <span asp-validation-for="CurrencyId" class="text-danger"></span>
                             </div>
                         </div>
 
@@ -478,12 +478,13 @@
 
         // Currency validation for bank accounts
         function validateCurrency() {
-            const currencySelect = document.getElementById('CurrencyCode');
+            const currencySelect = document.getElementById('CurrencySelect');
+            const currencyIdField = document.getElementById('CurrencyId');
             const payerBankSelect = document.querySelector('[name="PayerBankAccountId"]');
             const receiverBankSelect = document.querySelector('[name="ReceiverBankAccountId"]');
             const warningDiv = document.getElementById('currency-warning');
             
-            if (!currencySelect.value) {
+            if (!currencySelect || !currencySelect.value || !currencyIdField || !currencyIdField.value) {
                 warningDiv.style.display = 'none';
                 return;
             }
@@ -514,26 +515,26 @@
 
         // Initialize CurrencyId from selected option on page load
         function initializeCurrencyId() {
-            const currencySelect = document.getElementById('CurrencyCode');
+            const currencySelect = document.getElementById('CurrencySelect');
             if (currencySelect && currencySelect.value) {
-                const selectedOption = currencySelect.options[currencySelect.selectedIndex];
-                if (selectedOption) {
-                    const currencyId = selectedOption.getAttribute('data-currency-id');
-                    const currencyIdField = document.getElementById('CurrencyId');
-                    if (currencyIdField && currencyId) {
-                        currencyIdField.value = currencyId;
-                    }
+                const currencyIdField = document.getElementById('CurrencyId');
+                if (currencyIdField) {
+                    currencyIdField.value = currencySelect.value || '';
                 }
             }
         }
 
-        // Update CurrencyId when CurrencyCode changes and validate currency
-        document.getElementById('CurrencyCode').addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
-            const currencyId = selectedOption.getAttribute('data-currency-id');
-            document.getElementById('CurrencyId').value = currencyId || '';
-            validateCurrency();
-        });
+        // Update CurrencyId when CurrencySelect changes and validate currency
+        const currencySelectElement = document.getElementById('CurrencySelect');
+        if (currencySelectElement) {
+            currencySelectElement.addEventListener('change', function() {
+                const currencyIdField = document.getElementById('CurrencyId');
+                if (currencyIdField) {
+                    currencyIdField.value = this.value || '';
+                }
+                validateCurrency();
+            });
+        }
         
         // Use jQuery event delegation for Select2 elements
         $(document).on('change', '[name="PayerBankAccountId"]', function() {
@@ -658,7 +659,7 @@
         $(document).on('change', '[name="PayerBankAccountId"]', autoGenerateTitle);
         $(document).on('change', '[name="ReceiverBankAccountId"]', autoGenerateTitle);
         document.querySelector('[name="Amount"]').addEventListener('input', autoGenerateTitle);
-        document.querySelector('[name="CurrencyCode"]').addEventListener('change', autoGenerateTitle);
+        document.getElementById('CurrencySelect').addEventListener('change', autoGenerateTitle);
         document.querySelector('[name="Type"]').addEventListener('change', autoGenerateTitle);
 
         // Prevent self-transactions (Select2 compatible)
@@ -1270,7 +1271,6 @@
                 PayerBankAccountId: form.querySelector('[name="PayerBankAccountId"]').value ? parseInt(form.querySelector('[name="PayerBankAccountId"]').value) : null,
                 ReceiverBankAccountId: form.querySelector('[name="ReceiverBankAccountId"]').value ? parseInt(form.querySelector('[name="ReceiverBankAccountId"]').value) : null,
                 Amount: parseFloat(form.querySelector('[name="Amount"]').value) || 0,
-                CurrencyCode: form.querySelector('[name="CurrencyCode"]').value || '',
                 CurrencyId: form.querySelector('[name="CurrencyId"]').value ? parseInt(form.querySelector('[name="CurrencyId"]').value) : null,
                 Title: form.querySelector('[name="Title"]').value || '',
                 Description: form.querySelector('[name="Description"]').value || '',

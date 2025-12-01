@@ -16,22 +16,22 @@ namespace ForexExchange.Services
 
         public async Task<CustomerBalance> GetCustomerBalanceAsync(int customerId, string currencyCode)
         {
-            // Get CurrencyId from CurrencyCode
+            // Get CurrencyId from CurrencyCode (for backward compatibility)
             var currency = await _context.Currencies
                 .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
 
             CustomerBalance? balance = null;
             if (currency != null)
             {
-                // Try to find by CurrencyId first (preferred)
+                // Use CurrencyId directly - this is why we did the refactoring!
                 balance = await _context.CustomerBalances
                     .Include(b => b.Customer)
                     .Include(b => b.Currency)
                     .FirstOrDefaultAsync(b => b.CustomerId == customerId && b.CurrencyId == currency.Id);
             }
 
-            // Fallback to CurrencyCode lookup if not found
-            if (balance == null)
+            // Fallback to CurrencyCode lookup if currency not found (for backward compatibility)
+            if (balance == null && currency == null)
             {
                 var normalizedCode = currencyCode.ToUpperInvariant().Trim();
                 var balances = await _context.CustomerBalances

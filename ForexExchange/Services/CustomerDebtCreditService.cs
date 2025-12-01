@@ -214,15 +214,17 @@ namespace ForexExchange.Services
             foreach (var b in balances)
             {
                 // Use Currency navigation property if available, otherwise fallback to CurrencyCode lookup
-                var currencyCode = b.CurrencyCode;
+                var currencyCode = b.Currency != null ? b.Currency.Code : b.CurrencyCode;
                 var persianName = b.Currency?.PersianName ?? 
-                                 (await _context.Currencies
-                                     .FirstOrDefaultAsync(c => c.Code == b.CurrencyCode))?.PersianName ?? 
+                                 (b.CurrencyId.HasValue 
+                                    ? (await _context.Currencies.FindAsync(b.CurrencyId.Value))?.PersianName
+                                    : (await _context.Currencies
+                                        .FirstOrDefaultAsync(c => c.Code == b.CurrencyCode))?.PersianName) ?? 
                                  currencyCode;
                 
                 list.Add(new CurrencyBalance
                 {
-                    CurrencyCode = currencyCode,
+                    CurrencyCode = currencyCode, // Display property
                     CurrencyName = persianName,
                     Balance = b.Balance,
                     DebtAmount = b.Balance < 0 ? Math.Abs(b.Balance) : 0,

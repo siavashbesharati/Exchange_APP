@@ -16,13 +16,27 @@ namespace ForexExchange.Services
 
         public async Task<BankAccountBalance> GetBankAccountBalanceAsync(int bankAccountId, string currencyCode)
         {
-            var bankAccount = await _context.BankAccounts.FindAsync(bankAccountId);
+            var bankAccount = await _context.BankAccounts
+                .Include(ba => ba.Currency)
+                .FirstOrDefaultAsync(ba => ba.Id == bankAccountId);
             if (bankAccount == null)
                 throw new ArgumentException($"Bank account with ID {bankAccountId} not found");
 
-            // Since each bank account now has only one currency, validate currency match
-            if (bankAccount.CurrencyCode != currencyCode)
+            // Get CurrencyId from CurrencyCode (for backward compatibility)
+            var currency = await _context.Currencies
+                .FirstOrDefaultAsync(c => (c.Code ?? "").ToUpperInvariant().Trim() == currencyCode.ToUpperInvariant().Trim());
+
+            // Since each bank account now has only one currency, validate currency match using CurrencyId
+            if (currency != null && bankAccount.CurrencyId != currency.Id)
+            {
+                var bankCurrencyCode = bankAccount.Currency != null ? bankAccount.Currency.Code : bankAccount.CurrencyCode;
+                throw new ArgumentException($"Currency mismatch: Bank account {bankAccountId} is in {bankCurrencyCode}, not {currencyCode}");
+            }
+            else if (currency == null && bankAccount.CurrencyCode != currencyCode)
+            {
+                // Fallback to CurrencyCode comparison if currency not found
                 throw new ArgumentException($"Currency mismatch: Bank account {bankAccountId} is in {bankAccount.CurrencyCode}, not {currencyCode}");
+            }
 
             // Return a BankAccountBalance object for compatibility
             return new BankAccountBalance

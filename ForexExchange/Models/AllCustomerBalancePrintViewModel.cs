@@ -10,6 +10,8 @@ namespace ForexExchange.Models
 
         public class BalanceItem
         {
+            public int CurrencyId { get; set; }
+            // Display property (from Currency navigation)
             public string CurrencyCode { get; set; } = string.Empty;
             public decimal Balance { get; set; }
         }

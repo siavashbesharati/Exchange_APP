@@ -103,7 +103,9 @@ namespace ForexExchange.Services
             {
                 var payerCustomer = await _context.Customers.FindAsync(document.PayerCustomerId);
                 var receiverCustomer = await _context.Customers.FindAsync(document.ReceiverCustomerId);
-                var currency = await _context.Currencies.FindAsync(document.CurrencyCode);
+                var currency = document.CurrencyId.HasValue 
+                    ? await _context.Currencies.FindAsync(document.CurrencyId.Value)
+                    : null;
 
                 var title = "📄 سند حسابداری جدید";
                 var body = $"{document.Title}: {document.Amount:N0} {currency?.PersianName ?? document.CurrencyCode}";
@@ -192,7 +194,9 @@ namespace ForexExchange.Services
             try
             {
                 var payerCustomer = await _context.Customers.FindAsync(document.PayerCustomerId);
-                var currency = await _context.Currencies.FindAsync(document.CurrencyCode);
+                var currency = document.CurrencyId.HasValue 
+                    ? await _context.Currencies.FindAsync(document.CurrencyId.Value)
+                    : null;
 
                 var title = "✅ تأیید سند حسابداری";
                 var body = $"{document.Title}: {document.Amount:N0} {currency?.PersianName ?? document.CurrencyCode} تأیید شد";

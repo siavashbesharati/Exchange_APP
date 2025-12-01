@@ -87,11 +87,11 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label asp-for="CurrencyCode" class="form-label">واحد پول <span
+                                    <label for="CurrencySelect" class="form-label">واحد پول <span
                                             class="text-danger">*</span></label>
-                                 
+                                
                                     <input type="hidden" asp-for="CurrencyId" id="CurrencyId" />
-                                    <span asp-validation-for="CurrencyCode" class="text-danger"></span>
+                                    <span asp-validation-for="CurrencyId" class="text-danger"></span>
                                 </div>
                             </div>
                         </div>
@@ -229,30 +229,31 @@
     <script>
         // Initialize CurrencyId from selected option on page load
         document.addEventListener('DOMContentLoaded', function () {
-            const currencySelect = document.getElementById('CurrencyCode');
-            if (currencySelect) {
-                const selectedOption = currencySelect.options[currencySelect.selectedIndex];
-                if (selectedOption) {
-                    const currencyId = selectedOption.getAttribute('data-currency-id');
-                    const currencyIdField = document.getElementById('CurrencyId');
-                    if (currencyIdField && currencyId) {
-                        currencyIdField.value = currencyId;
-                    }
+            const currencySelect = document.getElementById('CurrencySelect');
+            if (currencySelect && currencySelect.value) {
+                const currencyIdField = document.getElementById('CurrencyId');
+                if (currencyIdField) {
+                    currencyIdField.value = currencySelect.value || '';
                 }
             }
         });
 
-        // Update CurrencyId when CurrencyCode changes
-        document.getElementById('CurrencyCode').addEventListener('change', function () {
-            const selectedOption = this.options[this.selectedIndex];
-            const currencyId = selectedOption.getAttribute('data-currency-id');
-            document.getElementById('CurrencyId').value = currencyId || '';
-        });
+        // Update CurrencyId when CurrencySelect changes
+        const currencySelectElement = document.getElementById('CurrencySelect');
+        if (currencySelectElement) {
+            currencySelectElement.addEventListener('change', function () {
+                const currencyIdField = document.getElementById('CurrencyId');
+                if (currencyIdField) {
+                    currencyIdField.value = this.value || '';
+                }
+            });
+        }
 
         // Bank account currency validation
-        document.getElementById('BankAccountId').addEventListener('change', function () {
-            const bankAccountSelect = this;
-            const currencySelect = document.getElementById('CurrencyCode');
+        const bankAccountSelectElement = document.getElementById('BankAccountId');
+        if (bankAccountSelectElement) {
+            bankAccountSelectElement.addEventListener('change', function () {
+                const currencySelect = document.getElementById('CurrencySelect');
 
             if (bankAccountSelect.value) {
                 // Show warning that currency will be validated on server

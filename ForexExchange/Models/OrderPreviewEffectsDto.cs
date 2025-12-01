@@ -4,8 +4,11 @@ namespace ForexExchange.Models
     public class OrderPreviewEffectsDto
     {
         public int CustomerId { get; set; }
-        public string FromCurrencyCode { get; set; }
-        public string ToCurrencyCode { get; set; }
+        public int FromCurrencyId { get; set; }
+        public int ToCurrencyId { get; set; }
+        // Display properties (from Currency navigation)
+        public string FromCurrencyCode { get; set; } = string.Empty;
+        public string ToCurrencyCode { get; set; } = string.Empty;
         public decimal OrderFromAmount { get; set; }
         public decimal OrderToAmount { get; set; }
         public decimal OldCustomerBalanceFrom { get; set; }

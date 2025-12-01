@@ -348,7 +348,8 @@ namespace ForexExchange.Services.Notifications
                         ["payerCustomerId"] = document.PayerCustomerId ?? 0,
                         ["receiverCustomerId"] = document.ReceiverCustomerId ?? 0,
                         ["amount"] = document.Amount,
-                        ["currencyCode"] = document.CurrencyCode,
+                        ["currencyId"] = document.CurrencyId ?? 0,
+                        ["currencyCode"] = currency != null ? currency.Code : document.CurrencyCode, // Display from navigation
                         ["title"] = document.Title
                     }
                 },

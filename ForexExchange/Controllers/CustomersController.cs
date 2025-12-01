@@ -398,7 +398,8 @@ namespace ForexExchange.Controllers
                     .Where(cb => cb.CustomerId == id)
                     .Select(cb => new
                     {
-                        currencyCode = cb.CurrencyCode,
+                        currencyId = cb.CurrencyId,
+                        currencyCode = cb.Currency != null ? cb.Currency.Code : cb.CurrencyCode, // Display from navigation
                         balance = cb.Balance,
                         lastUpdated = cb.LastUpdated,
                         notes = cb.Notes

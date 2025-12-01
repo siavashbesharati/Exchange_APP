@@ -84,7 +84,8 @@ namespace ForexExchange.Controllers
                     ReceiverCustomerId = a.ReceiverCustomerId,
                     ReceiverBankAccountId = a.ReceiverBankAccountId,
                     Amount = a.Amount,
-                    CurrencyCode = a.CurrencyCode,
+                    CurrencyId = a.CurrencyId,
+                    CurrencyCode = a.Currency != null ? a.Currency.Code : a.CurrencyCode, // Display from navigation
                     Title = a.Title,
                     Description = a.Description,
                     DocumentDate = a.DocumentDate,

@@ -10,6 +10,8 @@ namespace ForexExchange.Models
     {
         public int DocumentId { get; set; }
         public decimal Amount { get; set; }
+        public int CurrencyId { get; set; }
+        // Display property (from Currency navigation)
         public string CurrencyCode { get; set; } = string.Empty;
         
         /// <summary>
@@ -35,6 +37,8 @@ namespace ForexExchange.Models
     {
         public int CustomerId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
+        public int CurrencyId { get; set; }
+        // Display property (from Currency navigation)
         public string CurrencyCode { get; set; } = string.Empty;
         public decimal CurrentBalance { get; set; }
         public decimal TransactionAmount { get; set; }
@@ -50,6 +54,8 @@ namespace ForexExchange.Models
         public int BankAccountId { get; set; }
         public string BankName { get; set; } = string.Empty;
         public string AccountNumber { get; set; } = string.Empty;
+        public int CurrencyId { get; set; }
+        // Display property (from Currency navigation)
         public string CurrencyCode { get; set; } = string.Empty;
         public decimal CurrentBalance { get; set; }
         public decimal TransactionAmount { get; set; }

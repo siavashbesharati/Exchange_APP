@@ -11,6 +11,8 @@ namespace ForexExchange.Models
         public DateTime DateTo { get; set; }
         public List<ExpensesReportCurrencyViewModel> Currencies { get; set; } = new();
         public List<ExpensesReportSummaryConversionViewModel> ConvertedSummaries { get; set; } = new();
+        public int? SelectedSummaryCurrencyId { get; set; }
+        // Display property (backward compatibility)
         public string? SelectedSummaryCurrencyCode { get; set; }
 
         public decimal TotalBankBalance => Currencies.Sum(c => c.BankTotal);
@@ -28,6 +30,11 @@ namespace ForexExchange.Models
         {
             get
             {
+                if (SelectedSummaryCurrencyId.HasValue)
+                {
+                    return ConvertedSummaries.FirstOrDefault(c => c.CurrencyId == SelectedSummaryCurrencyId.Value);
+                }
+                // Fallback to CurrencyCode for backward compatibility
                 if (!string.IsNullOrWhiteSpace(SelectedSummaryCurrencyCode))
                 {
                     return ConvertedSummaries.FirstOrDefault(c =>
@@ -41,6 +48,8 @@ namespace ForexExchange.Models
 
     public class ExpensesReportCurrencyViewModel
     {
+        public int CurrencyId { get; set; }
+        // Display property (from Currency navigation)
         public string CurrencyCode { get; set; } = string.Empty;
         public string CurrencyName { get; set; } = string.Empty;
         public decimal BankTotal { get; set; }
@@ -70,6 +79,8 @@ namespace ForexExchange.Models
 
     public class ExpensesReportSummaryConversionViewModel
     {
+        public int CurrencyId { get; set; }
+        // Display property (from Currency navigation)
         public string CurrencyCode { get; set; } = string.Empty;
         public string CurrencyName { get; set; } = string.Empty;
         public int RatePriority { get; set; }

@@ -233,8 +233,10 @@ namespace ForexExchange.Services
             return new OrderPreviewEffectsDto
             {
                 CustomerId = order.CustomerId,
-                FromCurrencyCode = fromCurrencyCode, // Get from Currency navigation property
-                ToCurrencyCode = toCurrencyCode, // Get from Currency navigation property
+                FromCurrencyId = order.FromCurrencyId,
+                ToCurrencyId = order.ToCurrencyId,
+                FromCurrencyCode = fromCurrencyCode, // Display from Currency navigation property
+                ToCurrencyCode = toCurrencyCode, // Display from Currency navigation property
                 OrderFromAmount = order.FromAmount,
                 OrderToAmount = order.ToAmount,
                 OldCustomerBalanceFrom = customerBalanceFrom.Balance,
@@ -351,7 +353,8 @@ namespace ForexExchange.Services
             {
                 DocumentId = document.Id,
                 Amount = document.Amount,
-                CurrencyCode = currencyCode, // Get from Currency navigation property
+                CurrencyId = currencyId.Value,
+                CurrencyCode = currencyCode, // Display from Currency navigation property
                 CustomerEffects = new List<CustomerBalanceEffect>(),
                 BankAccountEffects = new List<BankAccountBalanceEffect>(),
                 Warnings = new List<string>()
@@ -412,7 +415,8 @@ namespace ForexExchange.Services
                     {
                         CustomerId = document.PayerCustomerId.Value,
                         CustomerName = payerCustomer.FullName,
-                        CurrencyCode = currencyCode, // Get from Currency navigation property
+                        CurrencyId = currencyId.Value,
+                        CurrencyCode = currencyCode, // Display from Currency navigation property
                         CurrentBalance = currentBalance,
                         TransactionAmount = document.Amount,
                         NewBalance = newBalance,
@@ -472,7 +476,8 @@ namespace ForexExchange.Services
                     {
                         CustomerId = document.ReceiverCustomerId.Value,
                         CustomerName = receiverCustomer.FullName,
-                        CurrencyCode = currencyCode, // Get from Currency navigation property
+                        CurrencyId = currencyId.Value,
+                        CurrencyCode = currencyCode, // Display from Currency navigation property
                         CurrentBalance = currentBalance,
                         TransactionAmount = -document.Amount,
                         NewBalance = newBalance,
@@ -532,7 +537,8 @@ namespace ForexExchange.Services
                             BankAccountId = document.PayerBankAccountId.Value,
                             BankName = payerBankAccount.BankName,
                             AccountNumber = payerBankAccount.AccountNumber,
-                            CurrencyCode = currencyCode, // Get from Currency navigation property
+                            CurrencyId = currencyId.Value,
+                            CurrencyCode = currencyCode, // Display from Currency navigation property
                             CurrentBalance = currentBalance,
                             TransactionAmount = document.Amount,
                             NewBalance = newBalance,
@@ -593,7 +599,8 @@ namespace ForexExchange.Services
                             BankAccountId = document.ReceiverBankAccountId.Value,
                             BankName = receiverBankAccount.BankName,
                             AccountNumber = receiverBankAccount.AccountNumber,
-                            CurrencyCode = currencyCode, // Get from Currency navigation property
+                            CurrencyId = currencyId.Value,
+                            CurrencyCode = currencyCode, // Display from Currency navigation property
                             CurrentBalance = currentBalance,
                             TransactionAmount = -document.Amount,
                             NewBalance = newBalance,

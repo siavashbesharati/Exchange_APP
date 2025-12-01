@@ -183,7 +183,8 @@ namespace ForexExchange.Controllers
                     ReceiverCustomerId = d.ReceiverCustomerId,
                     ReceiverBankAccountId = d.ReceiverBankAccountId,
                     Amount = d.Amount,
-                    CurrencyCode = d.CurrencyCode,
+                    CurrencyId = d.CurrencyId,
+                    CurrencyCode = d.Currency != null ? d.Currency.Code : d.CurrencyCode, // Display from navigation
                     Title = d.Title,
                     Description = d.Description,
                     DocumentDate = d.DocumentDate,
@@ -257,7 +258,8 @@ namespace ForexExchange.Controllers
                     ReceiverCustomerId = a.ReceiverCustomerId,
                     ReceiverBankAccountId = a.ReceiverBankAccountId,
                     Amount = a.Amount,
-                    CurrencyCode = a.CurrencyCode,
+                    CurrencyId = a.CurrencyId,
+                    CurrencyCode = a.Currency != null ? a.Currency.Code : a.CurrencyCode, // Display from navigation
                     Title = a.Title,
                     Description = a.Description,
                     DocumentDate = a.DocumentDate,
@@ -323,7 +325,8 @@ namespace ForexExchange.Controllers
                     ReceiverCustomerId = a.ReceiverCustomerId,
                     ReceiverBankAccountId = a.ReceiverBankAccountId,
                     Amount = a.Amount,
-                    CurrencyCode = a.CurrencyCode,
+                    CurrencyId = a.CurrencyId,
+                    CurrencyCode = a.Currency != null ? a.Currency.Code : a.CurrencyCode, // Display from navigation
                     Title = a.Title,
                     Description = a.Description,
                     DocumentDate = a.DocumentDate,
@@ -489,10 +492,14 @@ namespace ForexExchange.Controllers
             // Check receiver bank account
             if (accountingDocument.ReceiverBankAccountId.HasValue)
             {
-                var receiverBankAccount = await _context.BankAccounts.FindAsync(accountingDocument.ReceiverBankAccountId.Value);
-                if (receiverBankAccount != null && receiverBankAccount.CurrencyCode != accountingDocument.CurrencyCode)
+                var receiverBankAccount = await _context.BankAccounts
+                    .Include(ba => ba.Currency)
+                    .FirstOrDefaultAsync(ba => ba.Id == accountingDocument.ReceiverBankAccountId.Value);
+                if (receiverBankAccount != null && receiverBankAccount.CurrencyId != accountingDocument.CurrencyId)
                 {
-                    ModelState.AddModelError("ReceiverBankAccountId", $"ارز حساب بانکی دریافت کننده ({receiverBankAccount.CurrencyCode}) با ارز سند ({accountingDocument.CurrencyCode}) مطابقت ندارد.");
+                    var receiverCurrencyCode = receiverBankAccount.Currency != null ? receiverBankAccount.Currency.Code : receiverBankAccount.CurrencyCode;
+                    var docCurrencyCode = accountingDocument.Currency != null ? accountingDocument.Currency.Code : accountingDocument.CurrencyCode;
+                    ModelState.AddModelError("ReceiverBankAccountId", $"ارز حساب بانکی دریافت کننده ({receiverCurrencyCode}) با ارز سند ({docCurrencyCode}) مطابقت ندارد.");
                 }
             }
 
@@ -705,10 +712,14 @@ namespace ForexExchange.Controllers
             // Check receiver bank account
             if (accountingDocument.ReceiverBankAccountId.HasValue)
             {
-                var receiverBankAccount = await _context.BankAccounts.FindAsync(accountingDocument.ReceiverBankAccountId.Value);
-                if (receiverBankAccount != null && receiverBankAccount.CurrencyCode != accountingDocument.CurrencyCode)
+                var receiverBankAccount = await _context.BankAccounts
+                    .Include(ba => ba.Currency)
+                    .FirstOrDefaultAsync(ba => ba.Id == accountingDocument.ReceiverBankAccountId.Value);
+                if (receiverBankAccount != null && receiverBankAccount.CurrencyId != accountingDocument.CurrencyId)
                 {
-                    ModelState.AddModelError("ReceiverBankAccountId", $"ارز حساب بانکی دریافت کننده ({receiverBankAccount.CurrencyCode}) با ارز سند ({accountingDocument.CurrencyCode}) مطابقت ندارد.");
+                    var receiverCurrencyCode = receiverBankAccount.Currency != null ? receiverBankAccount.Currency.Code : receiverBankAccount.CurrencyCode;
+                    var docCurrencyCode = accountingDocument.Currency != null ? accountingDocument.Currency.Code : accountingDocument.CurrencyCode;
+                    ModelState.AddModelError("ReceiverBankAccountId", $"ارز حساب بانکی دریافت کننده ({receiverCurrencyCode}) با ارز سند ({docCurrencyCode}) مطابقت ندارد.");
                 }
             }
 
@@ -915,9 +926,11 @@ namespace ForexExchange.Controllers
                 // Check receiver bank account
                 if (accountingDocument.ReceiverBankAccountId.HasValue && accountingDocument.ReceiverBankAccount != null)
                 {
-                    if (accountingDocument.ReceiverBankAccount.CurrencyCode != accountingDocument.CurrencyCode)
+                    if (accountingDocument.ReceiverBankAccount.CurrencyId != accountingDocument.CurrencyId)
                     {
-                        var errorMsg = $"ارز حساب بانکی دریافت کننده ({accountingDocument.ReceiverBankAccount.CurrencyCode}) با ارز سند ({accountingDocument.CurrencyCode}) مطابقت ندارد.";
+                        var receiverCurrencyCode = accountingDocument.ReceiverBankAccount.Currency != null ? accountingDocument.ReceiverBankAccount.Currency.Code : accountingDocument.ReceiverBankAccount.CurrencyCode;
+                        var docCurrencyCode = accountingDocument.Currency != null ? accountingDocument.Currency.Code : accountingDocument.CurrencyCode;
+                        var errorMsg = $"ارز حساب بانکی دریافت کننده ({receiverCurrencyCode}) با ارز سند ({docCurrencyCode}) مطابقت ندارد.";
                         if (isAjax)
                         {
                             return Json(new { success = false, message = errorMsg });
@@ -1108,7 +1121,7 @@ namespace ForexExchange.Controllers
 
                         if (document.ReceiverBankAccountId.HasValue && document.ReceiverBankAccount != null)
                         {
-                            if (document.ReceiverBankAccount.CurrencyCode != document.CurrencyCode)
+                            if (document.ReceiverBankAccount.CurrencyId != document.CurrencyId)
                             {
                                 confirmationLog.Add($"❌ Document {document.Id}: Currency mismatch for receiver bank account");
                                 errorCount++;

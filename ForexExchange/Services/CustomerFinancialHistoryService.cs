@@ -77,7 +77,8 @@ namespace ForexExchange.Services
                     TransactionDate = h.TransactionDate,
                     Type = GetTransactionTypeFromEnum(h.TransactionType, h.TransactionAmount),
                     Description = h.Description ?? GetDefaultDescription(h.TransactionType, h.ReferenceId),
-                    CurrencyCode = h.CurrencyCode,
+                    CurrencyId = h.CurrencyId ?? 0,
+                    CurrencyCode = h.Currency != null ? h.Currency.Code : h.CurrencyCode, // Display from navigation
                     Amount = h.TransactionAmount,
                     RunningBalance = h.BalanceAfter, // Use BalanceAfter as running balance
                     ReferenceId = h.ReferenceId, // Can be null for Manual transactions
@@ -87,24 +88,30 @@ namespace ForexExchange.Services
 
                 // Calculate initial balances from first record per currency
                 var initialBalances = new Dictionary<string, decimal>();
-                var currencyGroups = historyRecords.GroupBy(h => h.CurrencyCode);
+                var finalBalances = new Dictionary<string, decimal>();
+                var currencyGroups = historyRecords
+                    .Where(h => h.CurrencyId.HasValue)
+                    .GroupBy(h => h.CurrencyId!.Value); // Use !.Value since we filtered for HasValue
 
                 foreach (var group in currencyGroups)
                 {
-                    var firstRecord = group.First(); // First history record for this currency
+                    var orderedGroup = group.OrderBy(h => h.TransactionDate).ThenBy(h => h.Id).ToList();
+                    var firstRecord = orderedGroup.First(); // First history record for this currency
+                    var lastRecord = orderedGroup.Last(); // Last history record for this currency
 
+                    // Get CurrencyCode from navigation property or fallback
+                    var currencyCode = firstRecord.Currency != null ? firstRecord.Currency.Code : firstRecord.CurrencyCode;
+                    
                     // ALWAYS use BalanceBefore from first record as initial balance
-                    initialBalances[firstRecord.CurrencyCode] = firstRecord.BalanceBefore;
+                    initialBalances[currencyCode] = firstRecord.BalanceBefore;
+                    
+                    // Use BalanceAfter from last history record as final balance
+                    finalBalances[currencyCode] = lastRecord.BalanceAfter;
                 }
 
                 timeline.InitialBalances = initialBalances;
                 timeline.Transactions = allTransactions;
-
-                // Final balances are the last BalanceAfter for each currency
-                timeline.FinalBalances = currencyGroups.ToDictionary(
-                    g => g.Key,
-                    g => g.Last().BalanceAfter // Use BalanceAfter from last history record
-                );
+                timeline.FinalBalances = finalBalances;
 
                 // Calculate net changes
                 timeline.NetChanges = timeline.FinalBalances.ToDictionary(
