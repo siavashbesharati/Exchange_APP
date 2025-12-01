@@ -648,7 +648,19 @@ namespace ForexExchange.Services
         {
             _logger.LogInformation($"Fast balance update for Order ID: {order.Id}");
 
-
+            // Ensure Customer and Currency navigation properties are loaded
+            if (order.Customer == null)
+            {
+                await _context.Entry(order).Reference(o => o.Customer).LoadAsync();
+            }
+            if (order.FromCurrency == null)
+            {
+                await _context.Entry(order).Reference(o => o.FromCurrency).LoadAsync();
+            }
+            if (order.ToCurrency == null)
+            {
+                await _context.Entry(order).Reference(o => o.ToCurrency).LoadAsync();
+            }
 
             // Get CurrencyCode from navigation properties for display/logging only - use CurrencyId for all operations
             var fromCurrencyCode = order.FromCurrency?.Code ?? ""; // For display/logging only
@@ -824,9 +836,30 @@ namespace ForexExchange.Services
                 .Include(o => o.ToCurrency)
                 .FirstOrDefaultAsync(o => o.Id == order.Id);
 
+            // Get original Notes to avoid duplication
+            var originalDescription = orderWithDetails?.Notes;
+            if (!string.IsNullOrWhiteSpace(originalDescription))
+            {
+                // Check if Notes already contains generated format and extract only the description part
+                var generatedPattern = $"BUY {order.FromAmount.FormatCurrency(order.FromCurrency?.Code ?? "")} {order.FromCurrency?.Code ?? ""} | SELL";
+                if (originalDescription.Contains(generatedPattern))
+                {
+                    // Extract only the description part after the customer name
+                    var parts = originalDescription.Split('|');
+                    if (parts.Length > 4)
+                    {
+                        originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
+                    }
+                    else
+                    {
+                        originalDescription = "";
+                    }
+                }
+            }
+
             // Use helper to generate English descriptions
-            var description = HistoryDescriptionHelper.GenerateOrderDescription(order, currencyCode, isFromCurrency);
-            var note = HistoryDescriptionHelper.GenerateOrderNote(order, currencyCode, isFromCurrency);
+            var description = HistoryDescriptionHelper.GenerateOrderDescription(order, currencyCode, isFromCurrency, originalDescription);
+            var note = HistoryDescriptionHelper.GenerateOrderNote(order, currencyCode, isFromCurrency, originalDescription);
 
             // Create new history record for this order (balances will be recalculated in rebuild)
             // Use CurrencyId directly - this is why we did the refactoring!
@@ -905,13 +938,37 @@ namespace ForexExchange.Services
                 _context.Entry(existingRecord).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
             }
 
-            // Use helper to generate English description
+            // Get customer name and original description from order (extract only the description part, not the generated format)
+            var customerName = order.Customer?.FullName ?? "Unknown";
+            var originalDescription = order.Notes;
+            if (!string.IsNullOrWhiteSpace(originalDescription))
+            {
+                // Check if Notes already contains generated format and extract only the description part
+                var generatedPattern = $"BUY {order.FromAmount.FormatCurrency(order.FromCurrency?.Code ?? "")} {order.FromCurrency?.Code ?? ""} | SELL";
+                if (originalDescription.Contains(generatedPattern))
+                {
+                    // Extract only the description part after the customer name (after 4 parts: BUY, SELL, rate, customerName)
+                    var parts = originalDescription.Split('|');
+                    if (parts.Length > 4)
+                    {
+                        originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
+                    }
+                    else
+                    {
+                        originalDescription = "";
+                    }
+                }
+            }
+
+            // Completely replace description with new generated one
             var description = HistoryDescriptionHelper.GeneratePoolHistoryDescription(
                 currencyCode,
                 transactionAmount,
                 poolTransactionType,
                 order.Id > 0 ? order.Id : null,
-                order.Rate);
+                order.Rate,
+                customerName,
+                originalDescription);
 
             // Create new history record for this order (balances will be recalculated in rebuild)
             // Use CurrencyId directly - this is why we did the refactoring!
@@ -1555,10 +1612,32 @@ namespace ForexExchange.Services
                 {
                     var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
                     var toCurrencyCode = (o.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
+                    var customerName = o.Customer?.FullName ?? "Unknown";
+                    
+                    // Get original description from order Notes (extract only the description part, not the generated format)
+                    var originalDescription = o.Notes;
+                    if (!string.IsNullOrWhiteSpace(originalDescription))
+                    {
+                        // Check if Notes already contains generated format and extract only the description part
+                        var generatedPattern = $"BUY {o.FromAmount.FormatCurrency(o.FromCurrency?.Code ?? "")} {o.FromCurrency?.Code ?? ""} | SELL";
+                        if (originalDescription.Contains(generatedPattern))
+                        {
+                            // Extract only the description part after the customer name (after 4 parts: BUY, SELL, rate, customerName)
+                            var parts = originalDescription.Split('|');
+                            if (parts.Length > 4)
+                            {
+                                originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
+                            }
+                            else
+                            {
+                                originalDescription = "";
+                            }
+                        }
+                    }
 
-                    // Use helper to generate English descriptions
-                    var buyDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(fromCurrencyCode, o.FromAmount, "Buy", o.Id, o.Rate);
-                    var sellDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(toCurrencyCode, -o.ToAmount, "Sell", o.Id, o.Rate);
+                    // Completely replace descriptions with new generated ones
+                    var buyDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(fromCurrencyCode, o.FromAmount, "Buy", o.Id, o.Rate, customerName, originalDescription);
+                    var sellDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(toCurrencyCode, -o.ToAmount, "Sell", o.Id, o.Rate, customerName, originalDescription);
 
                     // Institution receives FromAmount in FromCurrency (pool increases)
                     poolTransactionItems.Add((o.FromCurrencyId, fromCurrencyCode, o.CreatedAt, "Order", o.Id, o.FromAmount, "Buy", buyDescription, o.Rate));
@@ -1984,11 +2063,32 @@ namespace ForexExchange.Services
                     var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
                     var toCurrencyCode = (o.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
 
+                    // Get original Notes to avoid duplication
+                    var originalDescription = o.Notes;
+                    if (!string.IsNullOrWhiteSpace(originalDescription))
+                    {
+                        // Check if Notes already contains generated format and extract only the description part
+                        var generatedPattern = $"BUY {o.FromAmount.FormatCurrency(o.FromCurrency?.Code ?? "")} {o.FromCurrency?.Code ?? ""} | SELL";
+                        if (originalDescription.Contains(generatedPattern))
+                        {
+                            // Extract only the description part after the customer name
+                            var parts = originalDescription.Split('|');
+                            if (parts.Length > 4)
+                            {
+                                originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
+                            }
+                            else
+                            {
+                                originalDescription = "";
+                            }
+                        }
+                    }
+
                     // Use helper to generate English descriptions
-                    var fromDescription = HistoryDescriptionHelper.GenerateOrderDescription(o, fromCurrencyCode, true);
-                    var toDescription = HistoryDescriptionHelper.GenerateOrderDescription(o, toCurrencyCode, false);
-                    var fromNote = HistoryDescriptionHelper.GenerateOrderNote(o, fromCurrencyCode, true);
-                    var toNote = HistoryDescriptionHelper.GenerateOrderNote(o, toCurrencyCode, false);
+                    var fromDescription = HistoryDescriptionHelper.GenerateOrderDescription(o, fromCurrencyCode, true, originalDescription);
+                    var toDescription = HistoryDescriptionHelper.GenerateOrderDescription(o, toCurrencyCode, false, originalDescription);
+                    var fromNote = HistoryDescriptionHelper.GenerateOrderNote(o, fromCurrencyCode, true, originalDescription);
+                    var toNote = HistoryDescriptionHelper.GenerateOrderNote(o, toCurrencyCode, false, originalDescription);
 
                     // Customer pays FromAmount in FromCurrency
                     customerTransactionItems.Add((o.CustomerId, o.FromCurrencyId, fromCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, -o.FromAmount, fromDescription, fromNote));

@@ -10,47 +10,78 @@ namespace ForexExchange.Helpers
     {
         /// <summary>
         /// Generates description for Order transaction in CustomerBalanceHistory
-        /// Format: "SEND {amount} {currency} at rate {rate} to {customerName}, RECEIVE {amount} {currency} | ID {orderId}"
-        /// For FromCurrency: SEND (customer sends FromCurrency)
-        /// For ToCurrency: RECEIVE (customer receives ToCurrency)
+        /// Format: "BUY {amount from} {from currency} | SELL {to currency amount} {to currency code} | {rate} | {customerName} | {description}"
+        /// Note: description parameter should be the original Notes value, not the generated description to avoid duplication
         /// </summary>
-        public static string GenerateOrderDescription(Order order, string currencyCode, bool isFromCurrency)
+        public static string GenerateOrderDescription(Order order, string currencyCode, bool isFromCurrency, string? originalDescription = null)
         {
             var fromCurrencyCode = order.FromCurrency?.Code ?? "";
             var toCurrencyCode = order.ToCurrency?.Code ?? "";
             var customerName = order.Customer?.FullName ?? "Unknown";
+            
+            // Use originalDescription if provided, otherwise use order.Notes but only if it doesn't already contain the generated format
+            string description = "";
+            if (!string.IsNullOrWhiteSpace(originalDescription))
+            {
+                description = originalDescription;
+            }
+            else if (!string.IsNullOrWhiteSpace(order.Notes))
+            {
+                // Check if Notes already contains the generated format (to avoid duplication)
+                var generatedPattern = $"BUY {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} | SELL";
+                if (!order.Notes.Contains(generatedPattern))
+                {
+                    description = order.Notes;
+                }
+            }
 
-            if (isFromCurrency)
+            // Format: BUY {amount from} {from currency} | SELL {to currency amount} {to currency code} | {rate} | {customerName} | {description}
+            var result = $"BUY {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} | SELL {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode} | {order.Rate:N4} | {customerName}";
+            
+            if (!string.IsNullOrWhiteSpace(description))
             {
-                // Customer sends FromCurrency (negative transaction)
-                return $"SEND {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} at rate {order.Rate:N4} to {customerName}, RECEIVE {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode} | ID {order.Id}";
+                result += $" | {description}";
             }
-            else
-            {
-                // Customer receives ToCurrency (positive transaction)
-                return $"RECEIVE {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode} from {customerName}, SEND {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} at rate {order.Rate:N4} | ID {order.Id}";
-            }
+            
+            return result;
         }
 
         /// <summary>
-        /// Generates note for Order transaction (without customer info)
-        /// Format: "SEND {amount} {currency} at rate {rate}, RECEIVE {amount} {currency} | ID {orderId}"
-        /// For FromCurrency: SEND
-        /// For ToCurrency: RECEIVE
+        /// Generates note for Order transaction
+        /// Format: "BUY {amount from} {from currency} | SELL {to currency amount} {to currency code} | {rate} | {customerName} | {description}"
+        /// Note: description parameter should be the original Notes value, not the generated description to avoid duplication
         /// </summary>
-        public static string GenerateOrderNote(Order order, string currencyCode, bool isFromCurrency)
+        public static string GenerateOrderNote(Order order, string currencyCode, bool isFromCurrency, string? originalDescription = null)
         {
             var fromCurrencyCode = order.FromCurrency?.Code ?? "";
             var toCurrencyCode = order.ToCurrency?.Code ?? "";
+            var customerName = order.Customer?.FullName ?? "Unknown";
+            
+            // Use originalDescription if provided, otherwise use order.Notes but only if it doesn't already contain the generated format
+            string description = "";
+            if (!string.IsNullOrWhiteSpace(originalDescription))
+            {
+                description = originalDescription;
+            }
+            else if (!string.IsNullOrWhiteSpace(order.Notes))
+            {
+                // Check if Notes already contains the generated format (to avoid duplication)
+                var generatedPattern = $"BUY {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} | SELL";
+                if (!order.Notes.Contains(generatedPattern))
+                {
+                    description = order.Notes;
+                }
+            }
 
-            if (isFromCurrency)
+            // Format: BUY {amount from} {from currency} | SELL {to currency amount} {to currency code} | {rate} | {customerName} | {description}
+            var result = $"BUY {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} | SELL {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode} | {order.Rate:N4} | {customerName}";
+            
+            if (!string.IsNullOrWhiteSpace(description))
             {
-                return $"SEND {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} at rate {order.Rate:N4}, RECEIVE {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode} | ID {order.Id}";
+                result += $" | {description}";
             }
-            else
-            {
-                return $"RECEIVE {order.ToAmount.FormatCurrency(toCurrencyCode)} {toCurrencyCode}, SEND {order.FromAmount.FormatCurrency(fromCurrencyCode)} {fromCurrencyCode} at rate {order.Rate:N4} | ID {order.Id}";
-            }
+            
+            return result;
         }
 
         /// <summary>
@@ -148,9 +179,9 @@ namespace ForexExchange.Helpers
 
         /// <summary>
         /// Generates description for CurrencyPoolHistory
-        /// Format: "BUY {amount} {currency} - Order #{orderId} - Rate: {rate}" or "SELL {amount} {currency} - Order #{orderId} - Rate: {rate}"
+        /// Format: "BUY {amount} {currency} | Rate: {rate} | {customerName}" or "SELL {amount} {currency} | Rate: {rate} | {customerName}"
         /// </summary>
-        public static string GeneratePoolHistoryDescription(string currencyCode, decimal transactionAmount, string poolTransactionType, int? orderId = null, decimal? rate = null)
+        public static string GeneratePoolHistoryDescription(string currencyCode, decimal transactionAmount, string poolTransactionType, int? orderId = null, decimal? rate = null, string? customerName = null, string? orderDescription = null)
         {
             var amount = Math.Abs(transactionAmount);
             var description = "";
@@ -168,9 +199,19 @@ namespace ForexExchange.Helpers
                 description = $"TRANSACTION {transactionAmount.FormatCurrency(currencyCode)} {currencyCode}";
             }
 
-            if (orderId.HasValue && rate.HasValue)
+            if (rate.HasValue)
             {
-                description += $" - Order #{orderId.Value} - Rate: {rate.Value:N4}";
+                description += $" | Rate: {rate.Value:N4}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(customerName))
+            {
+                description += $" | {customerName}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(orderDescription))
+            {
+                description += $" | {orderDescription}";
             }
 
             return description;
