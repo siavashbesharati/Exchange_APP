@@ -521,12 +521,13 @@
                         <table class="transaction-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 13%;">تاریخ</th>
-                                    <th style="width: 13%;">نوع</th>
-                                    <th style="width: 13%;">شناسه تراکنش</th>
-                                    <th style="width: 33%;">یادداشت</th>
-                                    <th style="width: 15%;">مبلغ</th>
-                                    <th style="width: 15%;">موجودی</th>
+                                    <th style="width: 11%;">تاریخ</th>
+                                    <th style="width: 11%;">نوع</th>
+                                    <th style="width: 11%;">شناسه تراکنش</th>
+                                    <th style="width: 15%;">مشتری</th>
+                                    <th style="width: 27%;">یادداشت</th>
+                                    <th style="width: 13%;">مبلغ</th>
+                                    <th style="width: 13%;">موجودی</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -543,6 +544,7 @@
 
                                         <td style="text-align: center;">@transaction.TransactionNumber</td>
 
+                                        <td style="text-align: right;">@(string.IsNullOrWhiteSpace(transaction.CustomerName) ? "-" : transaction.CustomerName)</td>
 
                                         <td style="text-align: right;">@transaction.Description</td>
                                         <td class="amount-cell">

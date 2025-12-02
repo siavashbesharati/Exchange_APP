@@ -117,13 +117,14 @@
                                     <th width="8%">ارز</th>
                                     <th width="12%">مقدار</th>
                                     <th width="12%">موجودی</th>
-                                    <th width="30%">توضیحات</th>
+                                    <th width="15%">مشتری</th>
+                                    <th width="25%">توضیحات</th>
                                     <th width="16%">عملیات</th>
                                 </tr>
                             </thead>
                             <tbody id="timelineTableBody">
                                 <tr>
-                                    <td colspan="6" class="text-center py-5 text-muted">
+                                    <td colspan="8" class="text-center py-5 text-muted">
                                         <i class="fas fa-coins fa-2x mb-2"></i>
                                         <br>لطفا برای دریافت تاریخچه مالی یک ارز را انتخاب کنید
                                     </td>
@@ -383,6 +384,7 @@
                 <td class="text-center">${item.currencyCode}</td>
                 <td class="text-center ltr-direction ${item.amount >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(item.amount)}</td>
                 <td class="text-center ltr-direction fw-bold">${formatNumber(item.balance)}</td>
+                <td class="text-start">${item.customerName || '-'}</td>
                 <td class="text-start">
                     <small class="text-muted">${item.description || '-'}</small>
                 </td>
@@ -526,8 +528,10 @@
         }
 
         const currencySelect = document.getElementById('currencySelect');
-        const currencyCode = currencySelect.value;
-        if (!currencyCode) {
+        const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+        const currencyId = selectedOption.getAttribute('data-currency-id');
+        
+        if (!currencyId) {
             alert('لطفاً ابتدا ارز را انتخاب کنید');
             return;
         }
@@ -535,9 +539,9 @@
         const fromDate = document.getElementById('fromDate').value || '';
         const toDate = document.getElementById('toDate').value || '';
 
-        // Build URL with query parameters
+        // Build URL with query parameters - use currencyId (preferred)
         const params = new URLSearchParams({
-            currencyCode: currencyCode,
+            currencyId: currencyId,
             fromDate: fromDate,
             toDate: toDate
         });

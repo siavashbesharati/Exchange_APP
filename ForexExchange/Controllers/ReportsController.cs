@@ -19,7 +19,7 @@ namespace ForexExchange.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ICentralFinancialService _centralFinancialService;
         private readonly ExcelExportService _excelExportService;
-    private readonly ICurrencyConversionService _currencyConversionService;
+        private readonly ICurrencyConversionService _currencyConversionService;
 
 
 
@@ -880,7 +880,7 @@ namespace ForexExchange.Controllers
                             amount = h.TransactionAmount,
                             balanceAfter = h.BalanceAfter,
                             referenceId = h.ReferenceId,
-                             rate,
+                            rate,
                             weightedAverageRate,
                             profit
                         });
@@ -1775,7 +1775,7 @@ namespace ForexExchange.Controllers
             try
             {
                 _logger.LogInformation($"GetPoolTimeline called with currencyId: {currencyId}");
-                
+
                 // Validate CurrencyId is required
                 if (!currencyId.HasValue)
                 {
@@ -1806,7 +1806,7 @@ namespace ForexExchange.Controllers
 
                 // Use CurrencyId directly - NO CurrencyCode fallback!
                 object? currencyFilter = currencyId.Value;
-                
+
                 var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyFilter, fromDateTime, toDateTime);
                 var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyFilter);
 
@@ -2178,15 +2178,19 @@ namespace ForexExchange.Controllers
 
         // GET: Reports/PrintPoolReport
         [HttpGet]
-        public async Task<IActionResult> PrintPoolReport(string currencyCode, DateTime? fromDate = null, DateTime? toDate = null)
+        public async Task<IActionResult> PrintPoolReport(int currencyId, DateTime? fromDate = null, DateTime? toDate = null)
         {
             try
             {
-                if (string.IsNullOrEmpty(currencyCode))
-                    return BadRequest("Invalid currency code");
 
-                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyCode, fromDate, toDate);
-                var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyCode);
+
+
+                // Get currency code for display
+                var Currency = await _context.Currencies
+                    .FindAsync(currencyId);
+
+                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyId, fromDate, toDate);
+                var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyId);
 
                 if (timeline == null || summary == null)
                     return StatusCode(500, "خطا در دریافت داده‌های گزارش داشبورد");
@@ -2213,7 +2217,8 @@ namespace ForexExchange.Controllers
                             Amount = t.Amount,
                             RunningBalance = t.Balance,
                             ReferenceId = t.ReferenceId,
-                            CanNavigate = t.CanNavigate
+                            CanNavigate = t.CanNavigate,
+                            CustomerName = t.CustomerName ?? string.Empty
                         });
                     }
                     catch (Exception ex)
@@ -2225,28 +2230,28 @@ namespace ForexExchange.Controllers
 
                 // Get final balances from summary with safe conversion
                 var finalBalances = new Dictionary<string, decimal>();
-                if (summary.CurrencyBalances != null && summary.CurrencyBalances.ContainsKey(currencyCode))
+                if (summary.CurrencyBalances != null && summary.CurrencyBalances.ContainsKey(Currency.Code))
                 {
                     try
                     {
-                        finalBalances[currencyCode] = Convert.ToDecimal(summary.CurrencyBalances[currencyCode]);
+                        finalBalances[Currency.Code] = Convert.ToDecimal(summary.CurrencyBalances[Currency.Code]);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Error converting balance for pool currency {CurrencyCode}", currencyCode);
+                        _logger.LogWarning(ex, "Error converting balance for pool currency {CurrencyCode}", Currency.Code);
                     }
                 }
 
                 var reportModel = new FinancialReportViewModel
                 {
                     ReportType = "Pool",
-                    EntityName = currencyCode,
-                    EntityId = null,
+                    EntityName = Currency.Code,
+                    EntityId = currencyId,
                     FromDate = fromDate ?? DateTime.MinValue,
                     ToDate = toDate ?? DateTime.MaxValue,
                     Transactions = transactions,
                     FinalBalances = finalBalances,
-                    ReportTitle = $"گزارش داشبورد - {currencyCode}",
+                    ReportTitle = $"گزارش داشبورد - {Currency.Code}",
                     ReportSubtitle = $"از {fromDate?.ToString("yyyy/MM/dd") ?? "ابتدا"} تا {toDate?.ToString("yyyy/MM/dd") ?? "انتها"}"
                 };
 
@@ -2254,7 +2259,7 @@ namespace ForexExchange.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error generating pool report for currency {CurrencyCode}", currencyCode);
+                _logger.LogError(ex, "Error generating pool report for currencyId {CurrencyId}", currencyId);
                 // Return a proper error response instead of View("Error")
                 return StatusCode(500, "خطا در تولید گزارش داشبورد");
             }
@@ -2615,7 +2620,7 @@ namespace ForexExchange.Controllers
             }
             return RedirectToAction("Index");
         }
-  
+
 
 
 
@@ -2638,10 +2643,10 @@ namespace ForexExchange.Controllers
             // Set default date range: from last year to today
             var today = DateTime.Today;
             var lastYear = today.AddYears(-1);
-            
+
             ViewBag.DefaultDateFrom = lastYear.ToString("yyyy-MM-dd");
             ViewBag.DefaultDateTo = today.ToString("yyyy-MM-dd");
-            
+
             return View();
         }
 
@@ -2649,7 +2654,7 @@ namespace ForexExchange.Controllers
         public async Task<IActionResult> CustomerBankHistoryReportPrint(DateTime dateFrom, DateTime dateTo, string? currencyCode = null)
         {
             var report = await BuildCustomerBankHistoryReportAsync(dateFrom, dateTo, currencyCode);
-            
+
             // Get OMR exchange rates
             var omrCurrency = await _context.Currencies
                 .Where(c => c.Code == "OMR" && c.IsActive)
@@ -2661,7 +2666,7 @@ namespace ForexExchange.Controllers
                 var rates = await _context.ExchangeRates
                     .Include(r => r.FromCurrency)
                     .Include(r => r.ToCurrency)
-                    .Where(r => r.FromCurrencyId == omrCurrency.Id && 
+                    .Where(r => r.FromCurrencyId == omrCurrency.Id &&
                                r.IsActive &&
                                r.ToCurrency.IsActive)
                     .OrderBy(r => r.ToCurrency.DisplayOrder)
@@ -2674,12 +2679,12 @@ namespace ForexExchange.Controllers
                         rate = r.Rate
                     })
                     .ToListAsync();
-                
+
                 omrRates = rates.Cast<object>().ToList();
             }
-            
+
             ViewBag.OMRExchangeRates = omrRates;
-            
+
             return View("~/Views/PrintViews/CustomerBankHistoryReportPrint.cshtml", report);
         }
 
@@ -2699,10 +2704,10 @@ namespace ForexExchange.Controllers
             // Set default date range: from last year to today
             var today = DateTime.Today;
             var lastYear = today.AddYears(-1);
-            
+
             ViewBag.DefaultDateFrom = lastYear.ToString("yyyy-MM-dd");
             ViewBag.DefaultDateTo = today.ToString("yyyy-MM-dd");
-            
+
             return View();
         }
 
@@ -3468,8 +3473,8 @@ namespace ForexExchange.Controllers
 
             // Filter bank accounts that belong to shareholders (IsShareHolder = true)
             var bankGroups = latestBankBalances
-                .Where(h => h.BankAccount != null 
-                    && h.BankAccount.Customer != null 
+                .Where(h => h.BankAccount != null
+                    && h.BankAccount.Customer != null
                     && h.BankAccount.Customer.IsShareHolder == true
                     && !string.IsNullOrEmpty(h.BankAccount.CurrencyCode))
                 .GroupBy(h => h.BankAccount.CurrencyCode)
@@ -3487,7 +3492,7 @@ namespace ForexExchange.Controllers
 
             // Filter for shareholders only
             var customerGroups = latestCustomerBalances
-                .Where(h => h.Customer != null 
+                .Where(h => h.Customer != null
                     && h.Customer.IsShareHolder == true
                     && !string.IsNullOrEmpty(h.CurrencyCode))
                 .GroupBy(h => h.CurrencyCode)
@@ -3988,7 +3993,7 @@ namespace ForexExchange.Controllers
                         currencyId = currency.Id;
                     }
                 }
-                
+
                 return type.ToLower() switch
                 {
                     "allcustomersbalances" => await ExportAllCustomersBalances(currencyCode, customer),
@@ -4036,8 +4041,8 @@ namespace ForexExchange.Controllers
                 }
 
                 // Convert currencyCode to currencyId if provided
-               
-                
+
+
                 // Get timeline data
                 var timeline = await _customerHistoryService.GetCustomerTimelineAsync(customerId.Value, formattedFromDate, formattedToDate, currencyId);
 

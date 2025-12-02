@@ -1,0 +1,15 @@
+-- database: ./ForexExchange.db
+
+SELECT Description FROM CustomerBalanceHistory;
+
+UPDATE CustomerBalanceHistory SET Description = NULL;
+
+SELECT Description FROM CurrencyPoolHistory;
+
+UPDATE CurrencyPoolHistory SET Description = NULL;
+
+SELECT Description FROM BankAccountBalanceHistory;
+
+UPDATE BankAccountBalanceHistory SET Description = NULL;
+
+UPDATE Orders SET Notes = NULL;

@@ -135,7 +135,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("Type");
 
-                    b.ToTable("AccountingDocuments");
+                    b.ToTable("AccountingDocuments", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.AdminActivity", b =>
@@ -205,7 +205,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("AdminUserId", "Timestamp");
 
-                    b.ToTable("AdminActivities");
+                    b.ToTable("AdminActivities", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.ApplicationUser", b =>
@@ -384,7 +384,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CustomerId", "IsActive");
 
-                    b.ToTable("BankAccounts");
+                    b.ToTable("BankAccounts", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.BankAccountBalance", b =>
@@ -425,7 +425,7 @@ namespace ForexExchange.Migrations
                         .IsUnique()
                         .HasFilter("[CurrencyId] IS NOT NULL");
 
-                    b.ToTable("BankAccountBalances");
+                    b.ToTable("BankAccountBalances", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.BankAccountBalanceHistory", b =>
@@ -495,7 +495,7 @@ namespace ForexExchange.Migrations
                     b.HasIndex("BankAccountId", "TransactionDate", "Id")
                         .HasDatabaseName("IX_BankAccountBalanceHistory_Account_Latest");
 
-                    b.ToTable("BankAccountBalanceHistory");
+                    b.ToTable("BankAccountBalanceHistory", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.Currency", b =>
@@ -543,7 +543,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("IsActive", "DisplayOrder");
 
-                    b.ToTable("Currencies");
+                    b.ToTable("Currencies", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CurrencyPool", b =>
@@ -599,7 +599,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CurrencyId", "IsActive");
 
-                    b.ToTable("CurrencyPools");
+                    b.ToTable("CurrencyPools", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CurrencyPoolHistory", b =>
@@ -682,7 +682,7 @@ namespace ForexExchange.Migrations
                         .HasDatabaseName("IX_CurrencyPoolHistory_CurrencyId_Latest")
                         .HasFilter("[CurrencyId] IS NOT NULL");
 
-                    b.ToTable("CurrencyPoolHistory");
+                    b.ToTable("CurrencyPoolHistory", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.Customer", b =>
@@ -736,7 +736,7 @@ namespace ForexExchange.Migrations
                     b.HasIndex("PhoneNumber")
                         .IsUnique();
 
-                    b.ToTable("Customers");
+                    b.ToTable("Customers", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CustomerBalance", b =>
@@ -777,7 +777,7 @@ namespace ForexExchange.Migrations
                         .IsUnique()
                         .HasFilter("[CurrencyId] IS NOT NULL");
 
-                    b.ToTable("CustomerBalances");
+                    b.ToTable("CustomerBalances", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CustomerBalanceHistory", b =>
@@ -865,7 +865,7 @@ namespace ForexExchange.Migrations
                         .HasDatabaseName("IX_CustomerBalanceHistory_Customer_CurrencyId_Latest")
                         .HasFilter("[CurrencyId] IS NOT NULL");
 
-                    b.ToTable("CustomerBalanceHistory");
+                    b.ToTable("CustomerBalanceHistory", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.ExchangeRate", b =>
@@ -913,7 +913,7 @@ namespace ForexExchange.Migrations
                     b.HasIndex("FromCurrencyId", "ToCurrencyId", "IsActive")
                         .IsUnique();
 
-                    b.ToTable("ExchangeRates");
+                    b.ToTable("ExchangeRates", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.Notification", b =>
@@ -959,7 +959,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CustomerId", "IsRead");
 
-                    b.ToTable("Notifications");
+                    b.ToTable("Notifications", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.Order", b =>
@@ -1027,7 +1027,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("FromCurrencyId", "ToCurrencyId");
 
-                    b.ToTable("Orders");
+                    b.ToTable("Orders", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.PushNotificationLog", b =>
@@ -1083,7 +1083,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("WasSuccessful");
 
-                    b.ToTable("PushNotificationLogs");
+                    b.ToTable("PushNotificationLogs", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.PushSubscription", b =>
@@ -1153,7 +1153,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("IsActive", "UserId");
 
-                    b.ToTable("PushSubscriptions");
+                    b.ToTable("PushSubscriptions", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.ShareableLink", b =>
@@ -1205,7 +1205,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("IsActive", "ExpiresAt");
 
-                    b.ToTable("ShareableLinks");
+                    b.ToTable("ShareableLinks", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.SystemSettings", b =>
@@ -1252,7 +1252,7 @@ namespace ForexExchange.Migrations
                     b.HasIndex("SettingKey")
                         .IsUnique();
 
-                    b.ToTable("SystemSettings");
+                    b.ToTable("SystemSettings", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.TaskItem", b =>
@@ -1287,7 +1287,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("AssignedToUserId");
 
-                    b.ToTable("TaskItems");
+                    b.ToTable("TaskItems", (string)null);
                 });
 
             modelBuilder.Entity("ForexExchange.Models.VapidConfiguration", b =>
@@ -1345,7 +1345,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.ToTable("VapidConfigurations");
+                    b.ToTable("VapidConfigurations", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>

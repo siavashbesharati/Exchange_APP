@@ -483,55 +483,14 @@ namespace ForexExchange.Controllers
 
                 using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
-                // STEP 1: Update Order Notes
-                logMessages.Add("STEP 1: Updating Order Notes...");
+                // STEP 1: Load all data
                 var orders = await _context.Orders
                     .Include(o => o.Customer)
                     .Include(o => o.FromCurrency)
                     .Include(o => o.ToCurrency)
                     .Where(o => !o.IsDeleted)
                     .ToListAsync();
-                
-                // Load pool history records that reference these orders for later update
-                var poolHistoryRecordsForOrders = await _context.CurrencyPoolHistory
-                    .Where(h => !h.IsDeleted && h.ReferenceId.HasValue && orders.Select(o => o.Id).Contains(h.ReferenceId.Value))
-                    .ToListAsync();
 
-                foreach (var order in orders)
-                {
-                    // Extract original description from Notes to avoid duplication
-                    var originalDescription = order.Notes;
-                    if (!string.IsNullOrWhiteSpace(originalDescription))
-                    {
-                        // Check if Notes already contains generated format and extract only the description part
-                        var generatedPattern = $"BUY {order.FromAmount.FormatCurrency(order.FromCurrency?.Code ?? "")} {order.FromCurrency?.Code ?? ""} | SELL";
-                        if (originalDescription.Contains(generatedPattern))
-                        {
-                            // Extract only the description part after the customer name (after 4 parts: BUY, SELL, rate, customerName)
-                            var parts = originalDescription.Split('|');
-                            if (parts.Length > 4)
-                            {
-                                originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
-                            }
-                            else
-                            {
-                                originalDescription = "";
-                            }
-                        }
-                    }
-                    
-                    // Use helper to generate English description (for FromCurrency side)
-                    // Pass originalDescription to avoid duplication
-                    var note = HistoryDescriptionHelper.GenerateOrderDescription(order, order.FromCurrency?.Code ?? "", true, originalDescription);
-                    order.Notes = note;
-                }
-
-                var ordersUpdated = await _context.SaveChangesAsync();
-                logMessages.Add($"✓ Updated {ordersUpdated} order notes");
-
-                // STEP 2: Update AccountingDocument Notes
-                logMessages.Add("");
-                logMessages.Add("STEP 2: Updating AccountingDocument Notes...");
                 var documents = await _context.AccountingDocuments
                     .Include(d => d.PayerCustomer)
                     .Include(d => d.ReceiverCustomer)
@@ -541,101 +500,89 @@ namespace ForexExchange.Controllers
                     .Where(d => !d.IsDeleted)
                     .ToListAsync();
 
-                int documentsWithDescription = 0;
-                foreach (var doc in documents)
-                {
-                    // Use helper to generate English description (for Payer side)
-                    // Description is already included in the format
-                    var note = HistoryDescriptionHelper.GenerateDocumentNote(doc);
-                    doc.Notes = note;
+                var customerBalanceHistory = await _context.CustomerBalanceHistory
+                    .Where(h => !h.IsDeleted)
+                    .ToListAsync();
                     
-                    if (!string.IsNullOrWhiteSpace(doc.Description))
-                    {
-                        documentsWithDescription++;
-                    }
-                }
-
-                var documentsUpdated = await _context.SaveChangesAsync();
-                logMessages.Add($"✓ Updated {documentsUpdated} accounting document notes");
-                if (documentsWithDescription > 0)
-                {
-                    logMessages.Add($"  → {documentsWithDescription} documents had Description field that was added to Notes");
-                }
-
-                // STEP 3: Update CustomerBalanceHistory Descriptions
-                logMessages.Add("");
-                logMessages.Add("STEP 3: Updating CustomerBalanceHistory Descriptions...");
-
-                // Update descriptions for Order transactions
-                var orderHistoryRecords = await _context.CustomerBalanceHistory
-                    .Where(h => h.TransactionType == CustomerBalanceTransactionType.Order && !h.IsDeleted)
+                var bankAccountBalanceHistory = await _context.BankAccountBalanceHistory
+                    .Where(h => !h.IsDeleted)
+                    .ToListAsync();
+                    
+                var poolHistoryRecords = await _context.CurrencyPoolHistory
+                    .Where(h => !h.IsDeleted && h.TransactionType == CurrencyPoolTransactionType.Order)
                     .ToListAsync();
 
-                foreach (var history in orderHistoryRecords)
+                // STEP 2: Update CurrencyPoolHistory and CustomerBalanceHistory for Orders
+                logMessages.Add("STEP 2: Updating CurrencyPoolHistory and CustomerBalanceHistory for Orders...");
+                int poolUpdated = 0;
+                foreach (var historyRecord in poolHistoryRecords)
                 {
-                    var order = orders.FirstOrDefault(o => o.Id == history.ReferenceId);
+                    if (!historyRecord.ReferenceId.HasValue) continue;
+                    
+                    var order = orders.FirstOrDefault(o => o.Id == historyRecord.ReferenceId.Value);
                     if (order != null)
                     {
-                        // Determine if this is FromCurrency or ToCurrency transaction
-                        var isFromCurrency = history.CurrencyCode?.ToUpperInvariant().Trim() == (order.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
+                        var generatedDescription = HistoryDescriptionHelper.GenerateOrderDescription(order);
+                        historyRecord.Description = generatedDescription;
                         
-                        // Get original Notes from order to avoid duplication
-                        // Extract original description from order.Notes if it exists and doesn't contain generated format
-                        var originalDescription = order.Notes;
-                        if (!string.IsNullOrWhiteSpace(originalDescription))
+                        // Update CustomerBalanceHistory records for this order
+                        var customerHistoryRecords = customerBalanceHistory
+                            .Where(h => h.ReferenceId == order.Id && h.TransactionType == CustomerBalanceTransactionType.Order)
+                            .ToList();
+                            
+                        foreach (var customerHistory in customerHistoryRecords)
                         {
-                            var generatedPattern = $"BUY {order.FromAmount.FormatCurrency(order.FromCurrency?.Code ?? "")} {order.FromCurrency?.Code ?? ""} | SELL";
-                            if (originalDescription.Contains(generatedPattern))
-                            {
-                                // Extract only the description part after the customer name
-                                var parts = originalDescription.Split('|');
-                                if (parts.Length > 4)
-                                {
-                                    originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
-                                }
-                                else
-                                {
-                                    originalDescription = "";
-                                }
-                            }
+                            customerHistory.Description = generatedDescription;
+                            customerHistory.Note = generatedDescription; // Note with capital N
                         }
                         
-                        // Use helper to generate English descriptions
-                        history.Description = HistoryDescriptionHelper.GenerateOrderDescription(order, history.CurrencyCode ?? "", isFromCurrency, originalDescription);
-                        history.Note = HistoryDescriptionHelper.GenerateOrderNote(order, history.CurrencyCode ?? "", isFromCurrency, originalDescription);
+                        poolUpdated++;
                     }
                 }
 
-                // Update descriptions for AccountingDocument transactions
-                var documentHistoryRecords = await _context.CustomerBalanceHistory
-                    .Include(h => h.Currency)
-                    .Where(h => h.TransactionType == CustomerBalanceTransactionType.AccountingDocument && !h.IsDeleted)
-                    .ToListAsync();
+                await _context.SaveChangesAsync();
+                logMessages.Add($"✓ Updated {poolUpdated} CurrencyPoolHistory and CustomerBalanceHistory records for Orders");
 
-                int historyRecordsWithDocumentDescription = 0;
-                foreach (var history in documentHistoryRecords)
+                // STEP 3: Update CustomerBalanceHistory and BankAccountBalanceHistory for Documents
+                logMessages.Add("");
+                logMessages.Add("STEP 3: Updating CustomerBalanceHistory and BankAccountBalanceHistory for Documents...");
+                var customerHistoryRecordsForDocuments = customerBalanceHistory
+                    .Where(h => h.TransactionType == CustomerBalanceTransactionType.AccountingDocument && !h.IsDeleted)
+                    .ToList();
+                    
+                int docUpdated = 0;
+                foreach (var docHistory in customerHistoryRecordsForDocuments)
                 {
-                    var document = documents.FirstOrDefault(d => d.Id == history.ReferenceId);
+                    if (!docHistory.ReferenceId.HasValue) continue;
+                    
+                    var document = documents.FirstOrDefault(d => d.Id == docHistory.ReferenceId.Value);
                     if (document != null)
                     {
-                        // Determine role based on transaction amount (positive = Payer, negative = Receiver)
-                        var role = history.TransactionAmount > 0 ? "Payer" : "Receiver";
-                        
-                        // Use helper to generate English descriptions (Description is already included in the format)
-                        var description = HistoryDescriptionHelper.GenerateDocumentDescription(document, role);
+                        var role = docHistory.TransactionAmount > 0 ? "Payer" : "Receiver";
                         var note = HistoryDescriptionHelper.GenerateDocumentNote(document);
+                        var description = HistoryDescriptionHelper.GenerateDocumentDescription(document, role);
                         
-                        history.Description = description;
-                        history.Note = note;
+                        docHistory.Note = note;
+                        docHistory.Description = description;
                         
-                        if (!string.IsNullOrWhiteSpace(document.Description))
+                        // Update BankAccountBalanceHistory (only Description, no Note property)
+                        var bankHistoryRecord = bankAccountBalanceHistory
+                            .FirstOrDefault(h => h.ReferenceId == docHistory.ReferenceId.Value);
+                        if (bankHistoryRecord != null)
                         {
-                            historyRecordsWithDocumentDescription++;
+                            bankHistoryRecord.Description = description;
                         }
+                        
+                        docUpdated++;
                     }
                 }
 
-                // Update descriptions for Manual transactions
+                await _context.SaveChangesAsync();
+                logMessages.Add($"✓ Updated {docUpdated} CustomerBalanceHistory and BankAccountBalanceHistory records for Documents");
+
+                // STEP 4: Update Manual transactions
+                logMessages.Add("");
+                logMessages.Add("STEP 4: Updating Manual transactions...");
                 var manualHistoryRecords = await _context.CustomerBalanceHistory
                     .Where(h => h.TransactionType == CustomerBalanceTransactionType.Manual && !h.IsDeleted)
                     .ToListAsync();
@@ -648,7 +595,7 @@ namespace ForexExchange.Controllers
                         history.Description ?? "Manual adjustment",
                         history.TransactionAmount,
                         history.CurrencyCode ?? "");
-                    
+
                     var note = $"Manual Adjustment - Amount: {history.TransactionAmount.FormatCurrency(history.CurrencyCode ?? "")} {history.CurrencyCode ?? ""}";
                     if (!string.IsNullOrWhiteSpace(history.Description))
                     {
@@ -658,130 +605,16 @@ namespace ForexExchange.Controllers
                     {
                         note += $" | Transaction ID: {history.TransactionNumber}";
                     }
-                    
+
                     history.Description = description;
                     history.Note = note;
                     manualRecordsUpdated++;
                 }
 
-                var historyUpdated = await _context.SaveChangesAsync();
-                logMessages.Add($"✓ Updated {historyUpdated} customer balance history descriptions");
-                if (historyRecordsWithDocumentDescription > 0)
-                {
-                    logMessages.Add($"  → {historyRecordsWithDocumentDescription} history records had document Description field that was added to both Description and Note");
-                }
-                if (manualRecordsUpdated > 0)
-                {
-                    logMessages.Add($"  → {manualRecordsUpdated} manual adjustment records updated with English descriptions");
-                }
-
-                // STEP 4: Update CurrencyPoolHistory Descriptions
-                logMessages.Add("");
-                logMessages.Add("STEP 4: Updating CurrencyPoolHistory Descriptions...");
-                
-                var poolHistoryRecords = await _context.CurrencyPoolHistory
-                    .Where(h => !h.IsDeleted)
-                    .ToListAsync();
-
-                foreach (var history in poolHistoryRecords)
-                {
-                    // Use helper to generate English description
-                    var order = history.ReferenceId.HasValue 
-                        ? orders.FirstOrDefault(o => o.Id == history.ReferenceId.Value) 
-                        : null;
-                    
-                    if (order != null)
-                    {
-                        var customerName = order.Customer?.FullName ?? "Unknown";
-                        
-                        // Get original description from order Notes (extract only the description part, not the generated format)
-                        var originalDescription = order.Notes;
-                        if (!string.IsNullOrWhiteSpace(originalDescription))
-                        {
-                            // Check if Notes already contains generated format and extract only the description part
-                            var generatedPattern = $"BUY {order.FromAmount.FormatCurrency(order.FromCurrency?.Code ?? "")} {order.FromCurrency?.Code ?? ""} | SELL";
-                            if (originalDescription.Contains(generatedPattern))
-                            {
-                                // Extract only the description part after the customer name (after 4 parts: BUY, SELL, rate, customerName)
-                                var parts = originalDescription.Split('|');
-                                if (parts.Length > 4)
-                                {
-                                    originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
-                                }
-                                else
-                                {
-                                    originalDescription = "";
-                                }
-                            }
-                        }
-                        
-                        // Completely replace description with new generated one
-                        history.Description = HistoryDescriptionHelper.GeneratePoolHistoryDescription(
-                            history.CurrencyCode ?? "",
-                            history.TransactionAmount,
-                            history.PoolTransactionType ?? "",
-                            history.ReferenceId,
-                            order.Rate,
-                            customerName,
-                            originalDescription);
-                    }
-                    else
-                    {
-                        // For non-order transactions (manual, etc.), completely replace with new format
-                        history.Description = HistoryDescriptionHelper.GeneratePoolHistoryDescription(
-                            history.CurrencyCode ?? "",
-                            history.TransactionAmount,
-                            history.PoolTransactionType ?? "",
-                            history.ReferenceId,
-                            null,
-                            null,
-                            null);
-                    }
-                }
-
-                var poolHistoryUpdated = await _context.SaveChangesAsync();
-                logMessages.Add($"✓ Updated {poolHistoryUpdated} currency pool history descriptions");
-
-                // STEP 5: Update BankAccountBalanceHistory Descriptions
-                logMessages.Add("");
-                logMessages.Add("STEP 5: Updating BankAccountBalanceHistory Descriptions...");
-                
-                var bankHistoryRecords = await _context.BankAccountBalanceHistory
-                    .Include(h => h.BankAccount)
-                    .Where(h => !h.IsDeleted)
-                    .ToListAsync();
-
-                foreach (var history in bankHistoryRecords)
-                {
-                    if (history.ReferenceId.HasValue)
-                    {
-                        var document = documents.FirstOrDefault(d => d.Id == history.ReferenceId.Value);
-                        if (document != null)
-                        {
-                            // Use helper to generate English description
-                            history.Description = HistoryDescriptionHelper.GenerateBankHistoryDescription(document, history.BankAccount);
-                        }
-                    }
-                    else
-                    {
-                        // Manual transaction
-                        var reason = history.Description ?? "Manual adjustment";
-                        history.Description = HistoryDescriptionHelper.GenerateManualDescription(reason, history.TransactionAmount, history.BankAccount?.CurrencyCode ?? "");
-                    }
-                }
-
-                var bankHistoryUpdated = await _context.SaveChangesAsync();
-                logMessages.Add($"✓ Updated {bankHistoryUpdated} bank account balance history descriptions");
+                await _context.SaveChangesAsync();
+                logMessages.Add($"✓ Updated {manualRecordsUpdated} manual adjustment records");
 
                 await dbTransaction.CommitAsync();
-
-                logMessages.Add("");
-                logMessages.Add("=== UPDATE COMPLETED SUCCESSFULLY ===");
-                logMessages.Add($"Total orders processed: {orders.Count}");
-                logMessages.Add($"Total documents processed: {documents.Count}");
-                logMessages.Add($"Total customer balance history records updated: {orderHistoryRecords.Count + documentHistoryRecords.Count}");
-                logMessages.Add($"Total currency pool history records updated: {poolHistoryRecords.Count}");
-                logMessages.Add($"Total bank account balance history records updated: {bankHistoryRecords.Count}");
 
                 TempData["Success"] = string.Join("<br/>", logMessages);
                 return RedirectToAction("Index");
@@ -975,7 +808,7 @@ namespace ForexExchange.Controllers
                 {
                     // نگه داشتن اولین رکورد (با کمترین Id) و حذف بقیه
                     var recordsToDelete = group.OrderBy(r => r.Id).Skip(1).ToList();
-                    
+
                     foreach (var record in recordsToDelete)
                     {
                         record.IsDeleted = true;
@@ -1024,7 +857,7 @@ namespace ForexExchange.Controllers
                 {
                     // نگه داشتن اولین رکورد (با کمترین Id) و حذف بقیه
                     var recordsToDelete = group.OrderBy(r => r.Id).Skip(1).ToList();
-                    
+
                     foreach (var record in recordsToDelete)
                     {
                         record.IsDeleted = true;

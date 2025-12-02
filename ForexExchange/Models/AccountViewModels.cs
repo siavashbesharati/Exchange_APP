@@ -205,6 +205,7 @@ namespace ForexExchange.Models
         public int? ReferenceId { get; set; }
         public bool CanNavigate { get; set; }
         public string? TransactionNumber { get; set; }
+        public string CustomerName { get; set; } = string.Empty; // Customer name for Order transactions
 
         // For orders - additional context
         public string? FromCurrency { get; set; }

@@ -858,8 +858,9 @@ namespace ForexExchange.Services
             }
 
             // Use helper to generate English descriptions
-            var description = HistoryDescriptionHelper.GenerateOrderDescription(order, currencyCode, isFromCurrency, originalDescription);
-            var note = HistoryDescriptionHelper.GenerateOrderNote(order, currencyCode, isFromCurrency, originalDescription);
+                    // GenerateOrderDescription now only takes Order parameter - it contains all required details
+                    var description = HistoryDescriptionHelper.GenerateOrderDescription(order);
+                    var note = description; // Use same description for note
 
             // Create new history record for this order (balances will be recalculated in rebuild)
             // Use CurrencyId directly - this is why we did the refactoring!
@@ -2085,16 +2086,20 @@ namespace ForexExchange.Services
                     }
 
                     // Use helper to generate English descriptions
-                    var fromDescription = HistoryDescriptionHelper.GenerateOrderDescription(o, fromCurrencyCode, true, originalDescription);
-                    var toDescription = HistoryDescriptionHelper.GenerateOrderDescription(o, toCurrencyCode, false, originalDescription);
-                    var fromNote = HistoryDescriptionHelper.GenerateOrderNote(o, fromCurrencyCode, true, originalDescription);
-                    var toNote = HistoryDescriptionHelper.GenerateOrderNote(o, toCurrencyCode, false, originalDescription);
+                    // GenerateOrderDescription now only takes Order parameter - it contains all required details
+                    var orderDescription = HistoryDescriptionHelper.GenerateOrderDescription(o);
+                    
+                    // Use the same description for both Description and Note fields
+                    var fromDescription = orderDescription;
+                    var toDescription = orderDescription;
+                    var fromNote = orderDescription;
+                    var toNote = orderDescription;
 
                     // Customer pays FromAmount in FromCurrency
-                    customerTransactionItems.Add((o.CustomerId, o.FromCurrencyId, fromCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, -o.FromAmount, fromDescription, fromNote));
+                    customerTransactionItems.Add((o.CustomerId, (int?)o.FromCurrencyId, fromCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, -o.FromAmount, fromDescription, fromNote));
 
                     // Customer receives ToAmount in ToCurrency
-                    customerTransactionItems.Add((o.CustomerId, o.ToCurrencyId, toCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, o.ToAmount, toDescription, toNote));
+                    customerTransactionItems.Add((o.CustomerId, (int?)o.ToCurrencyId, toCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, o.ToAmount, toDescription, toNote));
                 }
 
                 logMessages.Add($"Manual customer records in database: [{manualCustomerRecords.Count}]");

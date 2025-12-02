@@ -49,8 +49,10 @@ namespace ForexExchange.Services
             query = query.Where(h => h.TransactionDate >= fromDate && h.TransactionDate <= toDate);
 
             // Get history records ordered by date then id (oldest first)
+            // Include Orders to get Customer name
             var historyRecords = await query
                 .AsNoTracking()
+                .Include(h => h.Currency)
                 .OrderBy(h => h.TransactionDate)
                 .ThenBy(h => h.Id)
                 .ToListAsync();
@@ -58,12 +60,42 @@ namespace ForexExchange.Services
             if (!historyRecords.Any())
                 return new List<PoolTimelineItem>();
 
+            // Get all order IDs that are referenced in history records
+            var orderIds = historyRecords
+                .Where(h => h.TransactionType == CurrencyPoolTransactionType.Order && h.ReferenceId.HasValue)
+                .Select(h => h.ReferenceId.Value)
+                .Distinct()
+                .ToList();
+
+            // Load orders with customers in one query
+            var orders = new Dictionary<int, Order>();
+            if (orderIds.Any())
+            {
+                var ordersList = await _context.Orders
+                    .AsNoTracking()
+                    .Include(o => o.Customer)
+                    .Where(o => orderIds.Contains(o.Id))
+                    .ToListAsync();
+                
+                orders = ordersList.ToDictionary(o => o.Id);
+            }
+
             var timelineItems = new List<PoolTimelineItem>();
 
            
             // Convert history records to timeline items
             foreach (var record in historyRecords)
             {
+                // Get customer name from order if this is an Order transaction
+                string customerName = string.Empty;
+                if (record.TransactionType == CurrencyPoolTransactionType.Order && record.ReferenceId.HasValue)
+                {
+                    if (orders.TryGetValue(record.ReferenceId.Value, out var order))
+                    {
+                        customerName = order.Customer?.FullName ?? string.Empty;
+                    }
+                }
+
                 var item = new PoolTimelineItem
                 {
                     Id = record.Id, // Set the transaction ID for delete operations
@@ -76,7 +108,8 @@ namespace ForexExchange.Services
                     Amount = record.TransactionAmount,
                     Balance = record.BalanceAfter,
                     ReferenceId = record.ReferenceId,
-                    CanNavigate = record.TransactionType == CurrencyPoolTransactionType.Order && record.ReferenceId.HasValue
+                    CanNavigate = record.TransactionType == CurrencyPoolTransactionType.Order && record.ReferenceId.HasValue,
+                    CustomerName = customerName
                 };
 
                 timelineItems.Add(item);
@@ -217,8 +250,8 @@ namespace ForexExchange.Services
 
         // Pool specific properties
         public string CurrencyCode { get; set; } = string.Empty;
-
         public int CurrencyId { get; set; }
+        public string CustomerName { get; set; } = string.Empty; // Customer name for Order transactions
     }
 
     /// <summary>
