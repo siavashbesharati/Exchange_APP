@@ -526,23 +526,98 @@
                 'این سند هنوز تأیید نشده است.';
             
             if (confirm(`آیا از حذف سند #${documentId} (${documentTitle}) اطمینان دارید؟\n\n${verificationMessage}\n\nاین عملیات غیرقابل بازگشت است.`)) {
-                // Create and submit delete form
-                var form = document.createElement('form');
-                form.method = 'post';
-                form.action = '@Url.Action("Delete", "AccountingDocuments")/' + documentId;
+                // Show beautiful loading overlay
+                showLoadingWithMessage('DELETING_DOCUMENT');
                 
-                // Get anti-forgery token from hidden form
-                var hiddenToken = document.querySelector('#hiddenTokenForm input[name="__RequestVerificationToken"]');
-                if (hiddenToken) {
-                    var tokenInput = document.createElement('input');
-                    tokenInput.type = 'hidden';
-                    tokenInput.name = '__RequestVerificationToken';
-                    tokenInput.value = hiddenToken.value;
-                    form.appendChild(tokenInput);
+                // Get anti-forgery token
+                const hiddenToken = document.querySelector('#hiddenTokenForm input[name="__RequestVerificationToken"]');
+                if (!hiddenToken) {
+                    hideLoadingOverlay();
+                    alert('خطا: توکن امنیتی یافت نشد. لطفاً صفحه را رفرش کنید.');
+                    return;
                 }
                 
-                document.body.appendChild(form);
-                form.submit();
+                // Prepare form data
+                const formData = new FormData();
+                formData.append('__RequestVerificationToken', hiddenToken.value);
+                
+                // Create AbortController for fetch timeout
+                const controller = new AbortController();
+                const fetchTimeout = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+                
+                // Safety timeout: Auto-hide overlay after 2 minutes if no response
+                const safetyTimeout = setTimeout(() => {
+                    if (isLoadingOverlayVisible()) {
+                        hideLoadingOverlay();
+                        console.warn('Document deletion timeout - overlay auto-hidden after 2 minutes');
+                    }
+                }, 120000); // 2 minutes
+                
+                fetch('@Url.Action("Delete", "AccountingDocuments")/' + documentId, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    signal: controller.signal
+                })
+                .then(response => {
+                    clearTimeout(fetchTimeout);
+                    clearTimeout(safetyTimeout);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        return response.json();
+                    } else {
+                        return response.text().then(text => ({ isHtml: true, content: text }));
+                    }
+                })
+                .then(data => {
+                    // Hide loading overlay
+                    hideLoadingOverlay();
+                    
+                    if (data.isHtml) {
+                        // Handle HTML response (fallback - shouldn't happen with AJAX)
+                        window.location.reload();
+                    } else {
+                        // Handle JSON response
+                        if (data.success) {
+                            // Show success message
+                            showSuccessMessage(data.message);
+                            
+                            // Reload page after short delay to show updated list
+                            setTimeout(() => {
+                                if (data.redirectUrl) {
+                                    window.location.href = data.redirectUrl;
+                                } else {
+                                    window.location.reload();
+                                }
+                            }, 1500);
+                        } else {
+                            // Show error message
+                            showErrorMessage('خطا در حذف سند:', [data.message]);
+                        }
+                    }
+                })
+                .catch(error => {
+                    clearTimeout(fetchTimeout);
+                    clearTimeout(safetyTimeout);
+                    
+                    console.error('AJAX Error:', error);
+                    
+                    // Hide loading overlay
+                    hideLoadingOverlay();
+                    
+                    if (error.name === 'AbortError') {
+                        showErrorMessage('خطا در حذف سند:', ['درخواست بیش از حد طولانی شد. لطفاً دوباره تلاش کنید.']);
+                    } else {
+                        showErrorMessage('خطا در ارتباط با سرور:', [error.message]);
+                    }
+                });
             }
         }
         

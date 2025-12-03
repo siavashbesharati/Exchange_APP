@@ -858,9 +858,9 @@ namespace ForexExchange.Services
             }
 
             // Use helper to generate English descriptions
-                    // GenerateOrderDescription now only takes Order parameter - it contains all required details
-                    var description = HistoryDescriptionHelper.GenerateOrderDescription(order);
-                    var note = description; // Use same description for note
+            // GenerateOrderDescription now only takes Order parameter - it contains all required details
+            var description = HistoryDescriptionHelper.GenerateOrderDescription(order);
+            var note = description; // Use same description for note
 
             // Create new history record for this order (balances will be recalculated in rebuild)
             // Use CurrencyId directly - this is why we did the refactoring!
@@ -1614,7 +1614,7 @@ namespace ForexExchange.Services
                     var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
                     var toCurrencyCode = (o.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
                     var customerName = o.Customer?.FullName ?? "Unknown";
-                    
+
                     // Get original description from order Notes (extract only the description part, not the generated format)
                     var originalDescription = o.Notes;
                     if (!string.IsNullOrWhiteSpace(originalDescription))
@@ -2088,7 +2088,7 @@ namespace ForexExchange.Services
                     // Use helper to generate English descriptions
                     // GenerateOrderDescription now only takes Order parameter - it contains all required details
                     var orderDescription = HistoryDescriptionHelper.GenerateOrderDescription(o);
-                    
+
                     // Use the same description for both Description and Note fields
                     var fromDescription = orderDescription;
                     var toDescription = orderDescription;
@@ -2453,7 +2453,7 @@ namespace ForexExchange.Services
             // Load and update the CurrencyPool entity using CurrencyId directly
             var currency = await _context.Currencies
                 .FirstOrDefaultAsync(c => c.Id == currencyId.Value);
-            
+
             if (currency == null)
             {
                 throw new ArgumentException($"Currency with ID {currencyId.Value} not found.");
@@ -2687,15 +2687,22 @@ namespace ForexExchange.Services
                     _context.Update(document);
                     await _context.SaveChangesAsync();
 
-                    // 2. Soft delete related history records
-                    await DeleteCustomerAndBankHistoryRecords(document.Id);
+                    // 2. Soft delete related history records (history records only created for confirmed documents)
+                    if (document.IsVerified)
+                    {
 
-                    await _context.SaveChangesAsync();
+                        await DeleteCustomerAndBankHistoryRecords(document.Id);
+                        await _context.SaveChangesAsync();
+                        // 3. Rebuild balance chains without the deleted records
 
-                    // 3. Rebuild balance chains without the deleted records
-                    await RebuildBalanceChainsForDocumentDeletion(document);
+                        await RebuildBalanceChainsForDocumentDeletion(document);
+                        await _context.SaveChangesAsync();
 
-                    await _context.SaveChangesAsync();
+                    }
+
+
+
+
                     await transaction.CommitAsync();
 
                     _logger.LogInformation($"Document deletion completed: Document {document.Id}");

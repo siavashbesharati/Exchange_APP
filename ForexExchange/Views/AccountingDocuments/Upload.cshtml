@@ -123,7 +123,7 @@
                                     {
                                         @foreach (var account in bankAccounts)
                                         {
-                                            <option value="@account.Id" data-currency="@account.CurrencyCode">@account.AccountNumber - @account.BankName (@account.CurrencyCode)</option>
+                                            <option value="@account.Id" data-currency="@account.CurrencyId">@account.AccountNumber - @account.BankName (@account.CurrencyCode)</option>
                                         }
                                     }
                                 </select>
@@ -155,7 +155,7 @@
                                     {
                                         @foreach (var account in bankAccounts)
                                         {
-                                            <option value="@account.Id" data-currency="@account.CurrencyCode">@account.AccountNumber - @account.BankName (@account.CurrencyCode)</option>
+                                            <option value="@account.Id" data-currency="@account.CurrencyId">@account.AccountNumber - @account.BankName (@account.CurrencyCode)</option>
                                         }
                                     }
                                 </select>
@@ -834,9 +834,22 @@
                     // Extract numeric value from amount
                     let numericAmount = ocrData.amount.replace(/[^\d]/g, '');
                     if (numericAmount) {
-                        // Check if currency is IRR (Iranian Toman)
-                        const currencyField = document.querySelector('[name="CurrencyCode"]');
-                        if (currencyField && currencyField.value === 'IRR') {
+                    // Check if currency is IRR (Iranian Toman) - Get from CurrencyId
+                    const currencySelect = document.getElementById('CurrencySelect');
+                    let currencyCode = '';
+                    if (currencySelect && currencySelect.value) {
+                        const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+                        if (selectedOption) {
+                            currencyCode = selectedOption.getAttribute('data-currency-code') || '';
+                            if (!currencyCode && selectedOption.text) {
+                                const match = selectedOption.text.match(/\(([^)]+)\)/);
+                                if (match) {
+                                    currencyCode = match[1];
+                                }
+                            }
+                        }
+                    }
+                    if (currencyCode === 'IRR') {
                             // Drop one zero for IRR currency (convert from Rial to Toman)
                             numericAmount = numericAmount.slice(0, -1) || '0';
                         }
@@ -987,10 +1000,29 @@
             // Title
             document.getElementById('preview-title').textContent = formData.get('Title') || 'بدون عنوان';
             
-            // Amount and currency
+            // Amount and currency - Get CurrencyCode from selected CurrencyId
             const amount = formData.get('Amount') || '0';
-            const currency = formData.get('CurrencyCode') || '';
-            const formattedAmount = Number(amount).toLocaleString('fa-IR') + ' ' + currency;
+            const currencyId = formData.get('CurrencyId');
+            let currencyCode = '';
+            
+            // Get CurrencyCode from CurrencySelect dropdown
+            const currencySelect = document.getElementById('CurrencySelect');
+            if (currencyId && currencySelect) {
+                const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+                if (selectedOption) {
+                    // Try to get from data-currency-code attribute first
+                    currencyCode = selectedOption.getAttribute('data-currency-code') || '';
+                    // If not found, extract from option text (format: "PersianName (CODE)")
+                    if (!currencyCode && selectedOption.text) {
+                        const match = selectedOption.text.match(/\(([^)]+)\)/);
+                        if (match) {
+                            currencyCode = match[1];
+                        }
+                    }
+                }
+            }
+            
+            const formattedAmount = Number(amount).toLocaleString('fa-IR') + (currencyCode ? ' ' + currencyCode : '');
             document.getElementById('preview-amount').textContent = formattedAmount;
             
             // Payer - Enhanced Select2 support with ULTIMATE DEBUG

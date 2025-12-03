@@ -97,7 +97,7 @@ namespace ForexExchange.Controllers
             // Filter by reference number
             if (!String.IsNullOrEmpty(referenceNumber))
             {
-                documents = documents.Where(d => !string.IsNullOrEmpty(d.ReferenceNumber) && 
+                documents = documents.Where(d => !string.IsNullOrEmpty(d.ReferenceNumber) &&
                                                 d.ReferenceNumber.Contains(referenceNumber));
             }
 
@@ -166,10 +166,10 @@ namespace ForexExchange.Controllers
             // Pagination
             int pageSize = 6; // 6 items per page
             int pageNumber = (page ?? 1);
-            
+
             // Get total count before pagination
             int totalItems = await documents.CountAsync();
-            
+
             // Apply pagination and exclude FileData to prevent memory leak
             var pagedDocuments = await documents
                 .Select(d => new AccountingDocument
@@ -387,37 +387,37 @@ namespace ForexExchange.Controllers
         {
             // Check if this is an AJAX request
             bool isAjax = Request.Headers["X-Requested-With"] == "XMLHttpRequest";
-            
+
             // DETAILED LOGGING FOR DEBUGGING
             _logger.LogInformation("=== Upload POST Action Started ===");
             _logger.LogInformation($"Is AJAX Request: {isAjax}");
             _logger.LogInformation($"Request Content Type: {Request.ContentType}");
             _logger.LogInformation($"Request Method: {Request.Method}");
-            
+
             // Log all headers
             foreach (var header in Request.Headers)
             {
                 _logger.LogInformation($"Header: {header.Key} = {header.Value}");
             }
-            
+
             // Log form data
             _logger.LogInformation($"Form Count: {Request.Form.Count}");
             foreach (var formItem in Request.Form)
             {
                 _logger.LogInformation($"Form Field: {formItem.Key} = {formItem.Value}");
             }
-            
+
             // Log file information
             _logger.LogInformation($"Files Count: {Request.Form.Files.Count}");
             foreach (var file in Request.Form.Files)
             {
                 _logger.LogInformation($"File: {file.Name}, FileName: {file.FileName}, Size: {file.Length}, ContentType: {file.ContentType}");
             }
-            
+
             // Log model state
             _logger.LogInformation($"Model State Valid: {ModelState.IsValid}");
             _logger.LogInformation($"Model State Error Count: {ModelState.ErrorCount}");
-            
+
             // Log AccountingDocument properties
             _logger.LogInformation($"AccountingDocument - Type: {accountingDocument.Type}");
             _logger.LogInformation($"AccountingDocument - PayerType: {accountingDocument.PayerType}");
@@ -431,7 +431,7 @@ namespace ForexExchange.Controllers
             {
                 _logger.LogInformation($"DocumentFile - Name: {documentFile.Name}, FileName: {documentFile.FileName}, Size: {documentFile.Length}");
             }
-            
+
             // Remove validation error for documentFile since it's optional
             if (ModelState.ContainsKey("documentFile"))
             {
@@ -445,12 +445,12 @@ namespace ForexExchange.Controllers
                 if (documentFile.Length > 10 * 1024 * 1024)
                 {
                     ModelState.AddModelError("documentFile", "حجم فایل نمی‌تواند بیشتر از 10 مگابایت باشد.");
-                    
+
                     if (isAjax)
                     {
                         return Json(new { success = false, message = "حجم فایل نمی‌تواند بیشتر از 10 مگابایت باشد.", errors = GetModelStateErrors() });
                     }
-                    
+
                     TempData["ErrorMessage"] = "حجم فایل نمی‌تواند بیشتر از 10 مگابایت باشد.";
                     ViewData["Customers"] = _context.Customers.Where(c => c.IsActive && !c.IsSystem).ToList();
                     ViewData["Currencies"] = _context.Currencies.Where(c => c.IsActive).ToList();
@@ -464,12 +464,12 @@ namespace ForexExchange.Controllers
                 if (!allowedExtensions.Contains(fileExtension))
                 {
                     ModelState.AddModelError("documentFile", "فرمت فایل مجاز نیست. فرمت‌های مجاز: PDF, JPG, PNG, DOC, DOCX");
-                    
+
                     if (isAjax)
                     {
                         return Json(new { success = false, message = "فرمت فایل مجاز نیست. فرمت‌های مجاز: PDF, JPG, PNG, DOC, DOCX", errors = GetModelStateErrors() });
                     }
-                    
+
                     TempData["ErrorMessage"] = "فرمت فایل مجاز نیست. فرمت‌های مجاز: PDF, JPG, PNG, DOC, DOCX";
                     ViewData["Customers"] = _context.Customers.Where(c => c.IsActive && !c.IsSystem).ToList();
                     ViewData["Currencies"] = _context.Currencies.Where(c => c.IsActive).ToList();
@@ -478,43 +478,52 @@ namespace ForexExchange.Controllers
                 }
             }
 
-            // Validate bank account currency match
-            // Check payer bank account
-            if (accountingDocument.PayerBankAccountId.HasValue)
-            {
-                var payerBankAccount = await _context.BankAccounts.FindAsync(accountingDocument.PayerBankAccountId.Value);
-                if (payerBankAccount != null && payerBankAccount.CurrencyCode != accountingDocument.CurrencyCode)
-                {
-                    ModelState.AddModelError("PayerBankAccountId", $"ارز حساب بانکی پرداخت کننده ({payerBankAccount.CurrencyCode}) با ارز سند ({accountingDocument.CurrencyCode}) مطابقت ندارد.");
-                }
-            }
-
-            // Check receiver bank account
-            if (accountingDocument.ReceiverBankAccountId.HasValue)
-            {
-                var receiverBankAccount = await _context.BankAccounts
-                    .Include(ba => ba.Currency)
-                    .FirstOrDefaultAsync(ba => ba.Id == accountingDocument.ReceiverBankAccountId.Value);
-                if (receiverBankAccount != null && receiverBankAccount.CurrencyId != accountingDocument.CurrencyId)
-                {
-                    var receiverCurrencyCode = receiverBankAccount.Currency != null ? receiverBankAccount.Currency.Code : receiverBankAccount.CurrencyCode;
-                    var docCurrencyCode = accountingDocument.Currency != null ? accountingDocument.Currency.Code : accountingDocument.CurrencyCode;
-                    ModelState.AddModelError("ReceiverBankAccountId", $"ارز حساب بانکی دریافت کننده ({receiverCurrencyCode}) با ارز سند ({docCurrencyCode}) مطابقت ندارد.");
-                }
-            }
-
-            // Validate CurrencyId is required (no fallback to CurrencyCode)
+            // Validate CurrencyId is required FIRST (no fallback to CurrencyCode)
             if (!accountingDocument.CurrencyId.HasValue)
             {
                 ModelState.AddModelError("CurrencyId", "CurrencyId الزامی است. لطفاً ارز را انتخاب کنید.");
             }
             else
             {
-                // Populate CurrencyCode from CurrencyId for backward compatibility
+                // Populate CurrencyCode from CurrencyId for backward compatibility BEFORE validation
                 var currency = await _context.Currencies.FindAsync(accountingDocument.CurrencyId.Value);
-                if (currency != null)
+                if (currency == null)
                 {
-                    accountingDocument.CurrencyCode = currency.Code;
+                    ModelState.AddModelError("CurrencyId", "ارز مورد نظر یافت نشد.");
+                }
+                else
+                {
+                    // Set CurrencyCode from Currency for backward compatibility
+                    accountingDocument.CurrencyCode = currency.Code ?? "";
+                }
+            }
+
+            // Validate bank account currency match using CurrencyId
+            // Check payer bank account
+            if (accountingDocument.PayerBankAccountId.HasValue && accountingDocument.CurrencyId.HasValue)
+            {
+                var payerBankAccount = await _context.BankAccounts
+                    .Include(ba => ba.Currency)
+                    .FirstOrDefaultAsync(ba => ba.Id == accountingDocument.PayerBankAccountId.Value);
+                if (payerBankAccount != null && payerBankAccount.CurrencyId != accountingDocument.CurrencyId)
+                {
+                    var payerCurrencyCode = payerBankAccount.Currency != null ? payerBankAccount.Currency.Code : payerBankAccount.CurrencyCode ?? "";
+                    var docCurrencyCode = accountingDocument.CurrencyCode ?? "";
+                    ModelState.AddModelError("PayerBankAccountId", $"ارز حساب بانکی پرداخت کننده ({payerCurrencyCode}) با ارز سند ({docCurrencyCode}) مطابقت ندارد.");
+                }
+            }
+
+            // Check receiver bank account
+            if (accountingDocument.ReceiverBankAccountId.HasValue && accountingDocument.CurrencyId.HasValue)
+            {
+                var receiverBankAccount = await _context.BankAccounts
+                    .Include(ba => ba.Currency)
+                    .FirstOrDefaultAsync(ba => ba.Id == accountingDocument.ReceiverBankAccountId.Value);
+                if (receiverBankAccount != null && receiverBankAccount.CurrencyId != accountingDocument.CurrencyId)
+                {
+                    var receiverCurrencyCode = receiverBankAccount.Currency != null ? receiverBankAccount.Currency.Code : receiverBankAccount.CurrencyCode ?? "";
+                    var docCurrencyCode = accountingDocument.CurrencyCode ?? "";
+                    ModelState.AddModelError("ReceiverBankAccountId", $"ارز حساب بانکی دریافت کننده ({receiverCurrencyCode}) با ارز سند ({docCurrencyCode}) مطابقت ندارد.");
                 }
             }
 
@@ -537,7 +546,7 @@ namespace ForexExchange.Controllers
                     }
 
                     _context.Add(accountingDocument);
-                    
+
                     try
                     {
                         await _context.SaveChangesAsync();
@@ -545,29 +554,29 @@ namespace ForexExchange.Controllers
                     catch (DbUpdateException dbEx)
                     {
                         // Log specific database exceptions with full details
-                        _logger.LogError(dbEx, "Database error creating accounting document. ExceptionType: {ExceptionType}, Message: {Message}", 
+                        _logger.LogError(dbEx, "Database error creating accounting document. ExceptionType: {ExceptionType}, Message: {Message}",
                             dbEx.GetType().Name, dbEx.Message);
-                        
+
                         if (dbEx.InnerException != null)
                         {
-                            _logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}", 
+                            _logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}",
                                 dbEx.InnerException.GetType().Name, dbEx.InnerException.Message);
-                            
+
                             // Check for specific SQLite errors
                             var innerMessage = dbEx.InnerException.Message ?? "";
-                            if (innerMessage.Contains("too large", StringComparison.OrdinalIgnoreCase) || 
+                            if (innerMessage.Contains("too large", StringComparison.OrdinalIgnoreCase) ||
                                 innerMessage.Contains("entity is too large", StringComparison.OrdinalIgnoreCase) ||
                                 innerMessage.Contains("String or BLOB exceeds", StringComparison.OrdinalIgnoreCase))
                             {
                                 var errorMsg = "حجم داده‌های سند بسیار بزرگ است. لطفاً فایل کوچکتری انتخاب کنید یا فایل را حذف کنید.";
-                                _logger.LogWarning("Entity too large error detected. File size: {FileSize} bytes", 
+                                _logger.LogWarning("Entity too large error detected. File size: {FileSize} bytes",
                                     documentFile?.Length ?? 0);
-                                
+
                                 if (isAjax)
                                 {
                                     return Json(new { success = false, message = errorMsg });
                                 }
-                                
+
                                 TempData["ErrorMessage"] = errorMsg;
                                 ViewData["Customers"] = _context.Customers.Where(c => c.IsActive && !c.IsSystem).ToList();
                                 ViewData["Currencies"] = _context.Currencies.Where(c => c.IsActive).ToList();
@@ -575,10 +584,10 @@ namespace ForexExchange.Controllers
                                 return View(accountingDocument);
                             }
                         }
-                        
+
                         throw; // Re-throw if not handled
                     }
-                    
+
                     // Send notifications through central hub (idempotent - failures don't affect main operation)
                     var currentUser = await _userManager.GetUserAsync(User);
                     if (currentUser != null)
@@ -586,56 +595,57 @@ namespace ForexExchange.Controllers
                         try
                         {
                             await _notificationHub.SendAccountingDocumentNotificationAsync(
-                                accountingDocument, 
-                                NotificationEventType.AccountingDocumentCreated, 
+                                accountingDocument,
+                                NotificationEventType.AccountingDocumentCreated,
                                 currentUser.Id);
                         }
                         catch (Exception notifEx)
                         {
                             // Idempotent: Log but don't fail the operation
-                            _logger.LogWarning(notifEx, 
-                                "Failed to send notification for document {DocumentId}, but document was created successfully. ExceptionType: {ExceptionType}", 
+                            _logger.LogWarning(notifEx,
+                                "Failed to send notification for document {DocumentId}, but document was created successfully. ExceptionType: {ExceptionType}",
                                 accountingDocument.Id, notifEx.GetType().Name);
                         }
                     }
-                    
-                    _logger.LogInformation("Accounting document created successfully. ID: {DocumentId}, User: {User}", 
+
+                    _logger.LogInformation("Accounting document created successfully. ID: {DocumentId}, User: {User}",
                         accountingDocument.Id, User.Identity?.Name);
-                    
+
                     if (isAjax)
                     {
-                        return Json(new { 
-                            success = true, 
-                            message = "سند حسابداری با موفقیت ثبت شد.", 
+                        return Json(new
+                        {
+                            success = true,
+                            message = "سند حسابداری با موفقیت ثبت شد.",
                             documentId = accountingDocument.Id,
                             redirectUrl = Url.Action("Index", "AccountingDocuments")
                         });
                     }
-                    
+
                     TempData["SuccessMessage"] = "سند حسابداری با موفقیت ثبت شد.";
                     return RedirectToAction(nameof(Index));
                 }
                 catch (Exception ex)
                 {
                     // Enhanced error logging with full exception details
-                    _logger.LogError(ex, "Error creating accounting document. User: {User}, ExceptionType: {ExceptionType}, Message: {Message}", 
+                    _logger.LogError(ex, "Error creating accounting document. User: {User}, ExceptionType: {ExceptionType}, Message: {Message}",
                         User.Identity?.Name, ex.GetType().Name, ex.Message);
-                    
+
                     // Log inner exception if exists
                     if (ex.InnerException != null)
                     {
-                        _logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}", 
+                        _logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}",
                             ex.InnerException.GetType().Name, ex.InnerException.Message);
                     }
-                    
+
                     // Log stack trace for debugging
                     _logger.LogError("Stack Trace: {StackTrace}", ex.StackTrace);
-                    
+
                     if (isAjax)
                     {
                         return Json(new { success = false, message = "خطا در ثبت سند حسابداری. لطفاً دوباره تلاش کنید.", error = ex.Message });
                     }
-                    
+
                     TempData["ErrorMessage"] = "خطا در ثبت سند حسابداری. لطفاً دوباره تلاش کنید.";
                 }
             }
@@ -651,7 +661,7 @@ namespace ForexExchange.Controllers
             ViewData["BankAccounts"] = _context.BankAccounts.ToList();
             return View(accountingDocument);
         }
-        
+
         /// <summary>
         /// Helper method to extract ModelState errors for AJAX responses
         /// </summary>
@@ -819,7 +829,7 @@ namespace ForexExchange.Controllers
 
                     _context.Update(accountingDocument);
                     await _context.SaveChangesAsync();
-                    
+
                     // Send appropriate notification based on what changed
                     if (accountingDocument.IsVerified && !existingDocument.IsVerified)
                     {
@@ -831,7 +841,7 @@ namespace ForexExchange.Controllers
                         // Document was updated
                         await _adminNotificationService.SendDocumentNotificationAsync(accountingDocument, "updated");
                     }
-                    
+
                     TempData["SuccessMessage"] = "سند حسابداری با موفقیت ویرایش شد.";
                 }
                 catch (DbUpdateConcurrencyException)
@@ -861,7 +871,7 @@ namespace ForexExchange.Controllers
         {
             // Check if this is an AJAX request
             bool isAjax = Request.Headers["X-Requested-With"] == "XMLHttpRequest";
-            
+
             try
             {
                 // Exclude FileData to prevent memory leak - only load when needed in GetFile action
@@ -905,7 +915,7 @@ namespace ForexExchange.Controllers
                         ReceiverBankAccount = a.ReceiverBankAccount
                     })
                     .FirstOrDefaultAsync(a => a.Id == id);
-                    
+
                 if (accountingDocument == null)
                 {
                     if (isAjax)
@@ -978,11 +988,11 @@ namespace ForexExchange.Controllers
                         // Update balances through centralized service (includes history recording)
                         // This will now use the CORRECTED logic: Payer = +amount, Receiver = -amount
                         await _centralFinancialService.ProcessAccountingDocumentAsync(accountingDocument, User.Identity?.Name ?? "System");
-                     
+
                         // Reload document from database to get latest state and avoid tracking conflicts
                         var updatedDocument = await _context.AccountingDocuments
                             .FirstOrDefaultAsync(d => d.Id == documentId);
-                        
+
                         if (updatedDocument != null)
                         {
                             updatedDocument.IsVerified = true;
@@ -1002,8 +1012,9 @@ namespace ForexExchange.Controllers
 
                         if (isAjax)
                         {
-                            return Json(new { 
-                                success = true, 
+                            return Json(new
+                            {
+                                success = true,
                                 message = "سند حسابداری با موفقیت تأیید شد و موجودی‌ها بازمحاسبه شدند.",
                                 documentId = id,
                                 verifiedAt = accountingDocument.VerifiedAt?.ToPersianDateTextify()
@@ -1014,12 +1025,12 @@ namespace ForexExchange.Controllers
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, $"Error verifying document {accountingDocument.Id}: {ex.Message}");
-                        
+
                         if (isAjax)
                         {
                             return Json(new { success = false, message = $"خطا در تایید سند: {ex.Message}" });
                         }
-                        
+
                         TempData["ErrorMessage"] = $"خطا در تایید سند: {ex.Message}";
                     }
                 }
@@ -1117,7 +1128,7 @@ namespace ForexExchange.Controllers
                     {
                         // Validate bank account currency match
                         bool hasError = false;
-                        
+
                         if (document.PayerBankAccountId.HasValue && document.PayerBankAccount != null)
                         {
                             if (document.PayerBankAccount.CurrencyCode != document.CurrencyCode)
@@ -1146,9 +1157,9 @@ namespace ForexExchange.Controllers
 
                             // Update balances through centralized service with CORRECTED logic
                             await _centralFinancialService.ProcessAccountingDocumentAsync(document, User.Identity?.Name ?? "System");
-                            
+
                             _context.Update(document);
-                            
+
                             confirmationLog.Add($"✅ Document {document.Id}: Confirmed successfully ({document.Amount:N2} {document.CurrencyCode})");
                             confirmationLog.Add($"   - Payer: Customer {document.PayerCustomerId} gets +{document.Amount}");
                             confirmationLog.Add($"   - Receiver: Customer {document.ReceiverCustomerId} gets -{document.Amount}");
@@ -1341,52 +1352,47 @@ namespace ForexExchange.Controllers
         [Authorize(Roles = "Admin,Programmer")] // Only admins can delete documents
         public async Task<IActionResult> Delete(int id)
         {
+            bool isAjax = Request.Headers["X-Requested-With"] == "XMLHttpRequest";
+
             try
             {
-                // Exclude FileData to prevent memory leak - only load when needed in GetFile action
                 var document = await _context.AccountingDocuments
-                    .Include(a => a.PayerCustomer)
-                    .Include(a => a.ReceiverCustomer)
-                    .Include(a => a.PayerBankAccount)
-                    .Include(a => a.ReceiverBankAccount)
+                    .Where(a => a.Id == id)
                     .Select(a => new AccountingDocument
                     {
                         Id = a.Id,
-                        Type = a.Type,
+                        Title = a.Title,
+                        IsDeleted = a.IsDeleted,
+                        DeletedAt = a.DeletedAt,
+                        DeletedBy = a.DeletedBy,
+                        IsVerified = a.IsVerified,
+                        CurrencyId = a.CurrencyId,  // REQUIRED!
                         PayerType = a.PayerType,
                         PayerCustomerId = a.PayerCustomerId,
                         PayerBankAccountId = a.PayerBankAccountId,
                         ReceiverType = a.ReceiverType,
                         ReceiverCustomerId = a.ReceiverCustomerId,
-                        ReceiverBankAccountId = a.ReceiverBankAccountId,
-                        Amount = a.Amount,
-                        CurrencyCode = a.CurrencyCode,
-                        Title = a.Title,
-                        Description = a.Description,
-                        DocumentDate = a.DocumentDate,
-                        CreatedAt = a.CreatedAt,
-                        IsVerified = a.IsVerified,
-                        VerifiedAt = a.VerifiedAt,
-                        VerifiedBy = a.VerifiedBy,
-                        ReferenceNumber = a.ReferenceNumber,
-                        FileName = a.FileName,
-                        ContentType = a.ContentType,
-                        // FileData is excluded to prevent memory leak
-                        Notes = a.Notes,
-                        IsDeleted = a.IsDeleted,
-                        DeletedAt = a.DeletedAt,
-                        DeletedBy = a.DeletedBy,
-                        IsFrozen = a.IsFrozen,
-                        PayerCustomer = a.PayerCustomer,
-                        ReceiverCustomer = a.ReceiverCustomer,
-                        PayerBankAccount = a.PayerBankAccount,
-                        ReceiverBankAccount = a.ReceiverBankAccount
+                        ReceiverBankAccountId = a.ReceiverBankAccountId
+                        // No navigation properties needed
                     })
                     .FirstOrDefaultAsync(a => a.Id == id);
 
                 if (document == null)
                 {
+                    if (isAjax)
+                    {
+                        return Json(new { success = false, message = "سند حسابداری یافت نشد." });
+                    }
                     TempData["ErrorMessage"] = "سند حسابداری یافت نشد.";
+                    return RedirectToAction(nameof(Index));
+                }
+                if (document.IsDeleted)
+                {
+                    if (isAjax)
+                    {
+                        return Json(new { success = false, message = "سند حسابداری قبلاً حذف شده است." });
+                    }
+                    TempData["ErrorMessage"] = "سند حسابداری قبلاً حذف شده است.";
                     return RedirectToAction(nameof(Index));
                 }
 
@@ -1406,15 +1412,33 @@ namespace ForexExchange.Controllers
                 _context.AdminActivities.Add(adminActivity);
                 await _context.SaveChangesAsync();
 
-                TempData["SuccessMessage"] = $"سند حسابداری #{document.Id} با موفقیت حذف شد و تأثیرات مالی آن برگردانده شد.";
+                var successMessage = $"سند حسابداری #{document.Id} با موفقیت حذف شد و تأثیرات مالی آن برگردانده شد.";
+                
+                if (isAjax)
+                {
+                    return Json(new 
+                    { 
+                        success = true, 
+                        message = successMessage,
+                        redirectUrl = Url.Action(nameof(Index))
+                    });
+                }
+
+                TempData["SuccessMessage"] = successMessage;
+                return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error deleting accounting document {id}");
+                
+                if (isAjax)
+                {
+                    return Json(new { success = false, message = $"خطا در حذف سند حسابداری: {ex.Message}" });
+                }
+                
                 TempData["ErrorMessage"] = "خطا در حذف سند حسابداری. لطفاً دوباره تلاش کنید.";
+                return RedirectToAction(nameof(Index));
             }
-
-            return RedirectToAction(nameof(Index));
         }
 
         private bool AccountingDocumentExists(int id)
