@@ -13,7 +13,6 @@ pushd "%~dp0.."
 set PROJECT_PATH=%CD%\
 set FRAMEWORK=net9.0
 set LOCAL_PUBLISH_DIR=%PROJECT_PATH%bin\Release\%FRAMEWORK%\publish
-set ZIP_FILE=deploy_package.zip
 
 :: === Timestamp ===
 for /f "tokens=1-4 delims=/ " %%a in ("%date%") do (
@@ -41,20 +40,9 @@ if errorlevel 1 (
 )
 
 echo =============================================
-echo 📦 Creating deployment package
+echo 💾 Backing up current DLLs on server
 echo =============================================
-if exist "%LOCAL_PUBLISH_DIR%\%ZIP_FILE%" del "%LOCAL_PUBLISH_DIR%\%ZIP_FILE%"
-powershell -NoLogo -NoProfile -Command "Compress-Archive -Path '%LOCAL_PUBLISH_DIR%\*' -DestinationPath '%LOCAL_PUBLISH_DIR%\%ZIP_FILE%' -Force"
-if errorlevel 1 (
-    echo ❌ Zipping failed.
-    popd
-    exit /b 1
-)
-
-echo =============================================
-echo 💾 Backing up current binaries on server
-echo =============================================
-ssh -o ConnectTimeout=10 -o BatchMode=yes %SERVER% "mkdir -p %BACKUP_DIR%/bin_%DATETIME%; cp -f %APP_DIR%/ForexExchange.* %BACKUP_DIR%/bin_%DATETIME%/ 2>/dev/null || echo '(missing files, skipping)'"
+ssh -o ConnectTimeout=10 -o BatchMode=yes %SERVER% "mkdir -p %BACKUP_DIR%/bin_%DATETIME%; cp -f %APP_DIR%/ForexExchange.dll %APP_DIR%/ForexExchange.pdb %APP_DIR%/ForexExchange.deps.json %BACKUP_DIR%/bin_%DATETIME%/ 2>/dev/null || echo '(missing files, skipping)'"
 
 echo =============================================
 echo 🚦 Stopping service %SERVICE%
@@ -62,19 +50,29 @@ echo =============================================
 ssh -o ConnectTimeout=10 -o BatchMode=yes %SERVER% "systemctl stop %SERVICE%"
 
 echo =============================================
-echo 🚚 Uploading updated files
+echo 🚚 Uploading 3 main DLL files
 echo =============================================
-scp -o ConnectTimeout=10 -o BatchMode=yes "%LOCAL_PUBLISH_DIR%\%ZIP_FILE%" %SERVER%:%APP_DIR%/
+echo Uploading ForexExchange.dll...
+scp -o ConnectTimeout=10 -o BatchMode=yes "%LOCAL_PUBLISH_DIR%\ForexExchange.dll" %SERVER%:%APP_DIR%/
 if errorlevel 1 (
-    echo ❌ Upload failed.
+    echo ❌ ForexExchange.dll upload failed.
     popd
     exit /b 1
 )
 
-echo =============================================
-echo 📂 Extracting package on server
-echo =============================================
-ssh -o ConnectTimeout=10 -o BatchMode=yes %SERVER% "cd %APP_DIR% && unzip -o %ZIP_FILE% && rm -f %ZIP_FILE%"
+echo Uploading ForexExchange.pdb...
+scp -o ConnectTimeout=10 -o BatchMode=yes "%LOCAL_PUBLISH_DIR%\ForexExchange.pdb" %SERVER%:%APP_DIR%/
+if errorlevel 1 (
+    echo ⚠️ ForexExchange.pdb upload failed (non-critical, continuing...)
+)
+
+echo Uploading ForexExchange.deps.json...
+scp -o ConnectTimeout=10 -o BatchMode=yes "%LOCAL_PUBLISH_DIR%\ForexExchange.deps.json" %SERVER%:%APP_DIR%/
+if errorlevel 1 (
+    echo ❌ ForexExchange.deps.json upload failed.
+    popd
+    exit /b 1
+)
 
 echo =============================================
 echo 🔁 Restarting service %SERVICE%

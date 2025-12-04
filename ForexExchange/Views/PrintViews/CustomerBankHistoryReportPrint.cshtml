@@ -264,6 +264,17 @@
             background: #001f4d;
             color: white;
         }
+        .table-header-row {
+            background: #f8f9fa !important;
+            border-bottom: 2px solid #001f4d !important;
+        }
+        .table-header-row th {
+            background: #f8f9fa !important;
+            color: #001f4d !important;
+            font-weight: bold;
+            text-align: right;
+            padding: 8px 12px;
+        }
         .details-table td.amount { direction: ltr; font-weight: bold; }
         .no-data {
             text-align: center;
@@ -307,11 +318,10 @@
             }
             .final-balance-card {
                 background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%) !important;
-                border: 2px solid #0b5ed7 !important;
+                border: 2px solid #10d70b  !important;
                 -webkit-print-color-adjust: exact;
             }
             .final-balance-card::before {
-                background: linear-gradient(90deg, #0b5ed7 0%, #0dcaf0 100%) !important;
                 -webkit-print-color-adjust: exact;
             }
             .details-table th {
@@ -442,15 +452,7 @@
             foreach (var currency in Model.Currencies)
             {
                 <div class="currency-section">
-                    <div class="currency-header">
-                        <div class="currency-title">
-                            <i class="fas fa-coins"></i>
-                            @currency.CurrencyName (@currency.CurrencyCode)
-                        </div>
-                    </div>
-
                     <div>
-                        <h5>جزئیات بانک‌ها</h5>
                         @if (!currency.BankDetails.Any())
                         {
                             <div class="no-data">داده‌ای برای نمایش وجود ندارد.</div>
@@ -459,6 +461,11 @@
                         {
                             <table class="details-table">
                                 <thead>
+                                    <tr class="table-header-row">
+                                        <th colspan="3" style="text-align: center;">
+                                            <i class="fas fa-coins"></i> @currency.CurrencyName (@currency.CurrencyCode) | جزئیات بانک‌ها
+                                        </th>
+                                    </tr>
                                     <tr>
                                         <th>بانک</th>
                                         <th>موجودی</th>
@@ -481,7 +488,6 @@
 
 
                     <div style="margin-top: 15px;">
-                        <h5>جزئیات مشتریان</h5>
                         @if (!currency.CustomerDetails.Any())
                         {
                             <div class="no-data">داده‌ای برای نمایش وجود ندارد.</div>
@@ -490,6 +496,11 @@
                         {
                             <table class="details-table">
                                 <thead>
+                                    <tr class="table-header-row">
+                                        <th colspan="3" style="text-align: center;">
+                                            <i class="fas fa-coins"></i> @currency.CurrencyName (@currency.CurrencyCode) | جزئیات مشتریان
+                                        </th>
+                                    </tr>
                                     <tr>
                                         <th>مشتری</th>
                                         <th>موجودی</th>
@@ -510,18 +521,78 @@
                         }
                     </div>
 
+                    @{
+                        // محاسبه معادل OMR
+                        decimal bankTotalOMR = 0;
+                        decimal customerTotalOMR = 0;
+                        decimal differenceOMR = 0;
+                        bool hasOMRRate = false;
+
+                        if (currency.CurrencyCode != "OMR" && ViewBag.OMRExchangeRates != null)
+                        {
+                            var omrRates = (List<object>)ViewBag.OMRExchangeRates;
+                            var rate = omrRates.FirstOrDefault(r => 
+                            {
+                                dynamic rateObj = r;
+                                return string.Equals((string)rateObj.toCurrency, currency.CurrencyCode, StringComparison.OrdinalIgnoreCase);
+                            });
+
+                            if (rate != null)
+                            {
+                                dynamic rateObj = rate;
+                                decimal omrToCurrencyRate = (decimal)rateObj.rate;
+                                if (omrToCurrencyRate > 0)
+                                {
+                                    hasOMRRate = true;
+                                    // تبدیل: X → OMR = amount / (OMR → X rate)
+                                    bankTotalOMR = currency.BankTotal / omrToCurrencyRate;
+                                    customerTotalOMR = currency.CustomerTotal / omrToCurrencyRate;
+                                    differenceOMR = currency.Difference / omrToCurrencyRate;
+                                }
+                            }
+                        }
+                        else if (currency.CurrencyCode == "OMR")
+                        {
+                            hasOMRRate = true;
+                            bankTotalOMR = currency.BankTotal;
+                            customerTotalOMR = currency.CustomerTotal;
+                            differenceOMR = currency.Difference;
+                        }
+                    }
+
                     <div class="currency-overview" style="margin-top: 20px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
                         <div class="overview-card">
                             <div class="label"><i class="fas fa-university"></i> بانک‌ها</div>
                             <div class="value">@currency.BankTotal.FormatCurrency(currency.CurrencyCode)</div>
+                            @if (hasOMRRate)
+                            {
+                                <div style="border-top: 1px dashed #ccc; margin-top: 8px; padding-top: 8px;">
+                                    <div style="font-size: 10px; color: #6c757d; margin-bottom: 4px;">تبدیل به OMR</div>
+                                    <div class="value" style="font-size: 13px; color: #856404; font-weight: 600;">@bankTotalOMR.FormatCurrency("OMR")</div>
+                                </div>
+                            }
                         </div>
                         <div class="overview-card">
                             <div class="label"><i class="fas fa-users"></i> مشتریان</div>
                             <div class="value">@currency.CustomerTotal.FormatCurrency(currency.CurrencyCode)</div>
+                            @if (hasOMRRate)
+                            {
+                                <div style="border-top: 1px dashed #ccc; margin-top: 8px; padding-top: 8px;">
+                                    <div style="font-size: 10px; color: #6c757d; margin-bottom: 4px;">تبدیل به OMR</div>
+                                    <div class="value" style="font-size: 13px; color: #856404; font-weight: 600;">@customerTotalOMR.FormatCurrency("OMR")</div>
+                                </div>
+                            }
                         </div>
                         <div class="overview-card final-balance-card">
                             <div class="label"><i class="fas fa-balance-scale"></i> تراز نهایی</div>
                             <div class="value @(currency.Difference >= 0 ? "positive" : "negative")">@currency.Difference.FormatCurrency(currency.CurrencyCode)</div>
+                            @if (hasOMRRate)
+                            {
+                                <div style="border-top: 1px dashed #ccc; margin-top: 8px; padding-top: 8px;">
+                                    <div style="font-size: 10px; color: #6c757d; margin-bottom: 4px;">تبدیل به OMR</div>
+                                    <div class="value @(differenceOMR >= 0 ? "positive" : "negative")" style="font-size: 13px; font-weight: 600;">@differenceOMR.FormatCurrency("OMR")</div>
+                                </div>
+                            }
                         </div>
                     </div>
                 </div>
