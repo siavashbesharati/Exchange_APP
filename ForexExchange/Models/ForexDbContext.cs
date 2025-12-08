@@ -5,6 +5,8 @@ namespace ForexExchange.Models
 {
     public class ForexDbContext : IdentityDbContext<ApplicationUser>
     {
+        private bool _pragmaConfigured = false;
+
         public ForexDbContext(DbContextOptions<ForexDbContext> options) : base(options)
         {
         }
@@ -12,6 +14,30 @@ namespace ForexExchange.Models
         public ForexDbContext()
         {
             
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            // CRITICAL: Configure SQLite PRAGMA settings once per connection for better concurrency
+            // These settings improve SQLite's ability to handle concurrent reads and writes
+            if (!_pragmaConfigured)
+            {
+                try
+                {
+                    await Database.ExecuteSqlRawAsync("PRAGMA journal_mode = WAL;", cancellationToken);
+                    await Database.ExecuteSqlRawAsync("PRAGMA busy_timeout = 5000;", cancellationToken);
+                    await Database.ExecuteSqlRawAsync("PRAGMA synchronous = NORMAL;", cancellationToken);
+                    await Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000;", cancellationToken); // 64MB cache
+                    _pragmaConfigured = true;
+                }
+                catch
+                {
+                    // Ignore errors - database might not be ready yet
+                    // Settings will be applied on next SaveChangesAsync
+                }
+            }
+            
+            return await base.SaveChangesAsync(cancellationToken);
         }
         
         public DbSet<Customer> Customers { get; set; }

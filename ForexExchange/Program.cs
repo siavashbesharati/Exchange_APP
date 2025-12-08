@@ -41,8 +41,18 @@ builder.Services.AddControllersWithViews()
 // Add Entity Framework with enhanced logging
 builder.Services.AddDbContext<ForexDbContext>(options =>
 {
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ??
-                     "Data Source=ForexExchange.db");
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
+                         "Data Source=ForexExchange.db";
+    
+    // CRITICAL: Add SQLite concurrency settings to connection string
+    // WAL mode allows multiple readers and one writer simultaneously
+    // Cache=Shared enables shared cache for better concurrency
+    if (!connectionString.Contains("Cache=Shared", StringComparison.OrdinalIgnoreCase))
+    {
+        connectionString = connectionString.TrimEnd(';') + ";Cache=Shared";
+    }
+    
+    options.UseSqlite(connectionString);
     
     // Enable detailed error logging (only in development for security)
     // Enable sensitive data logging to see entity key values in tracking conflicts
