@@ -124,6 +124,11 @@ namespace ForexExchange.Services
             var fromCurrencyCode = (order.FromCurrency.Code ?? "").ToUpperInvariant().Trim();
             var toCurrencyCode = (order.ToCurrency.Code ?? "").ToUpperInvariant().Trim();
 
+            // CRITICAL: Use transaction to ensure atomicity for SQLite concurrency
+            // Even for preview operations, we need to ensure data consistency when creating balance records
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
                 // Load customer balances using CurrencyId directly - CurrencyId is REQUIRED!
                 var customerBalanceFrom = await _context.CustomerBalances
                     .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyId == order.FromCurrencyId);
@@ -144,9 +149,6 @@ namespace ForexExchange.Services
                     };
 
                     _context.CustomerBalances.Add(customerBalanceFrom);
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Created new customer balance record: CustomerId={order.CustomerId}, CurrencyId={order.FromCurrencyId}, Balance=0");
                 }
                 else
                 {
@@ -154,10 +156,8 @@ namespace ForexExchange.Services
                     if (!customerBalanceFrom.CurrencyId.HasValue)
                     {
                         customerBalanceFrom.CurrencyId = order.FromCurrencyId;
-                    await _context.SaveChangesAsync();
                     }
                 }
-            _logger.LogInformation($"CustomerBalanceFrom: {customerBalanceFrom.Balance}");
 
                 var customerBalanceTo = await _context.CustomerBalances
                     .FirstOrDefaultAsync(cb => cb.CustomerId == order.CustomerId && cb.CurrencyId == order.ToCurrencyId);
@@ -177,9 +177,6 @@ namespace ForexExchange.Services
                     };
 
                     _context.CustomerBalances.Add(customerBalanceTo);
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Created new customer balance record: CustomerId={order.CustomerId}, CurrencyId={order.ToCurrencyId}, Balance=0");
                 }
                 else
                 {
@@ -187,17 +184,27 @@ namespace ForexExchange.Services
                     if (!customerBalanceTo.CurrencyId.HasValue)
                     {
                         customerBalanceTo.CurrencyId = order.ToCurrencyId;
-                await _context.SaveChangesAsync();
+                    }
                 }
-            }
+
+                // CRITICAL: Save all changes in one operation within the transaction
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation($"CustomerBalanceFrom: {customerBalanceFrom.Balance}");
                 _logger.LogInformation($"CustomerBalanceTo: {customerBalanceTo.Balance}");
 
                 var poolBalanceFrom = await _context.CurrencyPools.FirstOrDefaultAsync(p => p.CurrencyId == order.FromCurrency.Id);
                 if (poolBalanceFrom == null)
                 {
                     await _currencyPoolService.CreatePoolAsync(order.FromCurrency.Id);
+                    poolBalanceFrom = await _context.CurrencyPools.FirstOrDefaultAsync(p => p.CurrencyId == order.FromCurrency.Id);
+                    if (poolBalanceFrom == null)
+                    {
+                        await transaction.RollbackAsync();
                         _logger.LogError($"Currency pool not found for currencyId {order.FromCurrencyId} ({fromCurrencyCode})");
                         throw new Exception($"Currency pool not found for currencyId {order.FromCurrencyId} ({fromCurrencyCode})");
+                    }
                 }
                 _logger.LogInformation($"PoolBalanceFrom: {poolBalanceFrom.Balance}");
 
@@ -205,8 +212,13 @@ namespace ForexExchange.Services
                 if (poolBalanceTo == null)
                 {
                     await _currencyPoolService.CreatePoolAsync(order.ToCurrency.Id);
+                    poolBalanceTo = await _context.CurrencyPools.FirstOrDefaultAsync(p => p.CurrencyId == order.ToCurrency.Id);
+                    if (poolBalanceTo == null)
+                    {
+                        await transaction.RollbackAsync();
                         _logger.LogError($"Currency pool not found for currencyId {order.ToCurrencyId} ({toCurrencyCode})");
                         throw new Exception($"Currency pool not found for currencyId {order.ToCurrencyId} ({toCurrencyCode})");
+                    }
                 }
                 _logger.LogInformation($"PoolBalanceTo: {poolBalanceTo.Balance}");
 
@@ -248,6 +260,13 @@ namespace ForexExchange.Services
                     NewPoolBalanceFrom = newPoolBalanceFrom,
                     NewPoolBalanceTo = newPoolBalanceTo
                 };
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, $"Error in PreviewOrderEffectsAsync for Order: {ex.Message}");
+                throw;
+            }
         }
 
 

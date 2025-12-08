@@ -99,8 +99,20 @@
             </div>
         </div>
 
-        <!-- Customer & Bank History Report -->
+        <!-- pool summary report -->
         <div class="col-md-6 col-lg-4">
+            <div class="card report-card pool-summer-card h-100 border-0" onclick="navigateToReport('PoolSummaryReport')">
+                <div class="card-body text-center p-4">
+                    <div class="report-icon mb-3">
+                        <i class="fas fa-history text-white"></i>
+                    </div>
+                    <h5 class="card-title fw-bold">  گرارش روزانه داشبورد     </h5>
+                    <p class="text-white-50 small"> گرارش داشبورد به تفیک روز  </p>
+                </div>
+            </div>
+        </div>
+
+          <div class="col-md-6 col-lg-4">
             <div class="card report-card customer-bank-history-card h-100 border-0" onclick="navigateToReport('customerbankhistory')">
                 <div class="card-body text-center p-4">
                     <div class="report-icon mb-3">
@@ -249,6 +261,24 @@
     color: white;
 }
 
+.pool-summer-card {
+    background: linear-gradient(135deg, #ff9800 0%, #ffc107 100%);
+    color: white;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.25), 
+                0 8px 24px rgba(255, 193, 7, 0.15);
+}
+
+.pool-summer-card:hover {
+    box-shadow: 0 6px 16px rgba(255, 152, 0, 0.35), 
+                0 12px 32px rgba(255, 193, 7, 0.25);
+    border-color: rgba(255, 193, 7, 0.5);
+}
+
+.pool-summer-card .card-title {
+    color: white;
+}
+
 @@media (max-width: 768px) {
     .report-card {
         margin-bottom: 1rem;
@@ -282,7 +312,9 @@ function navigateToReport(type) {
         case 'pool':
             url = '@Url.Action("PoolReports", "Reports")';
             break;
-      
+        case 'PoolSummaryReport':
+            url = '@Url.Action("PoolSummaryReport", "Reports")';
+            break;
         case 'poolsummary':
             url = '@Url.Action("PoolSummaryReport", "Reports")';
             break;

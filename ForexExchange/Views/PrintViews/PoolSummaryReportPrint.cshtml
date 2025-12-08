@@ -1,0 +1,520 @@
+@inject ForexExchange.Services.ISettingsService SettingsService
+@using ForexExchange.Extensions
+@{
+    ViewData["Title"] = "گزارش روزانه داشبورد";
+    Layout = null;
+
+    var websiteName = await SettingsService.GetWebsiteNameAsync();
+    var companyName = await SettingsService.GetCompanyNameAsync();
+    var companyWebsite = await SettingsService.GetCompanyWebsiteAsync();
+    var logoDataUrl = await SettingsService.GetLogoDataUrlAsync();
+    var reportDate = (DateTime)ViewBag.ReportDate;
+    var currencies = ViewBag.Currencies as List<dynamic> ?? new List<dynamic>();
+}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - @websiteName</title>
+    <link rel="icon" type="image/png" href="@logoDataUrl">
+    <link rel="shortcut icon" href="@logoDataUrl">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            direction: rtl;
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.4;
+            font-size: 12px;
+        }
+        .receipt-container {
+            max-width: 900px;
+            margin: 20px auto;
+            background: white;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            border: 2px solid #ddd;
+        }
+        .receipt-header {
+            background: #001f4d;
+            color: white;
+            padding: 15px 20px;
+            text-align: right;
+            border-bottom: 2px solid #001a3a;
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .company-logo {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            flex-shrink: 0;
+        }
+        .company-logo img {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+        }
+        .company-info { flex: 1; }
+        .company-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+        .company-website { font-size: 12px; opacity: 0.9; }
+        .report-title {
+            font-size: 18px;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 6px 12px;
+            border-radius: 15px;
+            display: inline-block;
+            margin-right: auto;
+        }
+        .receipt-info {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px dashed #ddd;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .info-label { font-weight: bold; color: #2c3e50; font-size: 11px; margin-bottom: 3px; }
+        .info-value { font-size: 13px; color: #333; }
+        .currency-section {
+            padding: 20px;
+            border-top: 1px solid #eee;
+        }
+        .currency-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #001f4d;
+        }
+        .currency-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #001f4d;
+        }
+        .currency-balance {
+            font-size: 18px;
+            font-weight: bold;
+            color: #0b5ed7;
+            direction: ltr;
+        }
+        .transaction-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 11px;
+        }
+        .transaction-table th,
+        .transaction-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: right;
+        }
+        .transaction-table th {
+            background: #001f4d;
+            color: white;
+            font-weight: bold;
+        }
+        .transaction-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .badge-buy {
+            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .badge-sell {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .badge-manual {
+            background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            display: inline-block;
+        }
+        .summary-section {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px dashed #ddd;
+        }
+        .summary-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #001f4d;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        .summary-box {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid #001f4d;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .summary-box-currency {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .summary-box-balance {
+            font-size: 16px;
+            font-weight: bold;
+            color: #001f4d;
+            direction: ltr;
+        }
+        .amount-cell {
+            direction: ltr;
+            font-weight: bold;
+            text-align: left;
+        }
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            color: #777;
+            font-style: italic;
+        }
+        .receipt-footer {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 11px;
+        }
+        .print-info { margin-bottom: 10px; }
+        .disclaimer {
+            font-size: 10px;
+            color: #bdc3c7;
+            font-style: italic;
+        }
+        .no-print {
+            text-align: center;
+            margin: 20px;
+            padding: 20px;
+        }
+        @@media print {
+            body { background: white; font-size: 10px; }
+            .receipt-container {
+                box-shadow: none;
+                border: 1px solid #000;
+                margin: 0;
+                max-width: none;
+            }
+            .receipt-header {
+                background: #001f4d !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .transaction-table th {
+                background: #001f4d !important;
+                color: white !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .receipt-footer {
+                background: #2c3e50 !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-container">
+        <div class="receipt-header">
+            <div class="company-logo">
+                <img src="@logoDataUrl" alt="لوگو @companyName" />
+            </div>
+            <div class="company-info">
+                <div class="company-name">@companyName</div>
+                <div class="company-website">@companyWebsite</div>
+            </div>
+            <div class="report-title">گزارش روزانه داشبورد</div>
+        </div>
+
+        <div class="receipt-info">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">تاریخ گزارش:</div>
+                    <div class="info-value">@reportDate.ToString("yyyy/MM/dd")</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">تعداد ارزها:</div>
+                    <div class="info-value">@currencies.Count ارز</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">کل تراکنش‌ها:</div>
+                    <div class="info-value">
+                        @{
+                            int totalTransactions = 0;
+                            foreach (var currency in currencies)
+                            {
+                                var countProp = currency.GetType().GetProperty("transactionCount");
+                                if (countProp != null)
+                                {
+                                    totalTransactions += (int)(countProp.GetValue(currency) ?? 0);
+                                }
+                            }
+                        }
+                        @totalTransactions تراکنش
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (currencies.Any())
+        {
+            <div class="summary-section">
+                <div class="summary-title">
+                    <i class="fas fa-wallet"></i> موجودی پایان روز
+                </div>
+                <div class="summary-grid">
+                    @foreach (var currency in currencies)
+                    {
+                        var currencyCodeProp = currency.GetType().GetProperty("currencyCode");
+                        var currencyNameProp = currency.GetType().GetProperty("currencyName");
+                        var latestBalanceProp = currency.GetType().GetProperty("latestBalance");
+                        
+                        string summaryCurrencyCode = currencyCodeProp?.GetValue(currency)?.ToString() ?? "";
+                        string summaryCurrencyName = currencyNameProp?.GetValue(currency)?.ToString() ?? summaryCurrencyCode;
+                        decimal summaryBalance = latestBalanceProp?.GetValue(currency) != null ? Convert.ToDecimal(latestBalanceProp.GetValue(currency)) : 0m;
+                        
+                        <div class="summary-box">
+                            <div class="summary-box-currency">@summaryCurrencyName (@summaryCurrencyCode)</div>
+                            <div class="summary-box-balance">@summaryBalance.FormatCurrency(summaryCurrencyCode)</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (!currencies.Any())
+        {
+            <div class="no-data">
+                برای تاریخ انتخاب شده، داده‌ای یافت نشد.
+            </div>
+        }
+        else
+        {
+            foreach (var currency in currencies)
+            {
+                var currencyCodeProp = currency.GetType().GetProperty("currencyCode");
+                var currencyNameProp = currency.GetType().GetProperty("currencyName");
+                var latestBalanceProp = currency.GetType().GetProperty("latestBalance");
+                var transactionsProp = currency.GetType().GetProperty("transactions");
+                
+                string currencyCode = currencyCodeProp?.GetValue(currency)?.ToString() ?? "";
+                string currencyName = currencyNameProp?.GetValue(currency)?.ToString() ?? currencyCode;
+                decimal latestBalanceDecimal = latestBalanceProp?.GetValue(currency) != null ? Convert.ToDecimal(latestBalanceProp.GetValue(currency)) : 0m;
+                var transactions = transactionsProp?.GetValue(currency) as IEnumerable<dynamic> ?? new List<dynamic>();
+
+                <div class="currency-section">
+                    <div class="currency-header">
+                        <div class="currency-title">
+                            <i class="fas fa-coins"></i> @currencyName (@currencyCode)
+                        </div>
+                    </div>
+
+                    @if (transactions.Any())
+                    {
+                        <table class="transaction-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 60px;">زمان</th>
+                                    <th style="width: 80px;">نوع</th>
+                                    <th>مشتری</th>
+                                    <th style="width: 120px;">مقدار</th>
+                                    <th style="width: 100px;">نرخ معامله</th>
+                                    <th style="width: 120px;">جفت ارز</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in transactions)
+                                {
+                                    var timeProp = t.GetType().GetProperty("time");
+                                    var typeProp = t.GetType().GetProperty("type");
+                                    var amountProp = t.GetType().GetProperty("amount");
+                                    var rateProp = t.GetType().GetProperty("rate");
+                                    var customerNameProp = t.GetType().GetProperty("customerName");
+                                    var customerPhoneProp = t.GetType().GetProperty("customerPhone");
+                                    var fromCurrencyCodeProp = t.GetType().GetProperty("fromCurrencyCode");
+                                    var toCurrencyCodeProp = t.GetType().GetProperty("toCurrencyCode");
+                                    var poolTransactionTypeProp = t.GetType().GetProperty("poolTransactionType");
+
+                                    var time = timeProp?.GetValue(t)?.ToString() ?? "";
+                                    var type = typeProp?.GetValue(t)?.ToString() ?? "";
+                                    var amountValue = amountProp?.GetValue(t);
+                                    decimal amountDecimal = amountValue != null ? Convert.ToDecimal(amountValue) : 0m;
+                                    var rateValueObj = rateProp?.GetValue(t);
+                                    decimal? rateDecimal = rateValueObj != null ? Convert.ToDecimal(rateValueObj) : null;
+                                    var customerName = customerNameProp?.GetValue(t)?.ToString();
+                                    var customerPhone = customerPhoneProp?.GetValue(t)?.ToString();
+                                    var fromCurrencyCode = fromCurrencyCodeProp?.GetValue(t)?.ToString();
+                                    var toCurrencyCode = toCurrencyCodeProp?.GetValue(t)?.ToString();
+                                    var poolTransactionType = poolTransactionTypeProp?.GetValue(t)?.ToString();
+
+                                    string badgeClass = "";
+                                    string badgeText = "";
+                                    
+                                    if (type == "ManualEdit")
+                                    {
+                                        badgeClass = "badge-manual";
+                                        badgeText = "تعدیل دستی";
+                                    }
+                                    else if (type == "Order")
+                                    {
+                                        if (amountDecimal >= 0)
+                                        {
+                                            badgeClass = "badge-buy";
+                                            badgeText = "خرید";
+                                        }
+                                        else
+                                        {
+                                            badgeClass = "badge-sell";
+                                            badgeText = "فروش";
+                                        }
+                                    }
+
+                                    <tr>
+                                        <td dir="ltr">@time</td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(badgeText))
+                                            {
+                                                <span class="@badgeClass">@badgeText</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (type == "ManualEdit")
+                                            {
+                                                <span style="color: #999;">-</span>
+                                            }
+                                            else if (!string.IsNullOrEmpty(customerName))
+                                            {
+                                                <div>@customerName</div>
+                                                @if (!string.IsNullOrEmpty(customerPhone))
+                                                {
+                                                    <small style="color: #6c757d;">@customerPhone</small>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span style="color: #999;">-</span>
+                                            }
+                                        </td>
+                                        <td class="amount-cell">
+                                            @{
+                                                decimal absAmount = Math.Abs(amountDecimal);
+                                            }
+                                            @absAmount.FormatCurrency(currencyCode)
+                                        </td>
+                                        <td class="amount-cell">
+                                            @if (rateDecimal.HasValue && rateDecimal.Value > 0)
+                                            {
+                                                decimal rateDecimalValue = rateDecimal.Value;
+                                                @rateDecimalValue.FormatCurrency("RATE")
+                                            }
+                                            else
+                                            {
+                                                <span style="color: #999;">-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(fromCurrencyCode) && !string.IsNullOrEmpty(toCurrencyCode))
+                                            {
+                                                <span style="font-weight: bold;">@fromCurrencyCode</span>
+                                                <i class="fas fa-exchange-alt" style="margin: 0 5px; font-size: 10px;"></i>
+                                                <span style="font-weight: bold;">@toCurrencyCode</span>
+                                            }
+                                            else
+                                            {
+                                                <span style="color: #999;">-</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="no-data">هیچ تراکنشی در این روز ثبت نشده</div>
+                    }
+                </div>
+            }
+        }
+
+        <div class="receipt-footer">
+            <div class="print-info">
+                <strong>تاریخ چاپ:</strong> @DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") |
+                <strong>کاربر:</strong> @(User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "نامشخص")
+            </div>
+            <div class="disclaimer">
+                این گزارش به صورت خودکار تولید شده و نیاز به امضا ندارد • صحت اطلاعات با @companyName قابل بررسی است • @companyWebsite
+            </div>
+        </div>
+    </div>
+
+    <div class="no-print">
+        <button onclick="window.print()" style="background: #27ae60; color: white; border: none; padding: 12px 30px; border-radius: 25px; font-size: 14px; cursor: pointer; margin: 0 10px;">🖨️ چاپ گزارش</button>
+        <button onclick="window.close()" style="background: #e74c3c; color: white; border: none; padding: 12px 30px; border-radius: 25px; font-size: 14px; cursor: pointer; margin: 0 10px;">✖️ بستن</button>
+    </div>
+
+    <script>
+        window.addEventListener('load', function () {
+            // Auto print can be enabled here if needed
+            // window.print();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                window.print();
+            }
+            if (e.key === 'Escape') {
+                window.close();
+            }
+        });
+    </script>
+</body>
+</html>

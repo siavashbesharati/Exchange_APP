@@ -775,13 +775,14 @@ namespace ForexExchange.Controllers
 
                     // Extract rates and calculate weighted average
                     var ratesWithAmounts = new List<(decimal rate, decimal amount)>();
-                    var transactionsWithRates = new List<(CurrencyPoolHistory historyRecord, decimal? rate, Currency? fromCurrency, Currency? toCurrency)>();
+                    var transactionsWithRates = new List<(CurrencyPoolHistory historyRecord, decimal? rate, Currency? fromCurrency, Currency? toCurrency, Customer? customer)>();
 
                     foreach (var h in transactionsRaw)
                     {
                         decimal? transactionRate = null;
                         Currency? fromCurrency = null;
                         Currency? toCurrency = null;
+                        Customer? customer = null;
 
                         // Get rate and currency info from Order transactions only
                         if (h.TransactionType == CurrencyPoolTransactionType.Order && h.ReferenceId.HasValue)
@@ -789,24 +790,30 @@ namespace ForexExchange.Controllers
                             var order = await _context.Orders
                                 .Include(o => o.FromCurrency)
                                 .Include(o => o.ToCurrency)
+                                .Include(o => o.Customer)
                                 .FirstOrDefaultAsync(o => o.Id == h.ReferenceId.Value);
 
-                            if (order != null && order.Rate > 0)
+                            if (order != null)
                             {
-                                transactionRate = order.Rate;
-                                fromCurrency = order.FromCurrency;
-                                toCurrency = order.ToCurrency;
-
-                                // Add to weighted average calculation with transaction amount as weight
-                                decimal transactionAmount = Math.Abs(h.TransactionAmount);
-                                if (transactionAmount > 0)
+                                customer = order.Customer;
+                                
+                                if (order.Rate > 0)
                                 {
-                                    ratesWithAmounts.Add((order.Rate, transactionAmount));
+                                    transactionRate = order.Rate;
+                                    fromCurrency = order.FromCurrency;
+                                    toCurrency = order.ToCurrency;
+
+                                    // Add to weighted average calculation with transaction amount as weight
+                                    decimal transactionAmount = Math.Abs(h.TransactionAmount);
+                                    if (transactionAmount > 0)
+                                    {
+                                        ratesWithAmounts.Add((order.Rate, transactionAmount));
+                                    }
                                 }
                             }
                         }
 
-                        transactionsWithRates.Add((h, transactionRate, fromCurrency, toCurrency));
+                        transactionsWithRates.Add((h, transactionRate, fromCurrency, toCurrency, customer));
                     }
 
                     // Calculate weighted average rate for the day
@@ -832,6 +839,7 @@ namespace ForexExchange.Controllers
                         var rate = item.rate;
                         var fromCurrency = item.fromCurrency;
                         var toCurrency = item.toCurrency;
+                        var customer = item.customer;
 
                         decimal profit = 0;
 
@@ -976,13 +984,14 @@ namespace ForexExchange.Controllers
 
                     // Extract rates and calculate weighted average
                     var ratesWithAmounts = new List<(decimal rate, decimal amount)>();
-                    var transactionsWithRates = new List<(CurrencyPoolHistory historyRecord, decimal? rate, Currency? fromCurrency, Currency? toCurrency)>();
+                    var transactionsWithRates = new List<(CurrencyPoolHistory historyRecord, decimal? rate, Currency? fromCurrency, Currency? toCurrency, Customer? customer)>();
 
                     foreach (var h in transactionsRaw)
                     {
                         decimal? transactionRate = null;
                         Currency? fromCurrency = null;
                         Currency? toCurrency = null;
+                        Customer? customer = null;
 
                         // Get rate and currency info from Order transactions only
                         if (h.TransactionType == CurrencyPoolTransactionType.Order && h.ReferenceId.HasValue)
@@ -990,24 +999,30 @@ namespace ForexExchange.Controllers
                             var order = await _context.Orders
                                 .Include(o => o.FromCurrency)
                                 .Include(o => o.ToCurrency)
+                                .Include(o => o.Customer)
                                 .FirstOrDefaultAsync(o => o.Id == h.ReferenceId.Value);
 
-                            if (order != null && order.Rate > 0)
+                            if (order != null)
                             {
-                                transactionRate = order.Rate;
-                                fromCurrency = order.FromCurrency;
-                                toCurrency = order.ToCurrency;
-
-                                // Add to weighted average calculation with transaction amount as weight
-                                decimal transactionAmount = Math.Abs(h.TransactionAmount);
-                                if (transactionAmount > 0)
+                                customer = order.Customer;
+                                
+                                if (order.Rate > 0)
                                 {
-                                    ratesWithAmounts.Add((order.Rate, transactionAmount));
+                                    transactionRate = order.Rate;
+                                    fromCurrency = order.FromCurrency;
+                                    toCurrency = order.ToCurrency;
+
+                                    // Add to weighted average calculation with transaction amount as weight
+                                    decimal transactionAmount = Math.Abs(h.TransactionAmount);
+                                    if (transactionAmount > 0)
+                                    {
+                                        ratesWithAmounts.Add((order.Rate, transactionAmount));
+                                    }
                                 }
                             }
                         }
 
-                        transactionsWithRates.Add((h, transactionRate, fromCurrency, toCurrency));
+                        transactionsWithRates.Add((h, transactionRate, fromCurrency, toCurrency, customer));
                     }
 
                     // Calculate weighted average rate for the day
@@ -1033,6 +1048,7 @@ namespace ForexExchange.Controllers
                         var rate = item.rate;
                         var fromCurrency = item.fromCurrency;
                         var toCurrency = item.toCurrency;
+                        var customer = item.customer;
 
                         decimal profit = 0;
 
@@ -1085,7 +1101,13 @@ namespace ForexExchange.Controllers
                             toCurrencyName = toCurrency?.Name,
                             // Determine the paired currency (the other currency in the exchange)
                             pairedCurrencyCode = currency.Code == fromCurrency?.Code ? toCurrency?.Code : fromCurrency?.Code,
-                            pairedCurrencyName = currency.Code == fromCurrency?.Code ? toCurrency?.Name : fromCurrency?.Name
+                            pairedCurrencyName = currency.Code == fromCurrency?.Code ? toCurrency?.Name : fromCurrency?.Name,
+                            // Customer information
+                            customerId = customer?.Id,
+                            customerName = customer?.FullName,
+                            customerPhone = customer?.PhoneNumber,
+                            // Pool transaction type (Buy/Sell)
+                            poolTransactionType = h.PoolTransactionType
                         };
 
                         // Debug logging for transaction amounts
@@ -1232,6 +1254,152 @@ namespace ForexExchange.Controllers
             {
                 _logger.LogError(ex, "Error getting pool summary report for date: {Date}", date);
                 return Json(new { success = false, error = "خطا در دریافت گزارش خلاصه داشبورد" });
+            }
+        }
+
+        // GET: Reports/PoolSummaryReportPrint
+        [HttpGet]
+        public async Task<IActionResult> PoolSummaryReportPrint(DateTime date)
+        {
+            try
+            {
+                _logger.LogInformation("PoolSummaryReportPrint called with date: {Date}", date);
+
+                // Validate date
+                if (date > DateTime.Today)
+                {
+                    return BadRequest("تاریخ انتخاب شده نمی‌تواند در آینده باشد");
+                }
+
+                var startOfDay = date.Date;
+                var endOfDay = startOfDay.AddDays(1).AddSeconds(-1);
+
+                // Get all active currencies
+                var currencies = await _context.Currencies
+                    .Where(c => c.IsActive)
+                    .OrderBy(c => c.DisplayOrder)
+                    .ToListAsync();
+
+                var currencyDetails = new List<object>();
+
+                foreach (var currency in currencies)
+                {
+                    // Get latest balance at end of day for this currency
+                    var latestHistory = await _context.CurrencyPoolHistory
+                        .AsNoTracking()
+                        .Where(h => h.CurrencyCode == currency.Code && h.TransactionDate <= endOfDay)
+                        .OrderByDescending(h => h.TransactionDate)
+                        .ThenByDescending(h => h.Id)
+                        .FirstOrDefaultAsync();
+
+                    decimal latestBalance = latestHistory?.BalanceAfter ?? 0;
+
+                    // Get all transactions for the day
+                    var transactionsRaw = await _context.CurrencyPoolHistory
+                        .AsNoTracking()
+                        .Where(h => h.CurrencyCode == currency.Code &&
+                                   h.TransactionDate >= startOfDay &&
+                                   h.TransactionDate <= endOfDay)
+                        .OrderBy(h => h.TransactionDate)
+                        .ThenBy(h => h.Id)
+                        .ToListAsync();
+
+                    // Extract rates and customer info
+                    var transactionsWithRates = new List<(CurrencyPoolHistory historyRecord, decimal? rate, Currency? fromCurrency, Currency? toCurrency, Customer? customer)>();
+
+                    foreach (var h in transactionsRaw)
+                    {
+                        decimal? transactionRate = null;
+                        Currency? fromCurrency = null;
+                        Currency? toCurrency = null;
+                        Customer? customer = null;
+
+                        // Get rate and currency info from Order transactions only
+                        if (h.TransactionType == CurrencyPoolTransactionType.Order && h.ReferenceId.HasValue)
+                        {
+                            var order = await _context.Orders
+                                .Include(o => o.FromCurrency)
+                                .Include(o => o.ToCurrency)
+                                .Include(o => o.Customer)
+                                .FirstOrDefaultAsync(o => o.Id == h.ReferenceId.Value);
+
+                            if (order != null)
+                            {
+                                customer = order.Customer;
+                                
+                                if (order.Rate > 0)
+                                {
+                                    transactionRate = order.Rate;
+                                    fromCurrency = order.FromCurrency;
+                                    toCurrency = order.ToCurrency;
+                                }
+                            }
+                        }
+
+                        transactionsWithRates.Add((h, transactionRate, fromCurrency, toCurrency, customer));
+                    }
+
+                    // Build transaction list
+                    var transactions = new List<object>();
+
+                    foreach (var item in transactionsWithRates)
+                    {
+                        var h = item.historyRecord;
+                        var rate = item.rate;
+                        var fromCurrency = item.fromCurrency;
+                        var toCurrency = item.toCurrency;
+                        var customer = item.customer;
+
+                        var transactionObj = new
+                        {
+                            time = h.TransactionDate.ToString("HH:mm:ss"),
+                            type = h.TransactionType.ToString(),
+                            amount = h.TransactionAmount,
+                            balanceAfter = h.BalanceAfter,
+                            rate = rate,
+                            currencyCode = currency.Code,
+                            currencyName = currency.Name,
+                            fromCurrencyCode = fromCurrency?.Code,
+                            fromCurrencyName = fromCurrency?.Name,
+                            toCurrencyCode = toCurrency?.Code,
+                            toCurrencyName = toCurrency?.Name,
+                            pairedCurrencyCode = currency.Code == fromCurrency?.Code ? toCurrency?.Code : fromCurrency?.Code,
+                            pairedCurrencyName = currency.Code == fromCurrency?.Code ? toCurrency?.Name : fromCurrency?.Name,
+                            customerId = customer?.Id,
+                            customerName = customer?.FullName,
+                            customerPhone = customer?.PhoneNumber,
+                            poolTransactionType = h.PoolTransactionType
+                        };
+
+                        transactions.Add(transactionObj);
+                    }
+
+                    if (transactions.Any() || latestBalance != 0)
+                    {
+                        currencyDetails.Add(new
+                        {
+                            currencyCode = currency.Code,
+                            currencyName = currency.Name,
+                            latestBalance = latestBalance,
+                            transactionCount = transactions.Count,
+                            transactions = transactions.OrderBy(t =>
+                            {
+                                var timeProp = t.GetType().GetProperty("time");
+                                return timeProp?.GetValue(t)?.ToString() ?? "";
+                            }).ToList()
+                        });
+                    }
+                }
+
+                ViewBag.ReportDate = date;
+                ViewBag.Currencies = currencyDetails;
+
+                return View("~/Views/PrintViews/PoolSummaryReportPrint.cshtml");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating pool summary print report for date: {Date}", date);
+                return StatusCode(500, "خطا در تولید گزارش چاپی");
             }
         }
 
