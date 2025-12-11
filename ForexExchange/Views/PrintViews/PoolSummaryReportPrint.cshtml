@@ -1,7 +1,7 @@
 @inject ForexExchange.Services.ISettingsService SettingsService
 @using ForexExchange.Extensions
 @{
-    ViewData["Title"] = "گزارش روزانه داشبورد";
+    ViewData["Title"] = "خلاصه سود/زیان روزانه";
     Layout = null;
 
     var websiteName = await SettingsService.GetWebsiteNameAsync();
@@ -271,7 +271,7 @@
                 <div class="company-name">@companyName</div>
                 <div class="company-website">@companyWebsite</div>
             </div>
-            <div class="report-title">گزارش روزانه داشبورد</div>
+            <div class="report-title">خلاصه سود/زیان روزانه</div>
         </div>
 
         <div class="receipt-info">
@@ -304,32 +304,6 @@
             </div>
         </div>
 
-        @if (currencies.Any())
-        {
-            <div class="summary-section">
-                <div class="summary-title">
-                    <i class="fas fa-wallet"></i> موجودی پایان روز
-                </div>
-                <div class="summary-grid">
-                    @foreach (var currency in currencies)
-                    {
-                        var currencyCodeProp = currency.GetType().GetProperty("currencyCode");
-                        var currencyNameProp = currency.GetType().GetProperty("currencyName");
-                        var latestBalanceProp = currency.GetType().GetProperty("latestBalance");
-                        
-                        string summaryCurrencyCode = currencyCodeProp?.GetValue(currency)?.ToString() ?? "";
-                        string summaryCurrencyName = currencyNameProp?.GetValue(currency)?.ToString() ?? summaryCurrencyCode;
-                        decimal summaryBalance = latestBalanceProp?.GetValue(currency) != null ? Convert.ToDecimal(latestBalanceProp.GetValue(currency)) : 0m;
-                        
-                        <div class="summary-box">
-                            <div class="summary-box-currency">@summaryCurrencyName (@summaryCurrencyCode)</div>
-                            <div class="summary-box-balance">@summaryBalance.FormatCurrency(summaryCurrencyCode)</div>
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-
         @if (!currencies.Any())
         {
             <div class="no-data">
@@ -338,17 +312,61 @@
         }
         else
         {
+            <!-- Summary Section -->
+            <div class="summary-section" style="margin-bottom: 20px;">
+                <div class="summary-title">
+                    <i class="fas fa-chart-pie"></i> خلاصه سود/زیان روزانه
+                </div>
+                <div class="summary-grid">
+                    @foreach (var currency in currencies)
+                    {
+                        var currencyCodeProp = currency.GetType().GetProperty("currencyCode");
+                        var currencyNameProp = currency.GetType().GetProperty("currencyName");
+                        var profitLossProp = currency.GetType().GetProperty("profitLoss");
+                        
+                        string summaryCurrencyCode = currencyCodeProp?.GetValue(currency)?.ToString() ?? "";
+                        string summaryCurrencyName = currencyNameProp?.GetValue(currency)?.ToString() ?? summaryCurrencyCode;
+                        decimal summaryProfitLoss = profitLossProp?.GetValue(currency) != null ? Convert.ToDecimal(profitLossProp.GetValue(currency)) : 0m;
+                        bool summaryIsProfit = summaryProfitLoss >= 0;
+                        string summaryTextColor = summaryIsProfit ? "#000" : "rgb(231, 0, 0)";
+                        
+                        <div class="summary-box" style="border-color: @(summaryIsProfit ? "#c3e6cb" : "#ff9999"); background: @(summaryIsProfit ? "#d4edda" : "#ffcccc");">
+                            <div class="summary-box-currency" style="color: @summaryTextColor; font-weight: bold;">@summaryCurrencyName (@summaryCurrencyCode)</div>
+                            <div class="summary-box-balance" style="color: @summaryTextColor; font-weight: bold;">
+                                @(summaryIsProfit ? "+" : "")@summaryProfitLoss.FormatCurrency(summaryCurrencyCode)
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
             foreach (var currency in currencies)
             {
                 var currencyCodeProp = currency.GetType().GetProperty("currencyCode");
                 var currencyNameProp = currency.GetType().GetProperty("currencyName");
                 var latestBalanceProp = currency.GetType().GetProperty("latestBalance");
                 var transactionsProp = currency.GetType().GetProperty("transactions");
+                var totalBuyAmountProp = currency.GetType().GetProperty("totalBuyAmount");
+                var totalSellAmountProp = currency.GetType().GetProperty("totalSellAmount");
+                var profitLossProp = currency.GetType().GetProperty("profitLoss");
                 
                 string currencyCode = currencyCodeProp?.GetValue(currency)?.ToString() ?? "";
                 string currencyName = currencyNameProp?.GetValue(currency)?.ToString() ?? currencyCode;
                 decimal latestBalanceDecimal = latestBalanceProp?.GetValue(currency) != null ? Convert.ToDecimal(latestBalanceProp.GetValue(currency)) : 0m;
                 var transactions = transactionsProp?.GetValue(currency) as IEnumerable<dynamic> ?? new List<dynamic>();
+                decimal totalBuyAmount = totalBuyAmountProp?.GetValue(currency) != null ? Convert.ToDecimal(totalBuyAmountProp.GetValue(currency)) : 0m;
+                decimal totalSellAmount = totalSellAmountProp?.GetValue(currency) != null ? Convert.ToDecimal(totalSellAmountProp.GetValue(currency)) : 0m;
+                decimal profitLoss = profitLossProp?.GetValue(currency) != null ? Convert.ToDecimal(profitLossProp.GetValue(currency)) : 0m;
+
+                // Determine paired currency
+                string pairedCurrencyCode = "";
+                if (transactions.Any())
+                {
+                    var pairedProp = transactions.First().GetType().GetProperty("pairedCurrencyCode");
+                    pairedCurrencyCode = pairedProp?.GetValue(transactions.First())?.ToString() ?? "";
+                }
+
+                bool isProfit = profitLoss >= 0;
 
                 <div class="currency-section">
                     <div class="currency-header">
@@ -357,129 +375,91 @@
                         </div>
                     </div>
 
+                    <!-- Combined Transactions Table -->
+                    <div style="margin-bottom: 20px;">
+                        <h6 style="color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 5px; margin-bottom: 10px;">
+                            <i class="fas fa-exchange-alt"></i> تراکنش‌ها (@transactions.Count())
+                        </h6>
+                        @if (transactions.Any())
+                        {
+                            <table class="transaction-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 60px;">زمان</th>
+                                        <th style="width: 70px;">نوع</th>
+                                        <th>مشتری</th>
+                                        <th style="width: 100px;">مقدار @currencyCode</th>
+                                        <th style="width: 100px;">مقدار @pairedCurrencyCode</th>
+                                        <th style="width: 80px;">نرخ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var t in transactions)
+                                    {
+                                        var timeProp = t.GetType().GetProperty("time");
+                                        var typeProp = t.GetType().GetProperty("type");
+                                        var transactionTypeProp = t.GetType().GetProperty("transactionType");
+                                        var customerNameProp = t.GetType().GetProperty("customerName");
+                                        var amountInCurrencyProp = t.GetType().GetProperty("amountInCurrency");
+                                        var amountInPairedCurrencyProp = t.GetType().GetProperty("amountInPairedCurrency");
+                                        var rateProp = t.GetType().GetProperty("rate");
+
+                                        var time = timeProp?.GetValue(t)?.ToString() ?? "";
+                                        var type = typeProp?.GetValue(t)?.ToString() ?? "";
+                                        var transactionType = transactionTypeProp?.GetValue(t)?.ToString() ?? "";
+                                        var customerName = customerNameProp?.GetValue(t)?.ToString();
+                                        decimal amountInCurrency = amountInCurrencyProp?.GetValue(t) != null ? Convert.ToDecimal(amountInCurrencyProp.GetValue(t)) : 0m;
+                                        decimal amountInPairedCurrency = amountInPairedCurrencyProp?.GetValue(t) != null ? Convert.ToDecimal(amountInPairedCurrencyProp.GetValue(t)) : 0m;
+                                        var rateValueObj = rateProp?.GetValue(t);
+                                        decimal? rateDecimal = rateValueObj != null ? Convert.ToDecimal(rateValueObj) : null;
+
+                                        bool isBuy = transactionType == "Buy";
+                                        string badgeColor = isBuy ? "#2196f3" : "#ff9800";
+                                        string badgeBg = isBuy ? "#e3f2fd" : "#fff3e0";
+
+                                        <tr>
+                                            <td dir="ltr">@time</td>
+                                            <td>
+                                                <span style="background: @badgeBg; color: @badgeColor; border: 1px solid @badgeColor; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;">
+                                                    @type
+                                                </span>
+                                            </td>
+                                            <td>@(customerName ?? "-")</td>
+                                            <td class="amount-cell">@amountInCurrency.FormatCurrency(currencyCode)</td>
+                                            <td class="amount-cell">@amountInPairedCurrency.FormatCurrency(pairedCurrencyCode)</td>
+                                            <td class="amount-cell">@(rateDecimal.HasValue ? rateDecimal.Value.FormatCurrency("RATE") : "-")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <div class="no-data">هیچ تراکنشی ثبت نشده</div>
+                        }
+                    </div>
+
+                    <!-- Profit/Loss Summary -->
                     @if (transactions.Any())
                     {
-                        <table class="transaction-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 60px;">زمان</th>
-                                    <th style="width: 80px;">نوع</th>
-                                    <th>مشتری</th>
-                                    <th style="width: 120px;">مقدار</th>
-                                    <th style="width: 100px;">نرخ معامله</th>
-                                    <th style="width: 120px;">جفت ارز</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var t in transactions)
-                                {
-                                    var timeProp = t.GetType().GetProperty("time");
-                                    var typeProp = t.GetType().GetProperty("type");
-                                    var amountProp = t.GetType().GetProperty("amount");
-                                    var rateProp = t.GetType().GetProperty("rate");
-                                    var customerNameProp = t.GetType().GetProperty("customerName");
-                                    var customerPhoneProp = t.GetType().GetProperty("customerPhone");
-                                    var fromCurrencyCodeProp = t.GetType().GetProperty("fromCurrencyCode");
-                                    var toCurrencyCodeProp = t.GetType().GetProperty("toCurrencyCode");
-                                    var poolTransactionTypeProp = t.GetType().GetProperty("poolTransactionType");
-
-                                    var time = timeProp?.GetValue(t)?.ToString() ?? "";
-                                    var type = typeProp?.GetValue(t)?.ToString() ?? "";
-                                    var amountValue = amountProp?.GetValue(t);
-                                    decimal amountDecimal = amountValue != null ? Convert.ToDecimal(amountValue) : 0m;
-                                    var rateValueObj = rateProp?.GetValue(t);
-                                    decimal? rateDecimal = rateValueObj != null ? Convert.ToDecimal(rateValueObj) : null;
-                                    var customerName = customerNameProp?.GetValue(t)?.ToString();
-                                    var customerPhone = customerPhoneProp?.GetValue(t)?.ToString();
-                                    var fromCurrencyCode = fromCurrencyCodeProp?.GetValue(t)?.ToString();
-                                    var toCurrencyCode = toCurrencyCodeProp?.GetValue(t)?.ToString();
-                                    var poolTransactionType = poolTransactionTypeProp?.GetValue(t)?.ToString();
-
-                                    string badgeClass = "";
-                                    string badgeText = "";
-                                    
-                                    if (type == "ManualEdit")
-                                    {
-                                        badgeClass = "badge-manual";
-                                        badgeText = "تعدیل دستی";
-                                    }
-                                    else if (type == "Order")
-                                    {
-                                        if (amountDecimal >= 0)
-                                        {
-                                            badgeClass = "badge-buy";
-                                            badgeText = "خرید";
-                                        }
-                                        else
-                                        {
-                                            badgeClass = "badge-sell";
-                                            badgeText = "فروش";
-                                        }
-                                    }
-
-                                    <tr>
-                                        <td dir="ltr">@time</td>
-                                        <td>
-                                            @if (!string.IsNullOrEmpty(badgeText))
-                                            {
-                                                <span class="@badgeClass">@badgeText</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            @if (type == "ManualEdit")
-                                            {
-                                                <span style="color: #999;">-</span>
-                                            }
-                                            else if (!string.IsNullOrEmpty(customerName))
-                                            {
-                                                <div>@customerName</div>
-                                                @if (!string.IsNullOrEmpty(customerPhone))
-                                                {
-                                                    <small style="color: #6c757d;">@customerPhone</small>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <span style="color: #999;">-</span>
-                                            }
-                                        </td>
-                                        <td class="amount-cell">
-                                            @{
-                                                decimal absAmount = Math.Abs(amountDecimal);
-                                            }
-                                            @absAmount.FormatCurrency(currencyCode)
-                                        </td>
-                                        <td class="amount-cell">
-                                            @if (rateDecimal.HasValue && rateDecimal.Value > 0)
-                                            {
-                                                decimal rateDecimalValue = rateDecimal.Value;
-                                                @rateDecimalValue.FormatCurrency("RATE")
-                                            }
-                                            else
-                                            {
-                                                <span style="color: #999;">-</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            @if (!string.IsNullOrEmpty(fromCurrencyCode) && !string.IsNullOrEmpty(toCurrencyCode))
-                                            {
-                                                <span style="font-weight: bold;">@fromCurrencyCode</span>
-                                                <i class="fas fa-exchange-alt" style="margin: 0 5px; font-size: 10px;"></i>
-                                                <span style="font-weight: bold;">@toCurrencyCode</span>
-                                            }
-                                            else
-                                            {
-                                                <span style="color: #999;">-</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    }
-                    else
-                    {
-                        <div class="no-data">هیچ تراکنشی در این روز ثبت نشده</div>
+                        <div style="background: @(isProfit ? "#d4edda" : "#f8d7da"); border: 2px solid @(isProfit ? "#c3e6cb" : "#f5c6cb"); border-radius: 5px; padding: 15px; margin-top: 15px;">
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center;">
+                                <div>
+                                    <div style="font-size: 10px; color: #666; margin-bottom: 5px;">مجموع خریدها:</div>
+                                    <div style="font-weight: bold; direction: ltr;">@totalBuyAmount.FormatCurrency(currencyCode)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 10px; color: #666; margin-bottom: 5px;">مجموع فروش‌ها:</div>
+                                    <div style="font-weight: bold; direction: ltr;">@totalSellAmount.FormatCurrency(currencyCode)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 10px; color: #666; margin-bottom: 5px;">سود/زیان خالص:</div>
+                                    <div style="font-weight: bold; font-size: 16px; direction: ltr; color: @(isProfit ? "#27ae60" : "#e74c3c");">
+                                        @(isProfit ? "+" : "")@profitLoss.FormatCurrency(currencyCode)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     }
                 </div>
             }

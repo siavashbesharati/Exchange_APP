@@ -918,7 +918,7 @@ namespace ForexExchange.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting pool daily report for date: {Date}", date);
-                return Json(new { success = false, error = "خطا در دریافت گزارش روزانه داشبورد" });
+                return Json(new { success = false, error = "خطا در دریافت خلاصه سود/زیان روزانه" });
             }
         }
 
@@ -945,20 +945,7 @@ namespace ForexExchange.Controllers
                     .OrderBy(c => c.DisplayOrder)
                     .ToListAsync();
 
-                decimal totalIRR = 0m;
-                decimal totalOMR = 0m;
-
-                // IRR transactions and details
-                var irrTransactions = new List<object>();
-                decimal irrTransactionCount = 0;
-                decimal irrDailyProfit = 0;
-                decimal irrWeightedAverageRate = 0;
-
-                // Non-IRR transactions and details (combined for OMR display)
-                var omrTransactions = new List<object>();
-                decimal omrTransactionCount = 0;
-                decimal omrDailyProfit = 0;
-                decimal omrWeightedAverageRate = 0;
+                var currencyDetails = new List<object>();
 
                 foreach (var currency in currencies)
                 {
@@ -972,115 +959,86 @@ namespace ForexExchange.Controllers
 
                     decimal latestBalance = latestHistory?.BalanceAfter ?? 0;
 
-                    // Get all transactions for the day
+                    // Get all Order transactions for the day only
                     var transactionsRaw = await _context.CurrencyPoolHistory
                         .AsNoTracking()
                         .Where(h => h.CurrencyCode == currency.Code &&
                                    h.TransactionDate >= startOfDay &&
-                                   h.TransactionDate <= endOfDay)
+                                   h.TransactionDate <= endOfDay &&
+                                   h.TransactionType == CurrencyPoolTransactionType.Order &&
+                                   h.ReferenceId.HasValue)
                         .OrderBy(h => h.TransactionDate)
                         .ThenBy(h => h.Id)
                         .ToListAsync();
 
-                    // Extract rates and calculate weighted average
-                    var ratesWithAmounts = new List<(decimal rate, decimal amount)>();
-                    var transactionsWithRates = new List<(CurrencyPoolHistory historyRecord, decimal? rate, Currency? fromCurrency, Currency? toCurrency, Customer? customer)>();
+                    // Separate Buy and Sell transactions
+                    var buyTransactions = new List<object>();
+                    var sellTransactions = new List<object>();
+                    
+                    decimal totalBuyAmount = 0m;
+                    decimal totalSellAmount = 0m;
+
+                    // Load all orders at once to avoid N+1 query problem
+                    var orderIds = transactionsRaw.Where(h => h.ReferenceId.HasValue).Select(h => h.ReferenceId.Value).Distinct().ToList();
+                    var ordersDict = await _context.Orders
+                        .Include(o => o.FromCurrency)
+                        .Include(o => o.ToCurrency)
+                        .Include(o => o.Customer)
+                        .Where(o => orderIds.Contains(o.Id))
+                        .ToDictionaryAsync(o => o.Id);
+
+                    _logger.LogInformation("GetPoolSummaryReport - Currency {CurrencyCode}: Found {TransactionCount} transactions for {OrderCount} unique orders", 
+                        currency.Code, transactionsRaw.Count, orderIds.Count);
 
                     foreach (var h in transactionsRaw)
                     {
-                        decimal? transactionRate = null;
-                        Currency? fromCurrency = null;
-                        Currency? toCurrency = null;
-                        Customer? customer = null;
-
-                        // Get rate and currency info from Order transactions only
-                        if (h.TransactionType == CurrencyPoolTransactionType.Order && h.ReferenceId.HasValue)
+                        if (!h.ReferenceId.HasValue) continue;
+                        
+                        if (!ordersDict.TryGetValue(h.ReferenceId.Value, out var order) || order == null)
                         {
-                            var order = await _context.Orders
-                                .Include(o => o.FromCurrency)
-                                .Include(o => o.ToCurrency)
-                                .Include(o => o.Customer)
-                                .FirstOrDefaultAsync(o => o.Id == h.ReferenceId.Value);
-
-                            if (order != null)
-                            {
-                                customer = order.Customer;
-                                
-                                if (order.Rate > 0)
-                                {
-                                    transactionRate = order.Rate;
-                                    fromCurrency = order.FromCurrency;
-                                    toCurrency = order.ToCurrency;
-
-                                    // Add to weighted average calculation with transaction amount as weight
-                                    decimal transactionAmount = Math.Abs(h.TransactionAmount);
-                                    if (transactionAmount > 0)
-                                    {
-                                        ratesWithAmounts.Add((order.Rate, transactionAmount));
-                                    }
-                                }
-                            }
+                            _logger.LogWarning("GetPoolSummaryReport - Order {OrderId} not found for CurrencyPoolHistory {HistoryId} in currency {CurrencyCode}", 
+                                h.ReferenceId.Value, h.Id, currency.Code);
+                            continue;
                         }
 
-                        transactionsWithRates.Add((h, transactionRate, fromCurrency, toCurrency, customer));
-                    }
-
-                    // Calculate weighted average rate for the day
-                    decimal weightedAverageRate = 0;
-                    if (ratesWithAmounts.Count > 0)
-                    {
-                        decimal totalWeightedRates = ratesWithAmounts.Sum(x => x.rate * x.amount);
-                        decimal totalWeights = ratesWithAmounts.Sum(x => x.amount);
-
-                        if (totalWeights > 0)
+                        if (order.Rate <= 0)
                         {
-                            weightedAverageRate = totalWeightedRates / totalWeights;
-                        }
-                    }
-
-                    // Calculate profit for each transaction
-                    var transactions = new List<object>();
-                    decimal totalDailyProfit = 0;
-
-                    foreach (var item in transactionsWithRates)
-                    {
-                        var h = item.historyRecord;
-                        var rate = item.rate;
-                        var fromCurrency = item.fromCurrency;
-                        var toCurrency = item.toCurrency;
-                        var customer = item.customer;
-
-                        decimal profit = 0;
-
-                        // Only calculate profit for Order transactions with valid rates
-                        if (rate.HasValue && rate.Value > 0 && weightedAverageRate > 0 &&
-                            fromCurrency != null && toCurrency != null)
-                        {
-                            decimal transactionAmount = Math.Abs(h.TransactionAmount);
-                            decimal convertedAmount;
-                            decimal reversedAmount;
-
-                            // Determine direction based on which currency pool we're looking at
-                            bool isSellingFromPool = currency.Code == fromCurrency!.Code;
-
-                            if (isSellingFromPool)
-                            {
-                                // Selling from pool: convert pool currency to target currency (divide by rate)
-                                convertedAmount = transactionAmount / rate.Value;
-                                reversedAmount = convertedAmount * weightedAverageRate;
-                            }
-                            else
-                            {
-                                // Buying to pool: convert source currency to pool currency (multiply by rate)
-                                convertedAmount = transactionAmount * rate.Value;
-                                reversedAmount = convertedAmount / weightedAverageRate;
-                            }
-
-                            // Profit = Original amount - Amount if converted at weighted average rate
-                            profit = transactionAmount - reversedAmount;
+                            _logger.LogWarning("GetPoolSummaryReport - Order {OrderId} has invalid rate: {Rate}", order.Id, order.Rate);
+                            continue;
                         }
 
-                        totalDailyProfit += profit;
+                        var fromCurrency = order.FromCurrency;
+                        var toCurrency = order.ToCurrency;
+                        var customer = order.Customer;
+                        var rate = order.Rate;
+
+                        // Determine if this is a Buy or Sell for the pool currency
+                        bool isBuy = h.PoolTransactionType == "Buy";
+                        bool isSell = h.PoolTransactionType == "Sell";
+
+                        // Determine paired currency (the other currency in the exchange)
+                        string? pairedCurrencyCode = null;
+                        string? pairedCurrencyName = null;
+                        decimal amountInPairedCurrency = 0m;
+
+                        if (currency.Code == fromCurrency?.Code)
+                        {
+                            // Pool currency is FromCurrency, so paired is ToCurrency
+                            pairedCurrencyCode = toCurrency?.Code;
+                            pairedCurrencyName = toCurrency?.Name;
+                            // When selling pool currency, we receive ToAmount in paired currency
+                            // When buying pool currency, we pay ToAmount in paired currency
+                            amountInPairedCurrency = order.ToAmount;
+                        }
+                        else if (currency.Code == toCurrency?.Code)
+                        {
+                            // Pool currency is ToCurrency, so paired is FromCurrency
+                            pairedCurrencyCode = fromCurrency?.Code;
+                            pairedCurrencyName = fromCurrency?.Name;
+                            // When buying pool currency, we pay FromAmount in paired currency
+                            // When selling pool currency, we receive FromAmount in paired currency
+                            amountInPairedCurrency = order.FromAmount;
+                        }
 
                         var transactionObj = new
                         {
@@ -1088,172 +1046,135 @@ namespace ForexExchange.Controllers
                             type = h.TransactionType.ToString(),
                             description = h.Description ?? "",
                             amount = h.TransactionAmount,
+                            amountInCurrency = Math.Abs(h.TransactionAmount),
                             balanceAfter = h.BalanceAfter,
                             referenceId = h.ReferenceId,
                             rate = rate,
-                            weightedAverageRate = weightedAverageRate,
-                            profit = profit,
                             currencyCode = currency.Code,
                             currencyName = currency.Name,
                             fromCurrencyCode = fromCurrency?.Code,
                             fromCurrencyName = fromCurrency?.Name,
                             toCurrencyCode = toCurrency?.Code,
                             toCurrencyName = toCurrency?.Name,
-                            // Determine the paired currency (the other currency in the exchange)
-                            pairedCurrencyCode = currency.Code == fromCurrency?.Code ? toCurrency?.Code : fromCurrency?.Code,
-                            pairedCurrencyName = currency.Code == fromCurrency?.Code ? toCurrency?.Name : fromCurrency?.Name,
-                            // Customer information
+                            pairedCurrencyCode = pairedCurrencyCode,
+                            pairedCurrencyName = pairedCurrencyName,
+                            amountInPairedCurrency = amountInPairedCurrency,
                             customerId = customer?.Id,
                             customerName = customer?.FullName,
                             customerPhone = customer?.PhoneNumber,
-                            // Pool transaction type (Buy/Sell)
                             poolTransactionType = h.PoolTransactionType
                         };
 
-                        // Debug logging for transaction amounts
-                        _logger.LogInformation("Transaction Debug - Currency: {Currency}, OriginalAmount: {OriginalAmount}, TransactionAmount: {TransactionAmount}, Description: {Description}, Time: {Time}",
-                            currency.Code, h.TransactionAmount, transactionObj.amount, h.Description, h.TransactionDate);
-
-                        transactions.Add(transactionObj);
-                    }
-
-                    // Add to totals for summary
-                    if (currency.Code == "IRR")
-                    {
-                        totalIRR += latestBalance;
-                        // Add IRR transactions to IRR group
-                        irrTransactions.AddRange(transactions);
-                        irrTransactionCount += transactionsRaw.Count;
-                        irrDailyProfit += totalDailyProfit;
-                        if (weightedAverageRate > 0)
+                        if (isBuy)
                         {
-                            irrWeightedAverageRate = weightedAverageRate; // IRR should have its own rate
+                            buyTransactions.Add(transactionObj);
+                            totalBuyAmount += Math.Abs(h.TransactionAmount);
                         }
-                    }
-                    else
-                    {
-                        // Add to OMR totals and transactions
-                        if (latestBalance != 0)
+                        else if (isSell)
                         {
-                            var convertedToOMR = await ConvertCurrencyToOMR(latestBalance, currency.Code, date);
-                            totalOMR += convertedToOMR;
-                        }
-
-                        // Add non-IRR transactions to OMR group
-                        omrTransactions.AddRange(transactions);
-                        omrTransactionCount += transactionsRaw.Count;
-                        omrDailyProfit += totalDailyProfit;
-
-                        // For OMR weighted average, we'll calculate it based on all non-IRR transactions
-                        if (weightedAverageRate > 0 && omrTransactionCount > 0)
-                        {
-                            omrWeightedAverageRate = (omrWeightedAverageRate * (omrTransactionCount - transactionsRaw.Count) +
-                                                     weightedAverageRate * transactionsRaw.Count) / omrTransactionCount;
-                        }
-                    }
-                }
-
-                // Prepare currency details for only IRR and OMR
-                var currencyDetails = new List<object>();
-
-                // Add IRR details if there are transactions or balance
-                if (irrTransactions.Any() || totalIRR != 0)
-                {
-                    decimal irrDailyTransactionSum = 0;
-                    foreach (var t in irrTransactions)
-                    {
-                        var amountProp = t.GetType().GetProperty("amount");
-                        if (amountProp?.GetValue(t) is decimal amount)
-                        {
-                            irrDailyTransactionSum += amount;
+                            sellTransactions.Add(transactionObj);
+                            totalSellAmount += Math.Abs(h.TransactionAmount);
                         }
                     }
 
-                    currencyDetails.Add(new
-                    {
-                        currencyCode = "IRR",
-                        currencyName = "تومان",
-                        latestBalance = totalIRR,
-                        dailyTransactionSum = irrDailyTransactionSum,
-                        transactionCount = (int)irrTransactionCount,
-                        totalDailyProfit = irrDailyProfit,
-                        weightedAverageRate = irrWeightedAverageRate,
-                        transactions = irrTransactions.OrderBy(t =>
-                        {
-                            var timeProp = t.GetType().GetProperty("time");
-                            return timeProp?.GetValue(t)?.ToString() ?? "";
-                        }).ToList()
-                    });
-                }
+                    // Calculate profit/loss in the same currency: Total buys - Total sells
+                    // سود/زیان خالص = مجموع خریدها - مجموع فروش‌ها
+                    decimal profitLoss = totalBuyAmount - totalSellAmount;
 
-                // Add OMR details if there are transactions or balance
-                if (omrTransactions.Any() || totalOMR != 0)
-                {
-                    decimal omrDailyTransactionSum = 0;
-                    foreach (var t in omrTransactions)
+                    // Combine all transactions and sort by time
+                    var allTransactions = new List<object>();
+                    foreach (var t in buyTransactions)
                     {
-                        var amountProp = t.GetType().GetProperty("amount");
-                        if (amountProp?.GetValue(t) is decimal amount)
+                        var transactionType = t.GetType();
+                        var timeProp = transactionType.GetProperty("time");
+                        var timeValue = timeProp?.GetValue(t)?.ToString() ?? "";
+                        
+                        // Add transaction type property
+                        var newTransaction = new
                         {
-                            omrDailyTransactionSum += amount;
-                        }
+                            time = timeValue,
+                            type = "خرید",
+                            transactionType = "Buy",
+                            customerName = transactionType.GetProperty("customerName")?.GetValue(t),
+                            customerPhone = transactionType.GetProperty("customerPhone")?.GetValue(t),
+                            amountInCurrency = transactionType.GetProperty("amountInCurrency")?.GetValue(t),
+                            amountInPairedCurrency = transactionType.GetProperty("amountInPairedCurrency")?.GetValue(t),
+                            rate = transactionType.GetProperty("rate")?.GetValue(t),
+                            pairedCurrencyCode = transactionType.GetProperty("pairedCurrencyCode")?.GetValue(t),
+                            pairedCurrencyName = transactionType.GetProperty("pairedCurrencyName")?.GetValue(t),
+                            fromCurrencyCode = transactionType.GetProperty("fromCurrencyCode")?.GetValue(t),
+                            toCurrencyCode = transactionType.GetProperty("toCurrencyCode")?.GetValue(t),
+                            referenceId = transactionType.GetProperty("referenceId")?.GetValue(t)
+                        };
+                        allTransactions.Add(newTransaction);
                     }
-
-                    currencyDetails.Add(new
+                    
+                    foreach (var t in sellTransactions)
                     {
-                        currencyCode = "OMR",
-                        currencyName = "ریال عمان (سایر ارزها)",
-                        latestBalance = totalOMR,
-                        dailyTransactionSum = omrDailyTransactionSum,
-                        transactionCount = (int)omrTransactionCount,
-                        totalDailyProfit = omrDailyProfit,
-                        weightedAverageRate = omrWeightedAverageRate,
-                        transactions = omrTransactions.OrderBy(t =>
+                        var transactionType = t.GetType();
+                        var timeProp = transactionType.GetProperty("time");
+                        var timeValue = timeProp?.GetValue(t)?.ToString() ?? "";
+                        
+                        // Add transaction type property
+                        var newTransaction = new
                         {
-                            var timeProp = t.GetType().GetProperty("time");
-                            return timeProp?.GetValue(t)?.ToString() ?? "";
-                        }).ToList()
-                    });
-                }
-
-                // Debug logging for final result
-                _logger.LogInformation("Final Result Debug - TotalIRR: {TotalIRR}, TotalOMR: {TotalOMR}, CurrencyDetailsCount: {Count}",
-                    totalIRR, totalOMR, currencyDetails.Count);
-
-                foreach (var currencyDetail in currencyDetails)
-                {
-                    var currencyCode = currencyDetail.GetType().GetProperty("currencyCode")?.GetValue(currencyDetail);
-                    var transactionsProp = currencyDetail.GetType().GetProperty("transactions");
-                    if (transactionsProp?.GetValue(currencyDetail) is IEnumerable<object> transactions)
+                            time = timeValue,
+                            type = "فروش",
+                            transactionType = "Sell",
+                            customerName = transactionType.GetProperty("customerName")?.GetValue(t),
+                            customerPhone = transactionType.GetProperty("customerPhone")?.GetValue(t),
+                            amountInCurrency = transactionType.GetProperty("amountInCurrency")?.GetValue(t),
+                            amountInPairedCurrency = transactionType.GetProperty("amountInPairedCurrency")?.GetValue(t),
+                            rate = transactionType.GetProperty("rate")?.GetValue(t),
+                            pairedCurrencyCode = transactionType.GetProperty("pairedCurrencyCode")?.GetValue(t),
+                            pairedCurrencyName = transactionType.GetProperty("pairedCurrencyName")?.GetValue(t),
+                            fromCurrencyCode = transactionType.GetProperty("fromCurrencyCode")?.GetValue(t),
+                            toCurrencyCode = transactionType.GetProperty("toCurrencyCode")?.GetValue(t),
+                            referenceId = transactionType.GetProperty("referenceId")?.GetValue(t)
+                        };
+                        allTransactions.Add(newTransaction);
+                    }
+                    
+                    // Sort all transactions by time
+                    var sortedTransactions = allTransactions.OrderBy(t =>
                     {
-                        foreach (var transaction in transactions.Take(3)) // Log first 3 transactions
+                        var timeProp = t.GetType().GetProperty("time");
+                        return timeProp?.GetValue(t)?.ToString() ?? "";
+                    }).ToList();
+
+                    // Only include currencies with transactions or non-zero balance
+                    if (transactionsRaw.Any() || latestBalance != 0)
+                    {
+                        currencyDetails.Add(new
                         {
-                            var amountProp = transaction.GetType().GetProperty("amount");
-                            var currencyCodeProp = transaction.GetType().GetProperty("currencyCode");
-                            var amount = amountProp?.GetValue(transaction);
-                            var transCurrency = currencyCodeProp?.GetValue(transaction);
-                            _logger.LogInformation("Final Transaction Debug - GroupCurrency: {GroupCurrency}, TransactionCurrency: {TransactionCurrency}, Amount: {Amount}",
-                                currencyCode, transCurrency, amount);
-                        }
+                            currencyCode = currency.Code,
+                            currencyName = currency.Name,
+                            latestBalance = latestBalance,
+                            transactions = sortedTransactions,
+                            totalBuyAmount = totalBuyAmount,
+                            totalSellAmount = totalSellAmount,
+                            profitLoss = profitLoss,
+                            buyCount = buyTransactions.Count,
+                            sellCount = sellTransactions.Count,
+                            transactionCount = transactionsRaw.Count
+                        });
                     }
                 }
+
+                _logger.LogInformation("GetPoolSummaryReport returning - Currency count: {Count}, Date: {Date}", 
+                    currencyDetails.Count, date.ToString("yyyy-MM-dd"));
 
                 return Json(new
                 {
                     success = true,
                     date = date.ToString("yyyy-MM-dd"),
-                    data = new
-                    {
-                        irrBalance = totalIRR,
-                        omrBalance = totalOMR
-                    },
                     currencies = currencyDetails
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting pool summary report for date: {Date}", date);
-                return Json(new { success = false, error = "خطا در دریافت گزارش خلاصه داشبورد" });
+                return Json(new { success = false, error = "خطا در دریافت خلاصه سود/زیان روزانه" });
             }
         }
 
@@ -1294,68 +1215,96 @@ namespace ForexExchange.Controllers
 
                     decimal latestBalance = latestHistory?.BalanceAfter ?? 0;
 
-                    // Get all transactions for the day
+                    // Get all Order transactions for the day only
                     var transactionsRaw = await _context.CurrencyPoolHistory
                         .AsNoTracking()
                         .Where(h => h.CurrencyCode == currency.Code &&
                                    h.TransactionDate >= startOfDay &&
-                                   h.TransactionDate <= endOfDay)
+                                   h.TransactionDate <= endOfDay &&
+                                   h.TransactionType == CurrencyPoolTransactionType.Order &&
+                                   h.ReferenceId.HasValue)
                         .OrderBy(h => h.TransactionDate)
                         .ThenBy(h => h.Id)
                         .ToListAsync();
 
-                    // Extract rates and customer info
-                    var transactionsWithRates = new List<(CurrencyPoolHistory historyRecord, decimal? rate, Currency? fromCurrency, Currency? toCurrency, Customer? customer)>();
+                    // Separate Buy and Sell transactions
+                    var buyTransactions = new List<object>();
+                    var sellTransactions = new List<object>();
+                    
+                    decimal totalBuyAmount = 0m;
+                    decimal totalSellAmount = 0m;
+
+                    // Load all orders at once to avoid N+1 query problem
+                    var orderIds = transactionsRaw.Where(h => h.ReferenceId.HasValue).Select(h => h.ReferenceId.Value).Distinct().ToList();
+                    var ordersDict = await _context.Orders
+                        .Include(o => o.FromCurrency)
+                        .Include(o => o.ToCurrency)
+                        .Include(o => o.Customer)
+                        .Where(o => orderIds.Contains(o.Id))
+                        .ToDictionaryAsync(o => o.Id);
+
+                    _logger.LogInformation("GetPoolSummaryReport - Currency {CurrencyCode}: Found {TransactionCount} transactions for {OrderCount} unique orders", 
+                        currency.Code, transactionsRaw.Count, orderIds.Count);
 
                     foreach (var h in transactionsRaw)
                     {
-                        decimal? transactionRate = null;
-                        Currency? fromCurrency = null;
-                        Currency? toCurrency = null;
-                        Customer? customer = null;
-
-                        // Get rate and currency info from Order transactions only
-                        if (h.TransactionType == CurrencyPoolTransactionType.Order && h.ReferenceId.HasValue)
+                        if (!h.ReferenceId.HasValue) continue;
+                        
+                        if (!ordersDict.TryGetValue(h.ReferenceId.Value, out var order) || order == null)
                         {
-                            var order = await _context.Orders
-                                .Include(o => o.FromCurrency)
-                                .Include(o => o.ToCurrency)
-                                .Include(o => o.Customer)
-                                .FirstOrDefaultAsync(o => o.Id == h.ReferenceId.Value);
-
-                            if (order != null)
-                            {
-                                customer = order.Customer;
-                                
-                                if (order.Rate > 0)
-                                {
-                                    transactionRate = order.Rate;
-                                    fromCurrency = order.FromCurrency;
-                                    toCurrency = order.ToCurrency;
-                                }
-                            }
+                            _logger.LogWarning("GetPoolSummaryReport - Order {OrderId} not found for CurrencyPoolHistory {HistoryId} in currency {CurrencyCode}", 
+                                h.ReferenceId.Value, h.Id, currency.Code);
+                            continue;
                         }
 
-                        transactionsWithRates.Add((h, transactionRate, fromCurrency, toCurrency, customer));
-                    }
+                        if (order.Rate <= 0)
+                        {
+                            _logger.LogWarning("GetPoolSummaryReport - Order {OrderId} has invalid rate: {Rate}", order.Id, order.Rate);
+                            continue;
+                        }
 
-                    // Build transaction list
-                    var transactions = new List<object>();
+                        var fromCurrency = order.FromCurrency;
+                        var toCurrency = order.ToCurrency;
+                        var customer = order.Customer;
+                        var rate = order.Rate;
 
-                    foreach (var item in transactionsWithRates)
-                    {
-                        var h = item.historyRecord;
-                        var rate = item.rate;
-                        var fromCurrency = item.fromCurrency;
-                        var toCurrency = item.toCurrency;
-                        var customer = item.customer;
+                        // Determine if this is a Buy or Sell for the pool currency
+                        bool isBuy = h.PoolTransactionType == "Buy";
+                        bool isSell = h.PoolTransactionType == "Sell";
+
+                        // Determine paired currency (the other currency in the exchange)
+                        string? pairedCurrencyCode = null;
+                        string? pairedCurrencyName = null;
+                        decimal amountInPairedCurrency = 0m;
+
+                        if (currency.Code == fromCurrency?.Code)
+                        {
+                            // Pool currency is FromCurrency, so paired is ToCurrency
+                            pairedCurrencyCode = toCurrency?.Code;
+                            pairedCurrencyName = toCurrency?.Name;
+                            // When selling pool currency, we receive ToAmount in paired currency
+                            // When buying pool currency, we pay ToAmount in paired currency
+                            amountInPairedCurrency = order.ToAmount;
+                        }
+                        else if (currency.Code == toCurrency?.Code)
+                        {
+                            // Pool currency is ToCurrency, so paired is FromCurrency
+                            pairedCurrencyCode = fromCurrency?.Code;
+                            pairedCurrencyName = fromCurrency?.Name;
+                            // When buying pool currency, we pay FromAmount in paired currency
+                            // When selling pool currency, we receive FromAmount in paired currency
+                            amountInPairedCurrency = order.FromAmount;
+                        }
 
                         var transactionObj = new
                         {
                             time = h.TransactionDate.ToString("HH:mm:ss"),
                             type = h.TransactionType.ToString(),
+                            description = h.Description ?? "",
                             amount = h.TransactionAmount,
+                            amountInCurrency = Math.Abs(h.TransactionAmount),
                             balanceAfter = h.BalanceAfter,
+                            referenceId = h.ReferenceId,
                             rate = rate,
                             currencyCode = currency.Code,
                             currencyName = currency.Name,
@@ -1363,30 +1312,107 @@ namespace ForexExchange.Controllers
                             fromCurrencyName = fromCurrency?.Name,
                             toCurrencyCode = toCurrency?.Code,
                             toCurrencyName = toCurrency?.Name,
-                            pairedCurrencyCode = currency.Code == fromCurrency?.Code ? toCurrency?.Code : fromCurrency?.Code,
-                            pairedCurrencyName = currency.Code == fromCurrency?.Code ? toCurrency?.Name : fromCurrency?.Name,
+                            pairedCurrencyCode = pairedCurrencyCode,
+                            pairedCurrencyName = pairedCurrencyName,
+                            amountInPairedCurrency = amountInPairedCurrency,
                             customerId = customer?.Id,
                             customerName = customer?.FullName,
                             customerPhone = customer?.PhoneNumber,
                             poolTransactionType = h.PoolTransactionType
                         };
 
-                        transactions.Add(transactionObj);
+                        if (isBuy)
+                        {
+                            buyTransactions.Add(transactionObj);
+                            totalBuyAmount += Math.Abs(h.TransactionAmount);
+                        }
+                        else if (isSell)
+                        {
+                            sellTransactions.Add(transactionObj);
+                            totalSellAmount += Math.Abs(h.TransactionAmount);
+                        }
                     }
 
-                    if (transactions.Any() || latestBalance != 0)
+                    // Calculate profit/loss in the same currency: Total buys - Total sells
+                    // سود/زیان خالص = مجموع خریدها - مجموع فروش‌ها
+                    decimal profitLoss = totalBuyAmount - totalSellAmount;
+
+                    // Combine all transactions and sort by time
+                    var allTransactions = new List<object>();
+                    foreach (var t in buyTransactions)
+                    {
+                        var transactionType = t.GetType();
+                        var timeProp = transactionType.GetProperty("time");
+                        var timeValue = timeProp?.GetValue(t)?.ToString() ?? "";
+                        
+                        // Add transaction type property
+                        var newTransaction = new
+                        {
+                            time = timeValue,
+                            type = "خرید",
+                            transactionType = "Buy",
+                            customerName = transactionType.GetProperty("customerName")?.GetValue(t),
+                            customerPhone = transactionType.GetProperty("customerPhone")?.GetValue(t),
+                            amountInCurrency = transactionType.GetProperty("amountInCurrency")?.GetValue(t),
+                            amountInPairedCurrency = transactionType.GetProperty("amountInPairedCurrency")?.GetValue(t),
+                            rate = transactionType.GetProperty("rate")?.GetValue(t),
+                            pairedCurrencyCode = transactionType.GetProperty("pairedCurrencyCode")?.GetValue(t),
+                            pairedCurrencyName = transactionType.GetProperty("pairedCurrencyName")?.GetValue(t),
+                            fromCurrencyCode = transactionType.GetProperty("fromCurrencyCode")?.GetValue(t),
+                            toCurrencyCode = transactionType.GetProperty("toCurrencyCode")?.GetValue(t),
+                            referenceId = transactionType.GetProperty("referenceId")?.GetValue(t)
+                        };
+                        allTransactions.Add(newTransaction);
+                    }
+                    
+                    foreach (var t in sellTransactions)
+                    {
+                        var transactionType = t.GetType();
+                        var timeProp = transactionType.GetProperty("time");
+                        var timeValue = timeProp?.GetValue(t)?.ToString() ?? "";
+                        
+                        // Add transaction type property
+                        var newTransaction = new
+                        {
+                            time = timeValue,
+                            type = "فروش",
+                            transactionType = "Sell",
+                            customerName = transactionType.GetProperty("customerName")?.GetValue(t),
+                            customerPhone = transactionType.GetProperty("customerPhone")?.GetValue(t),
+                            amountInCurrency = transactionType.GetProperty("amountInCurrency")?.GetValue(t),
+                            amountInPairedCurrency = transactionType.GetProperty("amountInPairedCurrency")?.GetValue(t),
+                            rate = transactionType.GetProperty("rate")?.GetValue(t),
+                            pairedCurrencyCode = transactionType.GetProperty("pairedCurrencyCode")?.GetValue(t),
+                            pairedCurrencyName = transactionType.GetProperty("pairedCurrencyName")?.GetValue(t),
+                            fromCurrencyCode = transactionType.GetProperty("fromCurrencyCode")?.GetValue(t),
+                            toCurrencyCode = transactionType.GetProperty("toCurrencyCode")?.GetValue(t),
+                            referenceId = transactionType.GetProperty("referenceId")?.GetValue(t)
+                        };
+                        allTransactions.Add(newTransaction);
+                    }
+                    
+                    // Sort all transactions by time
+                    var sortedTransactions = allTransactions.OrderBy(t =>
+                    {
+                        var timeProp = t.GetType().GetProperty("time");
+                        return timeProp?.GetValue(t)?.ToString() ?? "";
+                    }).ToList();
+
+                    // Only include currencies with transactions or non-zero balance
+                    if (transactionsRaw.Any() || latestBalance != 0)
                     {
                         currencyDetails.Add(new
                         {
                             currencyCode = currency.Code,
                             currencyName = currency.Name,
                             latestBalance = latestBalance,
-                            transactionCount = transactions.Count,
-                            transactions = transactions.OrderBy(t =>
-                            {
-                                var timeProp = t.GetType().GetProperty("time");
-                                return timeProp?.GetValue(t)?.ToString() ?? "";
-                            }).ToList()
+                            transactions = sortedTransactions,
+                            totalBuyAmount = totalBuyAmount,
+                            totalSellAmount = totalSellAmount,
+                            profitLoss = profitLoss,
+                            buyCount = buyTransactions.Count,
+                            sellCount = sellTransactions.Count,
+                            transactionCount = transactionsRaw.Count
                         });
                     }
                 }

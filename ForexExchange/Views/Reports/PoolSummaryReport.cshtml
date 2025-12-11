@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = "گزارش خلاصه داشبورد";
+    ViewData["Title"] = "خلاصه سود/زیان روزانه";
 }
 
 <div class="container-fluid">
@@ -7,7 +7,7 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
-                <h2><i class="fas fa-coins text-primary me-2"></i>گزارش خلاصه داشبورد</h2>
+                <h2><i class="fas fa-coins text-primary me-2"></i>خلاصه سود/زیان روزانه</h2>
                 <div class="d-flex align-items-center">
                     <label for="reportDate" class="form-label me-2 mb-0">تاریخ:</label>
                     <input type="date" class="form-control me-2" id="reportDate" style="width: auto;">
@@ -56,6 +56,25 @@
 
     <!-- Report Content -->
     <div id="reportContent" class="d-none">
+        <!-- Summary Box -->
+        <div class="row mb-4" id="summaryBox" style="display: none;">
+            <div class="col-12">
+                <div class="card" style="box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 2px solid #001f4d;">
+                    <div class="card-header text-center" style="background: linear-gradient(135deg, #001f4d 0%, #003366 100%); color: white;">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-pie me-2"></i>
+                            خلاصه سود/زیان روزانه
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="summaryCurrencies">
+                            <!-- Summary items will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Currency Details Section -->
         <div class="row">
             <div class="col-12">
@@ -156,19 +175,27 @@
 
                         updateNavigationButtons();
 
-                        if (response.success && response.data) {
+                        if (response.success) {
                             // Display currency details if available
                             if (response.currencies && response.currencies.length > 0) {
                                 console.log('About to display currencies:', response.currencies);
                                 displayCurrencyDetails(response.currencies);
+                                $('#reportContent').removeClass('d-none');
+                                $('#btnPrint').show();
+                            } else {
+                                // No currencies but success - might be no transactions for the day
+                                $('#noDataMessage').removeClass('d-none');
+                                $('#btnPrint').hide();
+                                showAlert('برای تاریخ انتخاب شده تراکنشی ثبت نشده است', 'info');
                             }
-
-                            $('#reportContent').removeClass('d-none');
-                            $('#btnPrint').show();
                         } else {
                             $('#noDataMessage').removeClass('d-none');
                             $('#btnPrint').hide();
-                            showAlert('داده‌ای برای نمایش یافت نشد', 'info');
+                            if (response.error) {
+                                showAlert(response.error, 'danger');
+                            } else {
+                                showAlert('داده‌ای برای نمایش یافت نشد', 'info');
+                            }
                         }
                     },
                     error: function (xhr, status, error) {
@@ -185,156 +212,128 @@
             function displayCurrencyDetails(currencies) {
                 console.log('displayCurrencyDetails called with:', currencies);
                 const container = $('#currencyCards');
+                const summaryContainer = $('#summaryCurrencies');
                 container.empty();
+                summaryContainer.empty();
+
+                // Build summary box
+                currencies.forEach(function (currency) {
+                    const profitLoss = currency.profitLoss || 0;
+                    const isProfit = profitLoss >= 0;
+                    const profitLossBg = isProfit ? '#d4edda' : '#ffcccc'; // سبز برای مثبت، قرمز برای منفی
+                    const profitLossBorder = isProfit ? '#c3e6cb' : '#ff9999';
+                    const textColor = isProfit ? '#000' : 'rgb(231, 0, 0)'; // مشکی برای مثبت، قرمز برای منفی
+
+                    const summaryHtml = `
+                        <div class="col-md-3 col-sm-6 mb-3">
+                            <div class="card" style="border: 2px solid ${profitLossBorder}; background: ${profitLossBg};">
+                                <div class="card-body text-center p-3">
+                                    <div style="font-size: 0.85em; color: ${textColor}; margin-bottom: 5px; font-weight: bold;">${currency.currencyName} (${currency.currencyCode})</div>
+                                    <div dir="ltr" style="font-weight: bold; font-size: 1.1em; color: ${textColor};">
+                                        ${isProfit ? '+' : ''}${formatCurrency(profitLoss, currency.currencyCode)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    summaryContainer.append(summaryHtml);
+                });
+
+                if (currencies.length > 0) {
+                    $('#summaryBox').show();
+                }
 
                 currencies.forEach(function (currency, index) {
-                    console.log(`Processing currency ${index}:`, currency);
-                    console.log(`Currency ${currency.currencyCode} has ${currency.transactions.length} transactions`);
+                    const transactions = currency.transactions || [];
+                    const profitLoss = currency.profitLoss || 0;
+                    const totalBuyAmount = currency.totalBuyAmount || 0;
+                    const totalSellAmount = currency.totalSellAmount || 0;
+                    
+                    // Determine paired currency from first transaction
+                    let pairedCurrencyCode = '';
+                    if (transactions.length > 0 && transactions[0].pairedCurrencyCode) {
+                        pairedCurrencyCode = transactions[0].pairedCurrencyCode;
+                    }
 
-                    // Log first few transactions to debug
-                    currency.transactions.slice(0, 3).forEach((t, tIndex) => {
-                        console.log(`Transaction ${tIndex} for ${currency.currencyCode}:`, {
-                            amount: t.amount,
-                            type: typeof t.amount,
-                            currencyCode: t.currencyCode,
-                            description: t.description
-                        });
-                    });
+                    const isProfit = profitLoss >= 0;
+                    const profitLossColor = isProfit ? '#27ae60' : '#e74c3c';
+                    const profitLossBg = isProfit ? 'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)' : 'linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%)';
+                    const profitLossBorder = isProfit ? '#c3e6cb' : '#f5c6cb';
+
                     const cardHtml = `
-                    <div class="col-12 col-md-6 mb-4">
+                    <div class="col-12 mb-4">
                         <div class="card h-100" style="box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e8ecef;">
                             <div class="card-header text-center" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-bottom: 1px solid #dee2e6; color: #495057;">
                                 <h5 class="card-title mb-1 fw-bold" style="color: #343a40;">${currency.currencyName}</h5>
                                 <small style="color: #6c757d;">(${currency.currencyCode})</small>
                             </div>
                             <div class="card-body p-3">
-                                <!-- Balance Section -->
-                                <div class="balance-section mb-3" style="background: #f8f9fa; border-radius: 8px; padding: 15px; border: 1px solid #e9ecef;">
-                                    <div class="text-center">
-                                        <h4 class="mb-2" style="color: #adb5bd; text-shadow: none; font-weight: 400;">
-                                            <span dir="ltr" style="padding: 2px 6px; border-radius: 4px; background: ${currency.latestBalance >= 0 ? 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)' : 'linear-gradient(135deg, #fff3e0 0%, #ffcc80 100%)'}; color: ${currency.latestBalance >= 0 ? '#1565c0' : '#e65100'}; border: 1px solid ${currency.latestBalance >= 0 ? '#90caf9' : '#ffab40'};">${formatCurrency(currency.latestBalance, currency.currencyCode)}</span>
-                                        </h4>
-                                        <small style="color: #6c757d;">موجودی پایان روز</small>
-                                    </div>
+                                <!-- Combined Transactions Table -->
+                                <div class="mb-4">
+                                    <h6 class="mb-3" style="color: #495057; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">
+                                        <i class="fas fa-exchange-alt me-2"></i>
+                                        تراکنش‌ها (${transactions.length})
+                                    </h6>
+                                    ${transactions.length > 0 ? `
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered" style="font-size: 0.85em;">
+                                                <thead style="background: #f8f9fa;">
+                                                    <tr>
+                                                        <th style="width: 70px;">زمان</th>
+                                                        <th style="width: 80px;">نوع</th>
+                                                        <th>مشتری</th>
+                                                        <th style="width: 120px;">مقدار ${currency.currencyCode}</th>
+                                                        <th style="width: 120px;">مقدار ${pairedCurrencyCode || 'جفت'}</th>
+                                                        <th style="width: 100px;">نرخ</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${transactions.map(t => {
+                                                        const isBuy = t.transactionType === 'Buy';
+                                                        const typeColor = isBuy ? '#2196f3' : '#ff9800';
+                                                        const typeBg = isBuy ? '#e3f2fd' : '#fff3e0';
+                                                        return `
+                                                        <tr>
+                                                            <td dir="ltr">${t.time}</td>
+                                                            <td>
+                                                                <span class="badge" style="background: ${typeBg}; color: ${typeColor}; border: 1px solid ${typeColor}; padding: 4px 8px; border-radius: 4px; font-weight: bold;">
+                                                                    ${t.type}
+                                                                </span>
+                                                            </td>
+                                                            <td>${t.customerName || '-'}</td>
+                                                            <td dir="ltr" class="fw-bold">${formatCurrency(t.amountInCurrency, currency.currencyCode)}</td>
+                                                            <td dir="ltr">${formatCurrency(t.amountInPairedCurrency, pairedCurrencyCode || 'IRR')}</td>
+                                                            <td dir="ltr">${t.rate ? formatCurrency(t.rate, 'RATE') : '-'}</td>
+                                                        </tr>
+                                                    `;
+                                                    }).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ` : '<p class="text-muted text-center py-3">هیچ تراکنشی ثبت نشده</p>'}
                                 </div>
 
-                                <!-- Transaction Summary Stats -->
-                                <div class="transaction-stats mb-3">
-                                    <div class="row text-center">
-                                        <div class="col-12">
-                                            <div class="stat-item" style="background: #f1f5f8; border-radius: 6px; padding: 8px; border: 1px solid #e1ecf0;">
-                                                <div class="fw-bold" style="color: #4a525a;">${currency.transactionCount}</div>
-                                                <small style="color: #6c757d;">کل تراکنش‌های روز</small>
+                                <!-- Profit/Loss Summary -->
+                                ${transactions.length > 0 ? `
+                                    <div class="alert ${isProfit ? 'alert-success' : 'alert-danger'}" style="margin-top: 20px;">
+                                        <div class="row text-center">
+                                            <div class="col-md-4">
+                                                <small class="d-block text-muted">مجموع خریدها:</small>
+                                                <strong dir="ltr">${formatCurrency(totalBuyAmount, currency.currencyCode)}</strong>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="d-block text-muted">مجموع فروش‌ها:</small>
+                                                <strong dir="ltr">${formatCurrency(totalSellAmount, currency.currencyCode)}</strong>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="d-block text-muted">سود/زیان خالص:</small>
+                                                <strong dir="ltr" style="font-size: 1.2em; color: ${profitLossColor};">
+                                                    ${isProfit ? '+' : ''}${formatCurrency(profitLoss, currency.currencyCode)}
+                                                </strong>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-
-                                <hr class="my-3">
-
-                                <!-- Transactions List -->
-                                <div class="transactions-section">
-                                    <h6 class="mb-3" style="color: #495057; border-bottom: 1px solid #e9ecef; padding-bottom: 8px;">
-                                        <i class="fas fa-exchange-alt me-2" style="color: #6c757d;"></i>
-                                        تراکنش‌های روز (${currency.transactionCount})
-                                    </h6>
-                                    <div class="transaction-list" style="max-height: 350px; overflow-y: auto;">
-                                        ${currency.transactions.length > 0 ?
-                            currency.transactions.map(t => {
-                                // Determine transaction type badge
-                                let typeBadge = '';
-                                if (t.type === 'ManualEdit') {
-                                    typeBadge = `<span class="badge" style="background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%); color: white; font-size: 0.75em; padding: 4px 10px; border-radius: 12px; box-shadow: 0 2px 4px rgba(156,39,176,0.3);">
-                                        <i class="fas fa-edit me-1"></i>تعدیل دستی
-                                    </span>`;
-                                } else if (t.type === 'Order') {
-                                    typeBadge = `<span class="badge" style="background: ${t.amount >= 0 ? 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)' : 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)'}; color: white; font-size: 0.75em; padding: 4px 10px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                                        <i class="fas ${t.amount >= 0 ? 'fa-arrow-down' : 'fa-arrow-up'} me-1"></i>${t.amount >= 0 ? 'خرید' : 'فروش'}
-                                    </span>`;
-                                }
-                                
-                                return `
-                                                <div class="transaction-item rounded p-3 mb-2" style="background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f4 100%); border: 1px solid #e9ecef; box-shadow: 0 2px 6px rgba(0,0,0,0.08);">
-                                                    <!-- Transaction Header -->
-                                                    <div class="mb-3">
-                                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                                            <div class="flex-grow-1">
-                                                                <small style="color: #6c757d;">
-                                                                    <i class="fas fa-clock me-1" style="opacity: 0.7;"></i>${t.time}
-                                                                </small>
-                                                            </div>
-                                                            <div class="ms-2">
-                                                                ${typeBadge}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                
-                                                    <!-- Structured Transaction Details -->
-                                                    <div class="transaction-details" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e1e8ed;">
-                                                        ${t.type === 'Order' && t.customerName ? `
-                                                            <div class="detail-row mb-2 pb-2" style="border-bottom: 1px solid #f0f0f0;">
-                                                                <div class="d-flex align-items-center">
-                                                                    <i class="fas fa-user text-primary me-2" style="width: 20px;"></i>
-                                                                    <div>
-                                                                        <small class="text-muted d-block" style="font-size: 0.75em;">مشتری:</small>
-                                                                        <span class="fw-semibold" style="color: #495057;">${t.customerName}</span>
-                                                                        ${t.customerPhone ? `<small class="text-muted ms-2">(${t.customerPhone})</small>` : ''}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ` : ''}
-                                                        
-                                                        <div class="detail-row mb-2 pb-2" style="border-bottom: 1px solid #f0f0f0;">
-                                                            <div class="d-flex align-items-center">
-                                                                <i class="fas fa-coins text-warning me-2" style="width: 20px;"></i>
-                                                                <div class="flex-grow-1">
-                                                                    <small class="text-muted d-block" style="font-size: 0.75em;">مقدار:</small>
-                                                                    <span dir="ltr" class="fw-bold" style="color: #343a40; font-size: 1.1em;">
-                                                                        ${formatCurrency(Math.abs(t.amount), t.currencyCode || currency.currencyCode)}
-                                                                    </span>
-                                                                    <small class="text-muted ms-1">${t.currencyCode || currency.currencyCode}</small>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        ${t.rate && t.rate > 0 ? `
-                                                            <div class="detail-row mb-2 pb-2" style="border-bottom: 1px solid #f0f0f0;">
-                                                                <div class="d-flex align-items-center">
-                                                                    <i class="fas fa-chart-line text-info me-2" style="width: 20px;"></i>
-                                                                    <div>
-                                                                        <small class="text-muted d-block" style="font-size: 0.75em;">نرخ معامله:</small>
-                                                                        <span dir="ltr" class="fw-semibold" style="color: #495057;">${formatCurrency(t.rate, 'RATE')}</span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ` : ''}
-                                                        
-                                                        ${t.fromCurrencyCode && t.toCurrencyCode ? `
-                                                            <div class="detail-row">
-                                                                <div class="d-flex align-items-center">
-                                                                    <i class="fas fa-exchange-alt text-success me-2" style="width: 20px;"></i>
-                                                                    <div>
-                                                                        <small class="text-muted d-block" style="font-size: 0.75em;">جفت ارز:</small>
-                                                                        <span class="badge" style="background: linear-gradient(135deg, #262830 0%, #764ba2 100%); color: white; font-size: 0.85em; padding: 4px 10px; border-radius: 8px;">
-                                                                            ${t.fromCurrencyCode}
-                                                                            <i class="fas fa-exchange-alt mx-2" style="font-size: 0.7em;"></i>
-                                                                            ${t.toCurrencyCode}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ` : ''}
-                                                    </div>
-                                                </div>
-                                            `;
-                            }).join('') :
-                            `<div class="text-center py-4">
-                                                <i class="fas fa-info-circle fa-2x text-muted mb-2"></i>
-                                                <p class="text-muted mb-0">هیچ تراکنشی در این روز ثبت نشده</p>
-                                             </div>`
-                        }
-                                    </div>
-                                </div>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
