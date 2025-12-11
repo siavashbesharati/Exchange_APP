@@ -333,7 +333,7 @@
                         <div class="summary-box" style="border-color: @(summaryIsProfit ? "#c3e6cb" : "#ff9999"); background: @(summaryIsProfit ? "#d4edda" : "#ffcccc");">
                             <div class="summary-box-currency" style="color: @summaryTextColor; font-weight: bold;">@summaryCurrencyName (@summaryCurrencyCode)</div>
                             <div class="summary-box-balance" style="color: @summaryTextColor; font-weight: bold;">
-                                @(summaryIsProfit ? "+" : "")@summaryProfitLoss.FormatCurrency(summaryCurrencyCode)
+                                @summaryProfitLoss.FormatCurrency(summaryCurrencyCode)
                             </div>
                         </div>
                     }
@@ -389,7 +389,7 @@
                                         <th style="width: 70px; text-align: center;">نوع</th>
                                         <th style="width: 150px; text-align: center;">مشتری</th>
                                         <th style="width: 100px; text-align: center;">مقدار @currencyCode</th>
-                                        <th style="width: 180px; text-align: center;">ارز مقصد</th>
+                                        <th style="width: 180px; text-align: center;"></th>
                                         <th style="width: 80px; text-align: center;">نرخ</th>
                                     </tr>
                                 </thead>
@@ -457,7 +457,7 @@
                                 <div>
                                     <div style="font-size: 10px; color: #666; margin-bottom: 5px;">سود/زیان خالص:</div>
                                     <div style="font-weight: bold; font-size: 16px; direction: ltr; color: @(isProfit ? "#27ae60" : "#e74c3c");">
-                                        @(isProfit ? "+" : "")@profitLoss.FormatCurrency(currencyCode)
+                                        @profitLoss.FormatCurrency(currencyCode)
                                     </div>
                                 </div>
                             </div>

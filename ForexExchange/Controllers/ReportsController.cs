@@ -960,13 +960,21 @@ namespace ForexExchange.Controllers
                     decimal latestBalance = latestHistory?.BalanceAfter ?? 0;
 
                     // Get all Order transactions for the day only
+                    // Filter by Order.CreatedAt to ensure we only show orders created on the selected date
+                    var orderIdsForDate = await _context.Orders
+                        .AsNoTracking()
+                        .Where(o => o.CreatedAt >= startOfDay &&
+                                   o.CreatedAt <= endOfDay &&
+                                   !o.IsDeleted)
+                        .Select(o => o.Id)
+                        .ToListAsync();
+
                     var transactionsRaw = await _context.CurrencyPoolHistory
                         .AsNoTracking()
                         .Where(h => h.CurrencyCode == currency.Code &&
-                                   h.TransactionDate >= startOfDay &&
-                                   h.TransactionDate <= endOfDay &&
                                    h.TransactionType == CurrencyPoolTransactionType.Order &&
-                                   h.ReferenceId.HasValue)
+                                   h.ReferenceId.HasValue &&
+                                   orderIdsForDate.Contains(h.ReferenceId.Value))
                         .OrderBy(h => h.TransactionDate)
                         .ThenBy(h => h.Id)
                         .ToListAsync();
@@ -1216,13 +1224,21 @@ namespace ForexExchange.Controllers
                     decimal latestBalance = latestHistory?.BalanceAfter ?? 0;
 
                     // Get all Order transactions for the day only
+                    // Filter by Order.CreatedAt to ensure we only show orders created on the selected date
+                    var orderIdsForDate = await _context.Orders
+                        .AsNoTracking()
+                        .Where(o => o.CreatedAt >= startOfDay &&
+                                   o.CreatedAt <= endOfDay &&
+                                   !o.IsDeleted)
+                        .Select(o => o.Id)
+                        .ToListAsync();
+
                     var transactionsRaw = await _context.CurrencyPoolHistory
                         .AsNoTracking()
                         .Where(h => h.CurrencyCode == currency.Code &&
-                                   h.TransactionDate >= startOfDay &&
-                                   h.TransactionDate <= endOfDay &&
                                    h.TransactionType == CurrencyPoolTransactionType.Order &&
-                                   h.ReferenceId.HasValue)
+                                   h.ReferenceId.HasValue &&
+                                   orderIdsForDate.Contains(h.ReferenceId.Value))
                         .OrderBy(h => h.TransactionDate)
                         .ThenBy(h => h.Id)
                         .ToListAsync();

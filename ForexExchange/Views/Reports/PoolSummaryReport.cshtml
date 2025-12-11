@@ -108,9 +108,12 @@
         $(document).ready(function () {
             console.log('PoolSummaryReport page loaded');
 
-            // Set today's date
-            const today = new Date().toISOString().split('T')[0];
-            $('#reportDate').val(today);
+            // Set today's date (use local date to avoid timezone issues)
+            const today = new Date();
+            const todayStr = today.getFullYear() + '-' + 
+                            String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(today.getDate()).padStart(2, '0');
+            $('#reportDate').val(todayStr);
 
             // Load report automatically
             loadPoolSummary();
@@ -230,7 +233,7 @@
                                 <div class="card-body text-center p-3">
                                     <div style="font-size: 0.85em; color: ${textColor}; margin-bottom: 5px; font-weight: bold;">${currency.currencyName} (${currency.currencyCode})</div>
                                     <div dir="ltr" style="font-weight: bold; font-size: 1.1em; color: ${textColor};">
-                                        ${isProfit ? '+' : ''}${formatCurrency(profitLoss, currency.currencyCode)}
+                                        ${formatCurrency(profitLoss, currency.currencyCode)}
                                     </div>
                                 </div>
                             </div>
@@ -283,7 +286,7 @@
                                                         <th style="width: 80px; text-align: center;">نوع</th>
                                                         <th style="width: 150px; text-align: center;">مشتری</th>
                                                         <th style="width: 120px; text-align: center;">مقدار ${currency.currencyCode}</th>
-                                                        <th style="width: 180px; text-align: center;">ارز مقصد</th>
+                                                        <th style="width: 180px; text-align: center;"></th>
                                                         <th style="width: 100px; text-align: center;">نرخ</th>
                                                     </tr>
                                                 </thead>
@@ -329,7 +332,7 @@
                                             <div class="col-md-4">
                                                 <small class="d-block text-muted">سود/زیان خالص:</small>
                                                 <strong dir="ltr" style="font-size: 1.2em; color: ${profitLossColor};">
-                                                    ${isProfit ? '+' : ''}${formatCurrency(profitLoss, currency.currencyCode)}
+                                                    ${formatCurrency(profitLoss, currency.currencyCode)}
                                                 </strong>
                                             </div>
                                         </div>
@@ -403,8 +406,12 @@
             }
 
             function setToday() {
-                const today = new Date().toISOString().split('T')[0];
-                $('#reportDate').val(today);
+                // Use local date to avoid timezone issues
+                const today = new Date();
+                const todayStr = today.getFullYear() + '-' + 
+                                String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                                String(today.getDate()).padStart(2, '0');
+                $('#reportDate').val(todayStr);
                 loadPoolSummary();
             }
 
