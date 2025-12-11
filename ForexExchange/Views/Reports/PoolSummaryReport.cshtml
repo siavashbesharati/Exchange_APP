@@ -279,12 +279,12 @@
                                             <table class="table table-sm table-bordered" style="font-size: 0.85em;">
                                                 <thead style="background: #f8f9fa;">
                                                     <tr>
-                                                        <th style="width: 70px;">زمان</th>
-                                                        <th style="width: 80px;">نوع</th>
-                                                        <th>مشتری</th>
-                                                        <th style="width: 120px;">مقدار ${currency.currencyCode}</th>
-                                                        <th style="width: 120px;">مقدار ${pairedCurrencyCode || 'جفت'}</th>
-                                                        <th style="width: 100px;">نرخ</th>
+                                                        <th style="width: 70px; text-align: center;">زمان</th>
+                                                        <th style="width: 80px; text-align: center;">نوع</th>
+                                                        <th style="width: 150px; text-align: center;">مشتری</th>
+                                                        <th style="width: 120px; text-align: center;">مقدار ${currency.currencyCode}</th>
+                                                        <th style="width: 180px; text-align: center;">ارز مقصد</th>
+                                                        <th style="width: 100px; text-align: center;">نرخ</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -292,18 +292,19 @@
                                                         const isBuy = t.transactionType === 'Buy';
                                                         const typeColor = isBuy ? '#2196f3' : '#ff9800';
                                                         const typeBg = isBuy ? '#e3f2fd' : '#fff3e0';
+                                                        const pairedCode = t.pairedCurrencyCode || pairedCurrencyCode || 'IRR';
                                                         return `
                                                         <tr>
-                                                            <td dir="ltr">${t.time}</td>
-                                                            <td>
+                                                            <td dir="ltr" style="text-align: center;">${t.time}</td>
+                                                            <td style="text-align: center;">
                                                                 <span class="badge" style="background: ${typeBg}; color: ${typeColor}; border: 1px solid ${typeColor}; padding: 4px 8px; border-radius: 4px; font-weight: bold;">
                                                                     ${t.type}
                                                                 </span>
                                                             </td>
-                                                            <td>${t.customerName || '-'}</td>
-                                                            <td dir="ltr" class="fw-bold">${formatCurrency(t.amountInCurrency, currency.currencyCode)}</td>
-                                                            <td dir="ltr">${formatCurrency(t.amountInPairedCurrency, pairedCurrencyCode || 'IRR')}</td>
-                                                            <td dir="ltr">${t.rate ? formatCurrency(t.rate, 'RATE') : '-'}</td>
+                                                            <td style="text-align: center;">${t.customerName || '-'}</td>
+                                                            <td dir="ltr" class="fw-bold" style="text-align: center;">${formatCurrency(t.amountInCurrency, currency.currencyCode)}</td>
+                                                            <td dir="ltr" style="text-align: center;">${formatCurrency(t.amountInPairedCurrency, pairedCode)} ${pairedCode}</td>
+                                                            <td dir="ltr" style="text-align: center;">${t.rate ? formatCurrency(t.rate, 'RATE') : '-'}</td>
                                                         </tr>
                                                     `;
                                                     }).join('')}

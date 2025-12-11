@@ -385,12 +385,12 @@
                             <table class="transaction-table">
                                 <thead>
                                     <tr>
-                                        <th style="width: 60px;">زمان</th>
-                                        <th style="width: 70px;">نوع</th>
-                                        <th>مشتری</th>
-                                        <th style="width: 100px;">مقدار @currencyCode</th>
-                                        <th style="width: 100px;">مقدار @pairedCurrencyCode</th>
-                                        <th style="width: 80px;">نرخ</th>
+                                        <th style="width: 60px; text-align: center;">زمان</th>
+                                        <th style="width: 70px; text-align: center;">نوع</th>
+                                        <th style="width: 150px; text-align: center;">مشتری</th>
+                                        <th style="width: 100px; text-align: center;">مقدار @currencyCode</th>
+                                        <th style="width: 180px; text-align: center;">ارز مقصد</th>
+                                        <th style="width: 80px; text-align: center;">نرخ</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -402,6 +402,7 @@
                                         var customerNameProp = t.GetType().GetProperty("customerName");
                                         var amountInCurrencyProp = t.GetType().GetProperty("amountInCurrency");
                                         var amountInPairedCurrencyProp = t.GetType().GetProperty("amountInPairedCurrency");
+                                        var pairedCurrencyCodeProp = t.GetType().GetProperty("pairedCurrencyCode");
                                         var rateProp = t.GetType().GetProperty("rate");
 
                                         var time = timeProp?.GetValue(t)?.ToString() ?? "";
@@ -410,6 +411,7 @@
                                         var customerName = customerNameProp?.GetValue(t)?.ToString();
                                         decimal amountInCurrency = amountInCurrencyProp?.GetValue(t) != null ? Convert.ToDecimal(amountInCurrencyProp.GetValue(t)) : 0m;
                                         decimal amountInPairedCurrency = amountInPairedCurrencyProp?.GetValue(t) != null ? Convert.ToDecimal(amountInPairedCurrencyProp.GetValue(t)) : 0m;
+                                        string pairedCode = pairedCurrencyCodeProp?.GetValue(t)?.ToString() ?? pairedCurrencyCode ?? "";
                                         var rateValueObj = rateProp?.GetValue(t);
                                         decimal? rateDecimal = rateValueObj != null ? Convert.ToDecimal(rateValueObj) : null;
 
@@ -418,16 +420,16 @@
                                         string badgeBg = isBuy ? "#e3f2fd" : "#fff3e0";
 
                                         <tr>
-                                            <td dir="ltr">@time</td>
-                                            <td>
+                                            <td dir="ltr" style="text-align: center;">@time</td>
+                                            <td style="text-align: center;">
                                                 <span style="background: @badgeBg; color: @badgeColor; border: 1px solid @badgeColor; padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;">
                                                     @type
                                                 </span>
                                             </td>
-                                            <td>@(customerName ?? "-")</td>
-                                            <td class="amount-cell">@amountInCurrency.FormatCurrency(currencyCode)</td>
-                                            <td class="amount-cell">@amountInPairedCurrency.FormatCurrency(pairedCurrencyCode)</td>
-                                            <td class="amount-cell">@(rateDecimal.HasValue ? rateDecimal.Value.FormatCurrency("RATE") : "-")</td>
+                                            <td style="text-align: center;">@(customerName ?? "-")</td>
+                                            <td class="amount-cell" style="text-align: center;">@amountInCurrency.FormatCurrency(currencyCode)</td>
+                                            <td class="amount-cell" style="text-align: center;" dir="ltr">@(ForexExchange.Extensions.CurrencyFormattingExtensions.FormatCurrency(amountInPairedCurrency, pairedCode)) @pairedCode</td>
+                                            <td class="amount-cell" style="text-align: center;">@(rateDecimal.HasValue ? rateDecimal.Value.FormatCurrency("RATE") : "-")</td>
                                         </tr>
                                     }
                                 </tbody>
