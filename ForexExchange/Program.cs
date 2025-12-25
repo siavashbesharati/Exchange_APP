@@ -17,16 +17,32 @@ builder.Host.UseSerilog((context, services, configuration) =>
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
-        .WriteTo.Console()
-        .WriteTo.Async(a => a.File(
-            path: Path.Combine("Logs", "log-.txt"),
-            rollingInterval: RollingInterval.Day,
-            retainedFileCountLimit: 14,
-            fileSizeLimitBytes: 10_000_000,
-            rollOnFileSizeLimit: true,
-            shared: true,
-            flushToDiskInterval: TimeSpan.FromSeconds(1),
-            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
+        // CRITICAL: Only log Error, Fatal (crash), and Critical level logs
+        // Filter out all Information, Warning, Debug, and Trace logs
+        .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Error)
+        .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Error) // Disable EF Core database logs
+        .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Error)
+        .MinimumLevel.Override("System", Serilog.Events.LogEventLevel.Error)
+        .MinimumLevel.Error() // Only Error, Fatal, and Critical
+        .WriteTo.Logger(lc => lc
+            .Filter.ByIncludingOnly(logEvent => 
+                logEvent.Level >= Serilog.Events.LogEventLevel.Error) // Only Error, Fatal, Critical
+            .WriteTo.Console(
+                restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
+        .WriteTo.Logger(lc => lc
+            .Filter.ByIncludingOnly(logEvent => 
+                logEvent.Level >= Serilog.Events.LogEventLevel.Error) // Only Error, Fatal, Critical
+            .WriteTo.Async(a => a.File(
+                path: Path.Combine("Logs", "errors-.txt"),
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 90, // Keep 90 days of error logs
+                fileSizeLimitBytes: 10_000_000,
+                rollOnFileSizeLimit: true,
+                shared: true,
+                flushToDiskInterval: TimeSpan.FromSeconds(1),
+                restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")));
 });
 
 // Add services to the container.
@@ -54,10 +70,13 @@ builder.Services.AddDbContext<ForexDbContext>(options =>
     
     options.UseSqlite(connectionString);
     
-    // Enable detailed error logging (only in development for security)
-    // Enable sensitive data logging to see entity key values in tracking conflicts
-    options.EnableSensitiveDataLogging(builder.Environment.IsDevelopment());
-    options.EnableDetailedErrors();
+    // DISABLED: No database logging in production or development
+    // Only errors will be logged through Serilog configuration above
+    options.EnableSensitiveDataLogging(false);
+    options.EnableDetailedErrors(false);
+    
+    // Disable EF Core command logging completely - no database query logs
+    // This prevents heavy logging of all SQL queries
 });
 
 // Add Identity

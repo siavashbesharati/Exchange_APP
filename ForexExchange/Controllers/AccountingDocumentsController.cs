@@ -811,11 +811,6 @@ namespace ForexExchange.Controllers
                             // Document is being verified
                             accountingDocument.VerifiedAt = DateTime.Now;
                             accountingDocument.VerifiedBy = User.Identity?.Name ?? "System";
-
-                            // Update balances through centralized service (includes history recording)
-                            await _centralFinancialService.ProcessAccountingDocumentAsync(accountingDocument);
-                            // Note: Currency pools are NOT updated on document verification
-                            // Currency pools are only affected by actual currency trading operations
                         }
                         else
                         {
@@ -827,8 +822,19 @@ namespace ForexExchange.Controllers
                         }
                     }
 
+                    // CRITICAL: Save verification status FIRST (independent transaction)
+                    // This ensures IsVerified is saved even if history rebuild fails
                     _context.Update(accountingDocument);
                     await _context.SaveChangesAsync();
+
+                    // AFTER saving, update balances through centralized service (includes history recording)
+                    // Now the document is saved with IsVerified=true, so rebuild will include it
+                    if (accountingDocument.IsVerified && !existingDocument.IsVerified)
+                    {
+                        await _centralFinancialService.ProcessAccountingDocumentAsync(accountingDocument);
+                        // Note: Currency pools are NOT updated on document verification
+                        // Currency pools are only affected by actual currency trading operations
+                    }
 
                     // Send appropriate notification based on what changed
                     if (accountingDocument.IsVerified && !existingDocument.IsVerified)
@@ -976,32 +982,19 @@ namespace ForexExchange.Controllers
                             return RedirectToAction("Details", new { id });
                         }
 
-                        // CRITICAL: Detach document from Change Tracker before processing to avoid tracking conflicts
-                        var documentId = accountingDocument.Id;
-                        _context.Entry(accountingDocument).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
-
-                        // Update document properties
+                        // CRITICAL: Save IsVerified status FIRST (independent transaction)
+                        // This ensures IsVerified is saved and committed to database before rebuild
+                        // The rebuild query will then see IsVerified=true and include the document
                         accountingDocument.IsVerified = true;
                         accountingDocument.VerifiedAt = DateTime.Now;
                         accountingDocument.VerifiedBy = User.Identity?.Name ?? "System";
-
-                        // Update balances through centralized service (includes history recording)
-                        // This will now use the CORRECTED logic: Payer = +amount, Receiver = -amount
+                        
+                        _context.Update(accountingDocument);
+                        await _context.SaveChangesAsync(); // CRITICAL: Save FIRST, then process
+                        
+                        // AFTER saving IsVerified=true, update balances through centralized service
+                        // Now the document is saved with IsVerified=true, so rebuild will include it
                         await _centralFinancialService.ProcessAccountingDocumentAsync(accountingDocument, User.Identity?.Name ?? "System");
-
-                        // Reload document from database to get latest state and avoid tracking conflicts
-                        var updatedDocument = await _context.AccountingDocuments
-                            .FirstOrDefaultAsync(d => d.Id == documentId);
-
-                        if (updatedDocument != null)
-                        {
-                            updatedDocument.IsVerified = true;
-                            updatedDocument.VerifiedAt = accountingDocument.VerifiedAt;
-                            updatedDocument.VerifiedBy = accountingDocument.VerifiedBy;
-                            _context.Update(updatedDocument);
-                            await _context.SaveChangesAsync();
-                            accountingDocument = updatedDocument; // Update reference for notification
-                        }
 
                         // Send notifications through central hub
                         var currentUser = await _userManager.GetUserAsync(User);
@@ -1120,8 +1113,8 @@ namespace ForexExchange.Controllers
                 var successCount = 0;
                 var errorCount = 0;
 
-                using var transaction = await _context.Database.BeginTransactionAsync();
-
+                // Process each document independently (no transaction wrapper)
+                // Each document is saved and committed before processing to ensure IsVerified is visible
                 foreach (var document in unverifiedDocuments)
                 {
                     try
@@ -1151,14 +1144,19 @@ namespace ForexExchange.Controllers
 
                         if (!hasError)
                         {
+                            // CRITICAL: Save IsVerified status FIRST and commit immediately
+                            // This ensures IsVerified is saved and committed to database before rebuild
+                            // The rebuild query will then see IsVerified=true and include the document
                             document.IsVerified = true;
                             document.VerifiedAt = DateTime.Now;
                             document.VerifiedBy = User.Identity?.Name ?? "System";
-
-                            // Update balances through centralized service with CORRECTED logic
-                            await _centralFinancialService.ProcessAccountingDocumentAsync(document, User.Identity?.Name ?? "System");
-
+                            
                             _context.Update(document);
+                            await _context.SaveChangesAsync(); // CRITICAL: Save and commit FIRST, then process
+                            
+                            // AFTER saving IsVerified=true, update balances through centralized service
+                            // Now the document is saved with IsVerified=true, so rebuild will include it
+                            await _centralFinancialService.ProcessAccountingDocumentAsync(document, User.Identity?.Name ?? "System");
 
                             confirmationLog.Add($"✅ Document {document.Id}: Confirmed successfully ({document.Amount:N2} {document.CurrencyCode})");
                             confirmationLog.Add($"   - Payer: Customer {document.PayerCustomerId} gets +{document.Amount}");
@@ -1172,9 +1170,6 @@ namespace ForexExchange.Controllers
                         errorCount++;
                     }
                 }
-
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
 
                 var summary = new[]
                 {

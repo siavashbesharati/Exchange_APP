@@ -1039,7 +1039,10 @@ namespace ForexExchange.Services
         /// </summary>
         private async Task UpdateBalancesForDocumentAsync(AccountingDocument document, string performedBy = "System")
         {
-            _logger.LogInformation($"Fast balance update for Document ID: {document.Id}");
+            _logger.LogInformation($"🔵 [UpdateBalancesForDocumentAsync] ═══ START ═══ DocumentId={document.Id}, IsVerified={document.IsVerified}, IsDeleted={document.IsDeleted}");
+            _logger.LogInformation($"🔵 [UpdateBalancesForDocumentAsync] PayerType={document.PayerType}, PayerCustomerId={document.PayerCustomerId}, PayerBankAccountId={document.PayerBankAccountId}");
+            _logger.LogInformation($"🔵 [UpdateBalancesForDocumentAsync] ReceiverType={document.ReceiverType}, ReceiverCustomerId={document.ReceiverCustomerId}, ReceiverBankAccountId={document.ReceiverBankAccountId}");
+            _logger.LogInformation($"🔵 [UpdateBalancesForDocumentAsync] CurrencyId={document.CurrencyId}, Amount={document.Amount}");
 
             // CRITICAL: All balance updates must be in the same transaction (already started in ProcessAccountingDocumentAsync)
             // This method is called within a transaction, so we don't create a new one here
@@ -1065,6 +1068,7 @@ namespace ForexExchange.Services
             {
                 // ✅ مشتری پرداخت کننده: افزایش موجودی (مثبت)
                 // Use CurrencyId directly - this is why we did the refactoring!
+                _logger.LogInformation($"[UpdateBalancesForDocument] Processing payer customer {document.PayerCustomerId.Value} for document {document.Id} (+{document.Amount})");
                 await ProcessCustomerBalanceHistoryForDocument(
                     document: document,
                     customerId: document.PayerCustomerId.Value,
@@ -1077,6 +1081,7 @@ namespace ForexExchange.Services
             else if (document.PayerType == PayerType.System && document.PayerBankAccountId.HasValue)
             {
                 // ✅ بانک پرداخت کننده: افزایش موجودی (مثبت)
+                _logger.LogInformation($"[UpdateBalancesForDocument] Processing payer bank account {document.PayerBankAccountId.Value} for document {document.Id} (+{document.Amount})");
                 await ProcessBankBalanceHistoryForDocument(
                     document: document,
                     bankAccountId: document.PayerBankAccountId.Value,
@@ -1091,6 +1096,7 @@ namespace ForexExchange.Services
             {
                 // ✅ مشتری دریافت کننده: کاهش موجودی (منفی)
                 // Use CurrencyId directly - this is why we did the refactoring!
+                _logger.LogInformation($"[UpdateBalancesForDocument] Processing receiver customer {document.ReceiverCustomerId.Value} for document {document.Id} (-{document.Amount})");
                 await ProcessCustomerBalanceHistoryForDocument(
                     document: document,
                     customerId: document.ReceiverCustomerId.Value,
@@ -1103,6 +1109,7 @@ namespace ForexExchange.Services
             else if (document.ReceiverType == ReceiverType.System && document.ReceiverBankAccountId.HasValue)
             {
                 // ✅ بانک دریافت کننده: کاهش موجودی (منفی)
+                _logger.LogInformation($"[UpdateBalancesForDocument] Processing receiver bank account {document.ReceiverBankAccountId.Value} for document {document.Id} (-{document.Amount})");
                 await ProcessBankBalanceHistoryForDocument(
                     document: document,
                     bankAccountId: document.ReceiverBankAccountId.Value,
@@ -1123,6 +1130,8 @@ namespace ForexExchange.Services
         private async Task ProcessCustomerBalanceHistoryForDocument(AccountingDocument document, int customerId,
             int currencyId, decimal transactionAmount, string role, string performedBy)
         {
+            _logger.LogInformation($"🟡 [ProcessCustomerBalanceHistoryForDocument] ═══ START ═══ DocumentId={document.Id}, CustomerId={customerId}, CurrencyId={currencyId}, Amount={transactionAmount}, Role={role}, IsVerified={document.IsVerified}");
+            
             var documentDate = document.DocumentDate;
 
             // Get Currency for CurrencyCode (for display/logging only)
@@ -1214,10 +1223,13 @@ namespace ForexExchange.Services
 
             _context.CustomerBalanceHistory.Add(newHistoryRecord);
             await _context.SaveChangesAsync();
+            _logger.LogInformation($"🟡 [ProcessCustomerBalanceHistoryForDocument] History record added and saved. Calling RebuildCustomerBalanceChain(CustomerId={customerId}, CurrencyId={currencyId}, EnsureDocumentId={document.Id})...");
 
             // Rebuild entire chain from scratch (simpler and more reliable)
             // Use CurrencyId directly - this is why we did the refactoring!
-            await RebuildCustomerBalanceChain(customerId, currencyId, currencyCode);
+            // Pass document ID to ensure it's included in rebuild
+            await RebuildCustomerBalanceChain(customerId, currencyId, currencyCode, document.Id);
+            _logger.LogInformation($"🟡 [ProcessCustomerBalanceHistoryForDocument] ✅ RebuildCustomerBalanceChain COMPLETED for CustomerId={customerId}, CurrencyId={currencyId}");
 
             // Update the current balance entity using CurrencyId directly
             var updatedBalance = await _context.CustomerBalances
@@ -1236,6 +1248,8 @@ namespace ForexExchange.Services
         private async Task ProcessBankBalanceHistoryForDocument(AccountingDocument document, int bankAccountId,
             decimal transactionAmount, string role, string performedBy)
         {
+            _logger.LogInformation($"🟡 [ProcessBankBalanceHistoryForDocument] ═══ START ═══ DocumentId={document.Id}, BankAccountId={bankAccountId}, Amount={transactionAmount}, Role={role}, IsVerified={document.IsVerified}");
+            
             var documentDate = document.DocumentDate;
 
             // Load bank account balance - این کوئری مشکلی نداره چون BankAccountId مستقیم هست
@@ -1309,9 +1323,12 @@ namespace ForexExchange.Services
 
             _context.BankAccountBalanceHistory.Add(newHistoryRecord);
             await _context.SaveChangesAsync();
+            _logger.LogInformation($"🟡 [ProcessBankBalanceHistoryForDocument] History record added and saved. Calling RebuildBankBalanceChain(BankAccountId={bankAccountId}, EnsureDocumentId={document.Id})...");
 
             // Rebuild entire chain from scratch (simpler and more reliable)
-            await RebuildBankBalanceChain(bankAccountId);
+            // Pass document ID to ensure it's included in rebuild
+            await RebuildBankBalanceChain(bankAccountId, document.Id);
+            _logger.LogInformation($"🟡 [ProcessBankBalanceHistoryForDocument] ✅ RebuildBankBalanceChain COMPLETED for BankAccountId={bankAccountId}");
 
             // Update the current balance entity
             var updatedBalance = await _context.BankAccountBalances
@@ -1413,42 +1430,86 @@ namespace ForexExchange.Services
         /// <param name="performedBy">Identifier of who processed the document (for audit trail)</param>
         public async Task ProcessAccountingDocumentAsync(AccountingDocument document, string performedBy = "System")
         {
-            _logger.LogInformation($"Processing accounting document ID: {document.Id}");
+            _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] START - Document ID: {document.Id}, IsVerified: {document.IsVerified}");
 
-            // CRITICAL: Use transaction to ensure atomicity for SQLite concurrency
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            // CRITICAL: Reload document from database to ensure we have latest state (especially IsVerified)
+            // This ensures the rebuild query will see the document that was just saved
+            var documentId = document.Id;
+            if (documentId > 0)
             {
-                // CRITICAL: Detach document if it's already tracked to avoid tracking conflicts
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] Document ID > 0, reloading from DB. DocumentId={documentId}");
+                
+                // CRITICAL: Clear change tracker to ensure fresh queries see committed data
+                // Single-user app: No need for complex transaction handling
+                _context.ChangeTracker.Clear();
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] ChangeTracker cleared");
+                
+                // Detach if tracked to avoid conflicts
                 var trackedEntity = _context.Entry(document);
                 if (trackedEntity.State != Microsoft.EntityFrameworkCore.EntityState.Detached)
                 {
-                    _logger.LogDebug($"Document {document.Id} is already tracked. Detaching to avoid conflicts.");
+                    _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] Document was tracked, detaching. State={trackedEntity.State}");
                     trackedEntity.State = Microsoft.EntityFrameworkCore.EntityState.Detached;
                 }
 
-                // Save document if not already saved
+                // CRITICAL: Use AsNoTracking() to query fresh from database, not cache
+                // This ensures we see the document that was just saved and committed
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] Querying document {documentId} from DB with AsNoTracking()...");
+                document = await _context.AccountingDocuments
+                    .AsNoTracking() // Query fresh from DB to see committed document
+                    .Include(d => d.PayerCustomer)
+                    .Include(d => d.ReceiverCustomer)
+                    .Include(d => d.PayerBankAccount)
+                    .Include(d => d.ReceiverBankAccount)
+                    .Include(d => d.Currency)
+                    .FirstOrDefaultAsync(d => d.Id == documentId);
+
+                if (document == null)
+                {
+                    _logger.LogError($"🔴 [ProcessAccountingDocumentAsync] Document {documentId} NOT FOUND in database!");
+                    throw new ArgumentException($"Document with ID {documentId} not found in database.");
+                }
+                
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] Document reloaded: Id={document.Id}, IsVerified={document.IsVerified}, IsDeleted={document.IsDeleted}, IsFrozen={document.IsFrozen}");
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] PayerType={document.PayerType}, PayerCustomerId={document.PayerCustomerId}, PayerBankAccountId={document.PayerBankAccountId}");
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] ReceiverType={document.ReceiverType}, ReceiverCustomerId={document.ReceiverCustomerId}, ReceiverBankAccountId={document.ReceiverBankAccountId}");
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] CurrencyId={document.CurrencyId}, Amount={document.Amount}");
+            }
+            else
+            {
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] Document ID is 0, will be saved as new");
+            }
+
+            // Single-user app: No transaction wrapper needed - document is already saved and committed
+            // This avoids SQLite transaction isolation issues
+            try
+            {
+                // Save document if not already saved (shouldn't happen for verification flow)
                 if (document.Id == 0)
                 {
+                    _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] Saving new document...");
                     _context.Add(document);
                     await _context.SaveChangesAsync();
+                    _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] New document saved with ID: {document.Id}");
                 }
 
-                _logger.LogInformation($"Document {document.Id} saved successfully. Starting fast balance update...");
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] Document {document.Id} ready. IsVerified={document.IsVerified}. Starting fast balance update...");
+
+                // CRITICAL: Clear change tracker again before rebuild to ensure fresh queries
+                // This ensures rebuild queries see the committed document
+                _context.ChangeTracker.Clear();
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] ChangeTracker cleared before UpdateBalancesForDocumentAsync");
 
                 // PERFORMANCE OPTIMIZATION: Use fast balance update instead of full rebuild
                 // Since coherence system (history) is already updated, we only need to update current balances
                 await UpdateBalancesForDocumentAsync(document, performedBy);
 
-                // Commit transaction only after all operations succeed
-                await transaction.CommitAsync();
-
-                _logger.LogInformation($"Document {document.Id} processing completed - fast balance update finished successfully");
+                _logger.LogInformation($"🔵 [ProcessAccountingDocumentAsync] ✅ COMPLETED - Document {document.Id} processing finished successfully");
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, $"Error processing accounting document for Document {document.Id}: {ex.Message}");
+                _logger.LogError(ex, $"🔴 [ProcessAccountingDocumentAsync] ❌ ERROR processing document {document.Id}: {ex.Message}");
+                _logger.LogError(ex, $"🔴 [ProcessAccountingDocumentAsync] Stack trace: {ex.StackTrace}");
                 throw; // Re-throw to let controller handle it and inform user
             }
         }
@@ -1551,9 +1612,27 @@ namespace ForexExchange.Services
                 // PERFORMANCE OPTIMIZATION: Configure SQLite for faster bulk operations
                 // NOTE: PRAGMA statements must be executed BEFORE starting a transaction
                 // SQLite doesn't allow changing safety level inside a transaction
-                await _context.Database.ExecuteSqlRawAsync("PRAGMA synchronous = NORMAL;"); // Faster than FULL, still safe
-                await _context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = WAL;"); // Ensure WAL mode
-                await _context.Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000;"); // 64MB cache for better performance
+                // NOTE: PRAGMA synchronous is skipped - it fails in WAL mode and has limited effect anyway
+
+                // Ensure WAL mode is enabled (most important for performance)
+                try
+                {
+                    await _context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = WAL;"); // Ensure WAL mode
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to set PRAGMA journal_mode = WAL (may already be in WAL mode or in transaction)");
+                }
+
+                // Set cache size (works in any mode)
+                try
+                {
+                    await _context.Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000;"); // 64MB cache for better performance
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to set PRAGMA cache_size (may be in transaction)");
+                }
 
                 using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
@@ -2388,75 +2467,435 @@ namespace ForexExchange.Services
 
         /// <summary>
         /// Rebuilds customer balance chain from scratch for a specific customer and currency.
-        /// This method gets all non-deleted transactions and rebuilds the entire chain.
-        /// Used for both creation and deletion operations.
+        /// Uses source of truth (Orders + Documents) matching full rebuild logic, filtered by customerId + currencyId.
+        /// Preserves manual records and only rebuilds non-manual history records.
         /// </summary>
-        private async Task RebuildCustomerBalanceChain(int customerId, int? currencyId, string? currencyCode = null)
+        /// <param name="customerId">Customer ID</param>
+        /// <param name="currencyId">Currency ID</param>
+        /// <param name="currencyCode">Currency code (optional, for display)</param>
+        /// <param name="ensureDocumentId">Optional document ID to ensure is included (for newly verified documents)</param>
+        private async Task RebuildCustomerBalanceChain(int customerId, int? currencyId, string? currencyCode = null, int? ensureDocumentId = null)
         {
+            _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] ═══ START ═══ CustomerId={customerId}, CurrencyId={currencyId}, CurrencyCode={currencyCode}, EnsureDocumentId={ensureDocumentId}");
+            
             // CurrencyId is REQUIRED, no fallback!
             if (!currencyId.HasValue)
             {
+                _logger.LogError($"🔴 [RebuildCustomerBalanceChain] CurrencyId is null for customer {customerId}!");
                 throw new ArgumentException($"CurrencyId is required for rebuilding customer balance chain for customer {customerId}.");
             }
 
-            // Get all non-deleted transactions for this customer and currency using CurrencyId directly
-            var query = _context.CustomerBalanceHistory
-                .Where(h => h.CustomerId == customerId && h.CurrencyId == currencyId.Value && !h.IsDeleted);
+            // Get Currency for CurrencyCode (for display/logging only)
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId.Value);
+            if (currency == null)
+            {
+                throw new ArgumentException($"Currency with ID {currencyId.Value} not found.");
+            }
+            var currencyCodeForBalance = currency.Code ?? "";
 
-            var allTransactions = await query
-                .OrderBy(h => h.TransactionDate)
-                .ThenBy(h => h.Id)
+            // STEP 1: Load source data - Orders for this customer+currency
+            // Match full rebuild: Include all non-deleted orders (frozen orders included for customer history)
+            var validOrders = await _context.Orders
+                .Where(o => o.CustomerId == customerId &&
+                           (o.FromCurrencyId == currencyId.Value || o.ToCurrencyId == currencyId.Value) &&
+                           !o.IsDeleted)
+                .Include(o => o.Customer)
+                .Include(o => o.FromCurrency)
+                .Include(o => o.ToCurrency)
+                .OrderBy(o => o.CreatedAt)
                 .ToListAsync();
 
-            // Rebuild the chain from scratch
-            decimal runningBalance = 0;
-            foreach (var transaction in allTransactions)
+            // STEP 2: Load source data - Documents for this customer+currency
+            // Match full rebuild: Only verified documents (!IsDeleted && IsVerified)
+            // Note: Document should be saved with IsVerified=true before rebuild is called
+            // CRITICAL: Use AsNoTracking() to ensure we query fresh from database, not from EF cache
+            // This ensures newly verified documents are included even if they were just saved
+            // CRITICAL: Query includes documents where this customer is EITHER payer OR receiver (handles customer-to-customer)
+            var allDocuments = await _context.AccountingDocuments
+                .AsNoTracking() // CRITICAL: Query fresh from DB, not cache - ensures newly saved documents are included
+                .Where(d => ((d.PayerType == PayerType.Customer && d.PayerCustomerId == customerId) ||
+                            (d.ReceiverType == ReceiverType.Customer && d.ReceiverCustomerId == customerId)) &&
+                           d.CurrencyId == currencyId.Value &&
+                           !d.IsDeleted &&
+                           d.IsVerified)
+                .Include(d => d.PayerCustomer)
+                .Include(d => d.ReceiverCustomer)
+                .Include(d => d.PayerBankAccount)
+                .Include(d => d.ReceiverBankAccount)
+                .Include(d => d.Currency)
+                .OrderBy(d => d.DocumentDate)
+                .ToListAsync();
+
+            _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] Query result: Found {allDocuments.Count} verified documents for customer {customerId}, currency {currencyId}");
+            if (allDocuments.Any())
             {
-                transaction.BalanceBefore = runningBalance;
-                transaction.BalanceAfter = runningBalance + transaction.TransactionAmount;
-                runningBalance = transaction.BalanceAfter;
+                _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] Document IDs found: {string.Join(", ", allDocuments.Select(d => d.Id))}");
+            }
+            _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] Looking for ensureDocumentId: {ensureDocumentId}");
+
+            // CRITICAL: If a specific document ID is provided, ALWAYS verify it's included
+            // This handles cases where newly verified documents might not be visible in query due to transaction isolation
+            // Even if found in query, we double-check to ensure it's the correct document
+            if (ensureDocumentId.HasValue)
+            {
+                var documentFound = allDocuments.Any(d => d.Id == ensureDocumentId.Value);
+                _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} found in initial query: {documentFound} for customer {customerId}");
+                
+                // CRITICAL: Always explicitly load the document to ensure we have the latest state
+                // This is especially important for newly verified documents that might not be visible in the query
+                // CRITICAL: Clear change tracker BEFORE query to ensure fresh data from database
+                _context.ChangeTracker.Clear();
+                _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] ChangeTracker cleared. Explicitly querying document {ensureDocumentId.Value} from DB...");
+                
+                // Try EF query with AsNoTracking to bypass cache
+                var ensureDocument = await _context.AccountingDocuments
+                    .AsNoTracking() // Query fresh from DB to ensure newly saved documents are found
+                    .Include(d => d.PayerCustomer)
+                    .Include(d => d.ReceiverCustomer)
+                    .Include(d => d.PayerBankAccount)
+                    .Include(d => d.ReceiverBankAccount)
+                    .Include(d => d.Currency)
+                    .FirstOrDefaultAsync(d => d.Id == ensureDocumentId.Value &&
+                                             d.CurrencyId == currencyId.Value &&
+                                             !d.IsDeleted &&
+                                             d.IsVerified);
+                
+                // If still not found, try querying without IsVerified filter to see what state it's in
+                if (ensureDocument == null)
+                {
+                    _logger.LogWarning($"🟡 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} NOT FOUND with IsVerified filter. Checking document state...");
+                    var docAnyState = await _context.AccountingDocuments
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(d => d.Id == ensureDocumentId.Value);
+                    
+                    if (docAnyState != null)
+                    {
+                        _logger.LogWarning($"🟡 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} EXISTS but: IsVerified={docAnyState.IsVerified}, IsDeleted={docAnyState.IsDeleted}, CurrencyId={docAnyState.CurrencyId} (expected: {currencyId.Value})");
+                        
+                        // If document exists but IsVerified is false, that's the problem!
+                        if (!docAnyState.IsVerified)
+                        {
+                            _logger.LogError($"🔴 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} is NOT VERIFIED! IsVerified={docAnyState.IsVerified}. This is why it's not in history!");
+                        }
+                        
+                        // If CurrencyId doesn't match, that's also a problem
+                        if (docAnyState.CurrencyId != currencyId.Value)
+                        {
+                            _logger.LogError($"🔴 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} CurrencyId mismatch! Document has {docAnyState.CurrencyId}, expected {currencyId.Value}");
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogError($"🔴 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} DOES NOT EXIST in database at all!");
+                    }
+                }
+
+                _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] Explicit query result for {ensureDocumentId.Value}: Found={ensureDocument != null}");
+                if (ensureDocument != null)
+                {
+                    _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] Document details: Id={ensureDocument.Id}, IsVerified={ensureDocument.IsVerified}, IsDeleted={ensureDocument.IsDeleted}");
+                    _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] PayerType={ensureDocument.PayerType}, PayerCustomerId={ensureDocument.PayerCustomerId}");
+                    _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] ReceiverType={ensureDocument.ReceiverType}, ReceiverCustomerId={ensureDocument.ReceiverCustomerId}");
+                    _logger.LogInformation($"🟢 [RebuildCustomerBalanceChain] CurrencyId={ensureDocument.CurrencyId}, Amount={ensureDocument.Amount}");
+                }
+                else
+                {
+                    _logger.LogWarning($"🟡 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} NOT FOUND in explicit query!");
+                    // Try querying without IsVerified filter to see if it exists
+                    var docWithoutFilter = await _context.AccountingDocuments
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(d => d.Id == ensureDocumentId.Value);
+                    if (docWithoutFilter != null)
+                    {
+                        _logger.LogWarning($"🟡 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} EXISTS but: IsVerified={docWithoutFilter.IsVerified}, IsDeleted={docWithoutFilter.IsDeleted}, CurrencyId={docWithoutFilter.CurrencyId}");
+                    }
+                    else
+                    {
+                        _logger.LogError($"🔴 [RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} DOES NOT EXIST in database at all!");
+                    }
+                }
+
+                // Check if this customer is involved in the document (as payer OR receiver)
+                if (ensureDocument != null)
+                {
+                    var isPayer = ensureDocument.PayerType == PayerType.Customer && ensureDocument.PayerCustomerId == customerId;
+                    var isReceiver = ensureDocument.ReceiverType == ReceiverType.Customer && ensureDocument.ReceiverCustomerId == customerId;
+                    
+                    _logger.LogInformation($"[RebuildCustomerBalanceChain] Customer {customerId} involvement: IsPayer={isPayer}, IsReceiver={isReceiver}");
+                    
+                    if (isPayer || isReceiver)
+                    {
+                        // Only add if not already in the list (avoid duplicates)
+                        if (!allDocuments.Any(d => d.Id == ensureDocumentId.Value))
+                        {
+                            allDocuments.Add(ensureDocument);
+                            allDocuments = allDocuments.OrderBy(d => d.DocumentDate).ToList();
+                            _logger.LogInformation($"✅ Explicitly included document {ensureDocumentId.Value} in rebuild for customer {customerId}, currency {currencyId} (role: {(isPayer ? "Payer" : "Receiver")})");
+                        }
+                        else
+                        {
+                            _logger.LogInformation($"[RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} already in list, skipping duplicate");
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"[RebuildCustomerBalanceChain] Document {ensureDocumentId.Value} found but customer {customerId} is not involved (PayerCustomerId={ensureDocument.PayerCustomerId}, ReceiverCustomerId={ensureDocument.ReceiverCustomerId})");
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning($"[RebuildCustomerBalanceChain] ⚠️ Document {ensureDocumentId.Value} NOT FOUND in database or not verified for customer {customerId}, currency {currencyId}. This may indicate the document wasn't saved or committed yet.");
+                }
             }
 
-            // Update customer balance using CurrencyId directly - CurrencyId is REQUIRED!
+            // STEP 3: Load manual records (to preserve them)
+            var manualRecords = await _context.CustomerBalanceHistory
+                .Where(h => h.CustomerId == customerId &&
+                           h.CurrencyId == currencyId.Value &&
+                           h.TransactionType == CustomerBalanceTransactionType.Manual &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            // Cache manual records by ID for lookup
+            var existingManualRecordsCache = manualRecords.ToDictionary(h => h.Id);
+
+            // STEP 4: Build transaction items from source data (same format as full rebuild)
+            var customerTransactionItems = new List<(int CustomerId, int? CurrencyId, string CurrencyCode, DateTime TransactionDate, string TransactionType, string transactionCode, int? ReferenceId, decimal Amount, string Description, string Note)>();
+
+            // Add order transactions
+            foreach (var o in validOrders)
+            {
+                var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
+                var toCurrencyCode = (o.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
+
+                // Get original Notes to avoid duplication
+                var originalDescription = o.Notes;
+                if (!string.IsNullOrWhiteSpace(originalDescription))
+                {
+                    var generatedPattern = $"BUY {o.FromAmount.FormatCurrency(o.FromCurrency?.Code ?? "")} {o.FromCurrency?.Code ?? ""} | SELL";
+                    if (originalDescription.Contains(generatedPattern))
+                    {
+                        var parts = originalDescription.Split('|');
+                        if (parts.Length > 4)
+                        {
+                            originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
+                        }
+                        else
+                        {
+                            originalDescription = "";
+                        }
+                    }
+                }
+
+                var orderDescription = HistoryDescriptionHelper.GenerateOrderDescription(o);
+                var fromDescription = orderDescription;
+                var toDescription = orderDescription;
+                var fromNote = orderDescription;
+                var toNote = orderDescription;
+
+                // Only add transactions for the target currency
+                if (o.FromCurrencyId == currencyId.Value)
+                {
+                    customerTransactionItems.Add((o.CustomerId, (int?)o.FromCurrencyId, fromCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, -o.FromAmount, fromDescription, fromNote));
+                }
+                if (o.ToCurrencyId == currencyId.Value)
+                {
+                    customerTransactionItems.Add((o.CustomerId, (int?)o.ToCurrencyId, toCurrencyCode, o.CreatedAt, "Order", o.Id.ToString(), o.Id, o.ToAmount, toDescription, toNote));
+                }
+            }
+
+            // Add document transactions
+            _logger.LogInformation($"[RebuildCustomerBalanceChain] Processing {allDocuments.Count} documents for customer {customerId}, currency {currencyId}");
+            bool ensureDocumentIncluded = false;
+            foreach (var d in allDocuments)
+            {
+                var documentCurrencyCode = (d.CurrencyCode ?? "").ToUpperInvariant().Trim();
+                var payerDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Payer");
+                var receiverDescription = HistoryDescriptionHelper.GenerateDocumentDescription(d, "Receiver");
+                var note = HistoryDescriptionHelper.GenerateDocumentNote(d);
+
+                // Track if the ensureDocumentId is included
+                if (ensureDocumentId.HasValue && d.Id == ensureDocumentId.Value)
+                {
+                    ensureDocumentIncluded = true;
+                }
+
+                // For customer-to-customer documents, add transaction for this customer if they're involved
+                if (d.PayerType == PayerType.Customer && d.PayerCustomerId == customerId)
+                {
+                    customerTransactionItems.Add((d.PayerCustomerId.Value, d.CurrencyId, documentCurrencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, d.Amount, payerDescription, note));
+                    _logger.LogInformation($"[RebuildCustomerBalanceChain] ✅ Added PAYER transaction for document {d.Id}: customer {customerId} gets +{d.Amount} {documentCurrencyCode}");
+                }
+                if (d.ReceiverType == ReceiverType.Customer && d.ReceiverCustomerId == customerId)
+                {
+                    customerTransactionItems.Add((d.ReceiverCustomerId.Value, d.CurrencyId, documentCurrencyCode, d.DocumentDate, "Document", d.ReferenceNumber ?? string.Empty, d.Id, -d.Amount, receiverDescription, note));
+                    _logger.LogInformation($"[RebuildCustomerBalanceChain] ✅ Added RECEIVER transaction for document {d.Id}: customer {customerId} gets -{d.Amount} {documentCurrencyCode}");
+                }
+            }
+            
+            if (ensureDocumentId.HasValue)
+            {
+                if (ensureDocumentIncluded)
+                {
+                    _logger.LogInformation($"[RebuildCustomerBalanceChain] ✅ Document {ensureDocumentId.Value} successfully included in transaction items for customer {customerId}");
+                }
+                else
+                {
+                    _logger.LogWarning($"[RebuildCustomerBalanceChain] ⚠️ Document {ensureDocumentId.Value} NOT included in transaction items for customer {customerId} - this may cause missing history!");
+                }
+            }
+
+            // Add manual records as transactions
+            foreach (var manual in manualRecords)
+            {
+                var manualCurrencyCode = (manual.CurrencyCode ?? "").ToUpperInvariant().Trim();
+                var manualDescription = HistoryDescriptionHelper.GenerateManualDescription(
+                    manual.Description ?? "Manual adjustment",
+                    manual.TransactionAmount,
+                    manualCurrencyCode);
+                var manualNote = $"Manual Adjustment - Amount: {manual.TransactionAmount.FormatCurrency(manualCurrencyCode)} {manualCurrencyCode}";
+                if (!string.IsNullOrWhiteSpace(manual.Description))
+                {
+                    manualNote += $" | Reason: {manual.Description}";
+                }
+
+                customerTransactionItems.Add((
+                    manual.CustomerId,
+                    manual.CurrencyId,
+                    manualCurrencyCode,
+                    manual.TransactionDate,
+                    "Manual",
+                    string.Empty,
+                    (int?)manual.Id,
+                    manual.TransactionAmount,
+                    manualDescription,
+                    manualNote
+                ));
+            }
+
+            // STEP 5: Clear non-manual history records for this customer+currency only
+            var nonManualHistoryRecords = await _context.CustomerBalanceHistory
+                .Where(h => h.CustomerId == customerId &&
+                           h.CurrencyId == currencyId.Value &&
+                           h.TransactionType != CustomerBalanceTransactionType.Manual &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            _context.CustomerBalanceHistory.RemoveRange(nonManualHistoryRecords);
+
+            // STEP 6: Process transactions chronologically and create history records
+            var orderedTransactions = customerTransactionItems
+                .OrderBy(x => x.TransactionDate)
+                .ThenBy(x => x.ReferenceId ?? 0)
+                .ToList();
+
+            _logger.LogInformation($"[RebuildCustomerBalanceChain] Total transaction items: {orderedTransactions.Count} (Orders: {orderedTransactions.Count(t => t.TransactionType == "Order")}, Documents: {orderedTransactions.Count(t => t.TransactionType == "Document")}, Manual: {orderedTransactions.Count(t => t.TransactionType == "Manual")})");
+
+            decimal runningBalance = 0;
+            var newHistoryRecords = new List<CustomerBalanceHistory>();
+
+            foreach (var transaction in orderedTransactions)
+            {
+                var transactionType = transaction.TransactionType switch
+                {
+                    "Order" => CustomerBalanceTransactionType.Order,
+                    "Document" => CustomerBalanceTransactionType.AccountingDocument,
+                    "Manual" => CustomerBalanceTransactionType.Manual,
+                    _ => CustomerBalanceTransactionType.AccountingDocument
+                };
+
+                // For manual records, update existing record instead of creating new one
+                if (transactionType == CustomerBalanceTransactionType.Manual &&
+                    transaction.ReferenceId.HasValue &&
+                    existingManualRecordsCache.TryGetValue(transaction.ReferenceId.Value, out var existingManual))
+                {
+                    existingManual.BalanceBefore = runningBalance;
+                    existingManual.BalanceAfter = runningBalance + transaction.Amount;
+                    existingManual.CurrencyId = currencyId; // Ensure CurrencyId is set
+                    runningBalance = existingManual.BalanceAfter;
+                    continue;
+                }
+
+                // For non-manual records, create new history record
+                var transactionTypeDisplay = transactionType == CustomerBalanceTransactionType.Manual
+                    ? "Manual Adjustment"
+                    : transactionType.ToString();
+                var note = !string.IsNullOrEmpty(transaction.Note) ? transaction.Note :
+                    $"{transactionTypeDisplay} - Amount: {transaction.Amount.FormatCurrency(transaction.CurrencyCode)} {transaction.CurrencyCode}";
+                if (string.IsNullOrEmpty(transaction.Note) && !string.IsNullOrEmpty(transaction.transactionCode))
+                    note += $" - Transaction ID: {transaction.transactionCode}";
+
+                newHistoryRecords.Add(new CustomerBalanceHistory
+                {
+                    CustomerId = customerId,
+                    CurrencyId = currencyId,
+                    CurrencyCode = currencyCodeForBalance,
+                    TransactionType = transactionType,
+                    ReferenceId = transaction.ReferenceId,
+                    BalanceBefore = runningBalance,
+                    TransactionAmount = transaction.Amount,
+                    BalanceAfter = runningBalance + transaction.Amount,
+                    Description = transaction.Description,
+                    TransactionNumber = transaction.transactionCode,
+                    Note = note,
+                    TransactionDate = transaction.TransactionDate,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = "System",
+                    IsDeleted = false
+                });
+
+                runningBalance = newHistoryRecords.Last().BalanceAfter;
+            }
+
+            // Save new history records
+            if (newHistoryRecords.Any())
+            {
+                await _context.CustomerBalanceHistory.AddRangeAsync(newHistoryRecords);
+            }
+
+            // STEP 7: Update customer balance
             var customerBalance = await _context.CustomerBalances
                 .FirstOrDefaultAsync(cb => cb.CustomerId == customerId && cb.CurrencyId == currencyId.Value);
 
             if (customerBalance != null)
             {
+                var oldBalance = customerBalance.Balance;
                 customerBalance.Balance = runningBalance;
                 customerBalance.LastUpdated = DateTime.Now;
 
-                // Ensure CurrencyId is set if we have it
-                if (currencyId.HasValue && !customerBalance.CurrencyId.HasValue)
+                if (!customerBalance.CurrencyId.HasValue)
                 {
                     customerBalance.CurrencyId = currencyId.Value;
                 }
+                
+                _logger.LogInformation($"[RebuildCustomerBalanceChain] ✅ Updated balance for customer {customerId}, currency {currencyId}: {oldBalance} → {runningBalance} (change: {runningBalance - oldBalance})");
             }
-            else if (allTransactions.Any())
+            else if (orderedTransactions.Any())
             {
-                // Get CurrencyCode from Currency for backward compatibility
-                var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId.Value);
-                var currencyCodeForBalance = currency?.Code ?? "";
-
-                // Create balance record if it doesn't exist but we have transactions
                 customerBalance = new CustomerBalance
                 {
                     CustomerId = customerId,
-                    CurrencyId = currencyId.Value, // CurrencyId is REQUIRED!
-                    CurrencyCode = currencyCodeForBalance, // Get from Currency navigation property for backward compatibility
+                    CurrencyId = currencyId.Value,
+                    CurrencyCode = currencyCodeForBalance,
                     Balance = runningBalance,
                     LastUpdated = DateTime.Now
                 };
                 _context.CustomerBalances.Add(customerBalance);
+                _logger.LogInformation($"[RebuildCustomerBalanceChain] ✅ Created new balance for customer {customerId}, currency {currencyId}: {runningBalance}");
+            }
+            else
+            {
+                _logger.LogInformation($"[RebuildCustomerBalanceChain] No balance update needed for customer {customerId}, currency {currencyId} (no transactions)");
             }
 
             await _context.SaveChangesAsync();
+            _logger.LogInformation($"[RebuildCustomerBalanceChain] ✅ Completed rebuild for customer {customerId}, currency {currencyId}. Final balance: {runningBalance}, History records: {newHistoryRecords.Count}");
         }
 
         /// <summary>
         /// Rebuilds pool balance chain from scratch for a specific currency.
-        /// This method gets all non-deleted transactions and rebuilds the entire chain.
-        /// Used for both creation and deletion operations.
+        /// Uses source of truth (Orders) matching full rebuild logic, filtered by currencyId.
+        /// Excludes frozen orders. Preserves manual records and only rebuilds non-manual history records.
         /// </summary>
         private async Task RebuildPoolBalanceChain(int? currencyId, string? currencyCode = null)
         {
@@ -2466,46 +2905,189 @@ namespace ForexExchange.Services
                 throw new ArgumentException($"CurrencyId is required for rebuilding pool balance chain.");
             }
 
-            // Get all non-deleted pool transactions for this currency using CurrencyId directly
-            var query = _context.CurrencyPoolHistory
-                .Where(h => h.CurrencyId == currencyId.Value && !h.IsDeleted);
-
-            var allTransactions = await query
-                .OrderBy(h => h.TransactionDate)
-                .ThenBy(h => h.Id)
-                .ToListAsync();
-
-            // Rebuild the chain from scratch
-            decimal runningBalance = 0;
-            foreach (var transaction in allTransactions)
-            {
-                transaction.BalanceBefore = runningBalance;
-                transaction.BalanceAfter = runningBalance + transaction.TransactionAmount;
-                runningBalance = transaction.BalanceAfter;
-
-                // Ensure CurrencyId is set if we have it
-                if (currencyId.HasValue && !transaction.CurrencyId.HasValue)
-                {
-                    transaction.CurrencyId = currencyId.Value;
-                }
-            }
-
-            // Load and update the CurrencyPool entity using CurrencyId directly
-            var currency = await _context.Currencies
-                .FirstOrDefaultAsync(c => c.Id == currencyId.Value);
-
+            // Get Currency for CurrencyCode (for display/logging only)
+            var currency = await _context.Currencies.FirstOrDefaultAsync(c => c.Id == currencyId.Value);
             if (currency == null)
             {
                 throw new ArgumentException($"Currency with ID {currencyId.Value} not found.");
             }
+            var currencyCodeForBalance = currency.Code ?? "";
 
-            // Currency is already validated above, so it cannot be null here
+            // STEP 1: Load source data - Orders for this currency
+            // Match full rebuild: Exclude frozen orders (!IsDeleted && !IsFrozen)
+            var activeOrders = await _context.Orders
+                .Where(o => (o.FromCurrencyId == currencyId.Value || o.ToCurrencyId == currencyId.Value) &&
+                           !o.IsDeleted &&
+                           !o.IsFrozen)
+                .Include(o => o.Customer)
+                .Include(o => o.FromCurrency)
+                .Include(o => o.ToCurrency)
+                .OrderBy(o => o.CreatedAt)
+                .ToListAsync();
+
+            // STEP 2: Load manual records (to preserve them)
+            var manualRecords = await _context.CurrencyPoolHistory
+                .Where(h => h.CurrencyId == currencyId.Value &&
+                           h.TransactionType == CurrencyPoolTransactionType.ManualEdit &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            // Cache manual records by ID for lookup
+            var existingManualRecordsCache = manualRecords.ToDictionary(h => h.Id);
+
+            // STEP 3: Build transaction items from source data (same format as full rebuild)
+            var poolTransactionItems = new List<(int? CurrencyId, string CurrencyCode, DateTime TransactionDate, string TransactionType, int? ReferenceId, decimal Amount, string PoolTransactionType, string Description, decimal Rate)>();
+
+            // Add order transactions
+            foreach (var o in activeOrders)
+            {
+                var fromCurrencyCode = (o.FromCurrency?.Code ?? "").ToUpperInvariant().Trim();
+                var toCurrencyCode = (o.ToCurrency?.Code ?? "").ToUpperInvariant().Trim();
+                var customerName = o.Customer?.FullName ?? "Unknown";
+
+                // Get original description from order Notes
+                var originalDescription = o.Notes;
+                if (!string.IsNullOrWhiteSpace(originalDescription))
+                {
+                    var generatedPattern = $"BUY {o.FromAmount.FormatCurrency(o.FromCurrency?.Code ?? "")} {o.FromCurrency?.Code ?? ""} | SELL";
+                    if (originalDescription.Contains(generatedPattern))
+                    {
+                        var parts = originalDescription.Split('|');
+                        if (parts.Length > 4)
+                        {
+                            originalDescription = string.Join(" | ", parts.Skip(4)).Trim();
+                        }
+                        else
+                        {
+                            originalDescription = "";
+                        }
+                    }
+                }
+
+                // Only add transactions for the target currency
+                if (o.FromCurrencyId == currencyId.Value)
+                {
+                    var buyDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(fromCurrencyCode, o.FromAmount, "Buy", o.Id, o.Rate, customerName, originalDescription);
+                    poolTransactionItems.Add((o.FromCurrencyId, fromCurrencyCode, o.CreatedAt, "Order", o.Id, o.FromAmount, "Buy", buyDescription, o.Rate));
+                }
+                if (o.ToCurrencyId == currencyId.Value)
+                {
+                    var sellDescription = HistoryDescriptionHelper.GeneratePoolHistoryDescription(toCurrencyCode, -o.ToAmount, "Sell", o.Id, o.Rate, customerName, originalDescription);
+                    poolTransactionItems.Add((o.ToCurrencyId, toCurrencyCode, o.CreatedAt, "Order", o.Id, -o.ToAmount, "Sell", sellDescription, o.Rate));
+                }
+            }
+
+            // Add manual records as transactions
+            foreach (var manual in manualRecords)
+            {
+                var manualCurrencyCode = (manual.CurrencyCode ?? "").ToUpperInvariant().Trim();
+                poolTransactionItems.Add((
+                    manual.CurrencyId,
+                    manualCurrencyCode,
+                    manual.TransactionDate,
+                    "Manual",
+                    (int?)manual.Id,
+                    manual.TransactionAmount,
+                    "Manual",
+                    manual.Description ?? "Manual adjustment",
+                    0m
+                ));
+            }
+
+            // STEP 4: Clear non-manual history records for this currency only
+            var nonManualHistoryRecords = await _context.CurrencyPoolHistory
+                .Where(h => h.CurrencyId == currencyId.Value &&
+                           h.TransactionType != CurrencyPoolTransactionType.ManualEdit &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            _context.CurrencyPoolHistory.RemoveRange(nonManualHistoryRecords);
+
+            // STEP 5: Process transactions chronologically and create history records
+            var orderedTransactions = poolTransactionItems
+                .OrderBy(x => x.TransactionDate)
+                .ThenBy(x => x.ReferenceId ?? 0)
+                .ToList();
+
+            decimal runningBalance = 0;
+            int buyCount = 0, sellCount = 0;
+            decimal totalBought = 0, totalSold = 0;
+            var newHistoryRecords = new List<CurrencyPoolHistory>();
+
+            foreach (var transaction in orderedTransactions)
+            {
+                var transactionType = transaction.TransactionType switch
+                {
+                    "Order" => CurrencyPoolTransactionType.Order,
+                    "Manual" => CurrencyPoolTransactionType.ManualEdit,
+                    _ => CurrencyPoolTransactionType.Order
+                };
+
+                // For manual records, update existing record instead of creating new one
+                if (transactionType == CurrencyPoolTransactionType.ManualEdit &&
+                    transaction.ReferenceId.HasValue &&
+                    existingManualRecordsCache.TryGetValue(transaction.ReferenceId.Value, out var existingManual))
+                {
+                    existingManual.BalanceBefore = runningBalance;
+                    existingManual.BalanceAfter = runningBalance + transaction.Amount;
+                    existingManual.CurrencyId = currencyId; // Ensure CurrencyId is set
+                    runningBalance = existingManual.BalanceAfter;
+                    continue;
+                }
+
+                // For non-manual records, create new history record
+                newHistoryRecords.Add(new CurrencyPoolHistory
+                {
+                    CurrencyId = currencyId,
+                    CurrencyCode = transaction.CurrencyCode,
+                    TransactionType = transactionType,
+                    ReferenceId = transaction.ReferenceId,
+                    BalanceBefore = runningBalance,
+                    TransactionAmount = transaction.Amount,
+                    BalanceAfter = runningBalance + transaction.Amount,
+                    PoolTransactionType = transaction.PoolTransactionType,
+                    Description = transaction.Description,
+                    TransactionDate = transaction.TransactionDate,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = "System",
+                    IsDeleted = false
+                });
+
+                runningBalance = newHistoryRecords.Last().BalanceAfter;
+
+                // Update counts and totals for orders only (not manual records)
+                if (transaction.TransactionType == "Order")
+                {
+                    if (transaction.PoolTransactionType == "Buy")
+                    {
+                        buyCount++;
+                        totalBought += transaction.Amount;
+                    }
+                    else if (transaction.PoolTransactionType == "Sell")
+                    {
+                        sellCount++;
+                        totalSold += Math.Abs(transaction.Amount);
+                    }
+                }
+            }
+
+            // Save new history records
+            if (newHistoryRecords.Any())
+            {
+                await _context.CurrencyPoolHistory.AddRangeAsync(newHistoryRecords);
+            }
+
+            // STEP 6: Update pool balance and statistics
             var poolBalance = await _context.CurrencyPools
-                .FirstOrDefaultAsync(p => p.CurrencyId == currency.Id);
+                .FirstOrDefaultAsync(p => p.CurrencyId == currencyId.Value);
 
             if (poolBalance != null)
             {
                 poolBalance.Balance = runningBalance;
+                poolBalance.ActiveBuyOrderCount = buyCount;
+                poolBalance.ActiveSellOrderCount = sellCount;
+                poolBalance.TotalBought = totalBought;
+                poolBalance.TotalSold = totalSold;
                 poolBalance.LastUpdated = DateTime.Now;
             }
 
@@ -2514,28 +3096,220 @@ namespace ForexExchange.Services
 
         /// <summary>
         /// Rebuilds bank account balance chain from scratch for a specific bank account.
-        /// This method gets all non-deleted transactions and rebuilds the entire chain.
-        /// Used for both creation and deletion operations.
+        /// Uses source of truth (Documents) matching full rebuild logic, filtered by bankAccountId.
+        /// Excludes frozen and unverified documents. Preserves manual records and only rebuilds non-manual history records.
         /// </summary>
-        private async Task RebuildBankBalanceChain(int bankAccountId)
+        /// <param name="bankAccountId">Bank account ID</param>
+        /// <param name="ensureDocumentId">Optional document ID to ensure is included (for newly verified documents)</param>
+        private async Task RebuildBankBalanceChain(int bankAccountId, int? ensureDocumentId = null)
         {
-            // Get all non-deleted bank transactions for this account
-            var allTransactions = await _context.BankAccountBalanceHistory
-                .Where(h => h.BankAccountId == bankAccountId && !h.IsDeleted)
-                .OrderBy(h => h.TransactionDate)
-                .ThenBy(h => h.Id)
+            _logger.LogInformation($"🟢 [RebuildBankBalanceChain] ═══ START ═══ BankAccountId={bankAccountId}, EnsureDocumentId={ensureDocumentId}");
+            
+            // STEP 1: Load source data - Documents for this bank account
+            // Match full rebuild: Exclude frozen and unverified (!IsDeleted && !IsFrozen && IsVerified)
+            // Note: Document should be saved with IsVerified=true before rebuild is called
+            // CRITICAL: Use AsNoTracking() to ensure we query fresh from database, not from EF cache
+            // This ensures newly verified documents are included even if they were just saved
+            var allDocuments = await _context.AccountingDocuments
+                .AsNoTracking() // CRITICAL: Query fresh from DB, not cache - ensures newly saved documents are included
+                .Where(d => ((d.PayerType == PayerType.System && d.PayerBankAccountId == bankAccountId) ||
+                            (d.ReceiverType == ReceiverType.System && d.ReceiverBankAccountId == bankAccountId)) &&
+                           !d.IsDeleted &&
+                           !d.IsFrozen &&
+                           d.IsVerified)
+                .Include(d => d.PayerBankAccount)
+                .Include(d => d.ReceiverBankAccount)
+                .Include(d => d.Currency)
+                .OrderBy(d => d.DocumentDate)
                 .ToListAsync();
 
-            // Rebuild the chain from scratch
-            decimal runningBalance = 0;
-            foreach (var transaction in allTransactions)
+            // CRITICAL: If a specific document ID is provided, ALWAYS verify it's included
+            // This handles cases where newly verified documents might not be visible in query due to transaction isolation
+            // Even if found in query, we double-check to ensure it's the correct document
+            if (ensureDocumentId.HasValue)
             {
-                transaction.BalanceBefore = runningBalance;
-                transaction.BalanceAfter = runningBalance + transaction.TransactionAmount;
-                runningBalance = transaction.BalanceAfter;
+                var documentFound = allDocuments.Any(d => d.Id == ensureDocumentId.Value);
+                _logger.LogInformation($"[RebuildBankBalanceChain] Document {ensureDocumentId.Value} found in initial query: {documentFound} for bank account {bankAccountId}");
+                
+                // CRITICAL: Always explicitly load the document to ensure we have the latest state
+                // This is especially important for newly verified documents that might not be visible in the query
+                // Use AsNoTracking() to query fresh from DB, bypassing any cache or change tracker
+                var ensureDocument = await _context.AccountingDocuments
+                    .AsNoTracking() // Query fresh from DB to ensure newly saved documents are found
+                    .Include(d => d.PayerBankAccount)
+                    .Include(d => d.ReceiverBankAccount)
+                    .Include(d => d.Currency)
+                    .FirstOrDefaultAsync(d => d.Id == ensureDocumentId.Value &&
+                                             ((d.PayerType == PayerType.System && d.PayerBankAccountId == bankAccountId) ||
+                                              (d.ReceiverType == ReceiverType.System && d.ReceiverBankAccountId == bankAccountId)) &&
+                                             !d.IsDeleted &&
+                                             !d.IsFrozen &&
+                                             d.IsVerified);
+
+                _logger.LogInformation($"[RebuildBankBalanceChain] Explicitly loaded document {ensureDocumentId.Value}: Found={ensureDocument != null}, IsVerified={ensureDocument?.IsVerified}");
+
+                if (ensureDocument != null)
+                {
+                    // Only add if not already in the list (avoid duplicates)
+                    if (!allDocuments.Any(d => d.Id == ensureDocumentId.Value))
+                    {
+                        allDocuments.Add(ensureDocument);
+                        allDocuments = allDocuments.OrderBy(d => d.DocumentDate).ToList();
+                        _logger.LogInformation($"✅ Explicitly included document {ensureDocumentId.Value} in rebuild for bank account {bankAccountId}");
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"[RebuildBankBalanceChain] Document {ensureDocumentId.Value} already in list, skipping duplicate");
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning($"[RebuildBankBalanceChain] ⚠️ Document {ensureDocumentId.Value} NOT FOUND in database or not verified for bank account {bankAccountId}. This may indicate the document wasn't saved or committed yet.");
+                }
             }
 
-            // Update bank balance
+            // STEP 2: Load manual records (to preserve them)
+            var manualRecords = await _context.BankAccountBalanceHistory
+                .Where(h => h.BankAccountId == bankAccountId &&
+                           h.TransactionType == BankAccountTransactionType.ManualEdit &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            // Cache manual records by ID for lookup
+            var existingManualRecordsCache = manualRecords.ToDictionary(h => h.Id);
+
+            // STEP 3: Build transaction items from source data (same format as full rebuild)
+            var bankAccountTransactionItems = new List<(int BankAccountId, string CurrencyCode, DateTime TransactionDate, string TransactionType, int? ReferenceId, decimal Amount, string Description)>();
+
+            // Add document transactions
+            foreach (var d in allDocuments)
+            {
+                var normalizedCurrencyCode = (d.CurrencyCode ?? "").ToUpperInvariant().Trim();
+
+                // Use helper to generate English descriptions
+                var payerDescription = HistoryDescriptionHelper.GenerateBankHistoryDescription(d, d.PayerBankAccount);
+                var receiverDescription = HistoryDescriptionHelper.GenerateBankHistoryDescription(d, d.ReceiverBankAccount);
+
+                // If document has Description, append it to descriptions
+                if (!string.IsNullOrWhiteSpace(d.Description))
+                {
+                    if (!string.IsNullOrWhiteSpace(payerDescription))
+                    {
+                        payerDescription = $"{payerDescription}\n\nDescription: {d.Description}";
+                    }
+                    else
+                    {
+                        payerDescription = $"Description: {d.Description}";
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(receiverDescription))
+                    {
+                        receiverDescription = $"{receiverDescription}\n\nDescription: {d.Description}";
+                    }
+                    else
+                    {
+                        receiverDescription = $"Description: {d.Description}";
+                    }
+                }
+
+                if (d.PayerType == PayerType.System && d.PayerBankAccountId == bankAccountId && d.ReceiverType == ReceiverType.System && d.ReceiverBankAccountId.HasValue)
+                {
+                    // Both sides are system bank accounts: create two transactions
+                    bankAccountTransactionItems.Add((d.PayerBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "system bank to bank", d.Id, d.Amount, payerDescription));
+                    // Only add receiver transaction if it's for this bank account
+                    if (d.ReceiverBankAccountId == bankAccountId)
+                    {
+                        bankAccountTransactionItems.Add((d.ReceiverBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "system bank to bank", d.Id, -(d.Amount), receiverDescription));
+                    }
+                }
+                else
+                {
+                    // Single side system bank account transactions
+                    if (d.PayerType == PayerType.System && d.PayerBankAccountId == bankAccountId)
+                        bankAccountTransactionItems.Add((d.PayerBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "payment document", d.Id, d.Amount, payerDescription));
+                    if (d.ReceiverType == ReceiverType.System && d.ReceiverBankAccountId == bankAccountId)
+                        bankAccountTransactionItems.Add((d.ReceiverBankAccountId.Value, normalizedCurrencyCode, d.DocumentDate, "reciept document", d.Id, -(d.Amount), receiverDescription));
+                }
+            }
+
+            // Add manual records as transactions
+            foreach (var manual in manualRecords)
+            {
+                bankAccountTransactionItems.Add((
+                    manual.BankAccountId,
+                    "N/A",
+                    manual.TransactionDate,
+                    "Manual",
+                    (int?)manual.Id,
+                    manual.TransactionAmount,
+                    manual.Description ?? "Manual adjustment"
+                ));
+            }
+
+            // STEP 4: Clear non-manual history records for this bank account only
+            var nonManualHistoryRecords = await _context.BankAccountBalanceHistory
+                .Where(h => h.BankAccountId == bankAccountId &&
+                           h.TransactionType != BankAccountTransactionType.ManualEdit &&
+                           !h.IsDeleted)
+                .ToListAsync();
+
+            _context.BankAccountBalanceHistory.RemoveRange(nonManualHistoryRecords);
+
+            // STEP 5: Process transactions chronologically and create history records
+            var orderedTransactions = bankAccountTransactionItems
+                .OrderBy(x => x.TransactionDate)
+                .ThenBy(x => x.ReferenceId ?? 0)
+                .ToList();
+
+            decimal runningBalance = 0;
+            var newHistoryRecords = new List<BankAccountBalanceHistory>();
+
+            foreach (var transaction in orderedTransactions)
+            {
+                var transactionType = transaction.TransactionType switch
+                {
+                    "Document" => BankAccountTransactionType.Document,
+                    "Manual" => BankAccountTransactionType.ManualEdit,
+                    _ => BankAccountTransactionType.Document
+                };
+
+                // For manual records, update existing record instead of creating new one
+                if (transactionType == BankAccountTransactionType.ManualEdit &&
+                    transaction.ReferenceId.HasValue &&
+                    existingManualRecordsCache.TryGetValue(transaction.ReferenceId.Value, out var existingManual))
+                {
+                    existingManual.BalanceBefore = runningBalance;
+                    existingManual.BalanceAfter = runningBalance + transaction.Amount;
+                    runningBalance = existingManual.BalanceAfter;
+                    continue;
+                }
+
+                // For non-manual records, create new history record
+                newHistoryRecords.Add(new BankAccountBalanceHistory
+                {
+                    BankAccountId = bankAccountId,
+                    TransactionType = transactionType,
+                    ReferenceId = transaction.ReferenceId,
+                    BalanceBefore = runningBalance,
+                    TransactionAmount = transaction.Amount,
+                    BalanceAfter = runningBalance + transaction.Amount,
+                    Description = transaction.Description,
+                    TransactionDate = transaction.TransactionDate,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = "System",
+                    IsDeleted = false
+                });
+
+                runningBalance = newHistoryRecords.Last().BalanceAfter;
+            }
+
+            // Save new history records
+            if (newHistoryRecords.Any())
+            {
+                await _context.BankAccountBalanceHistory.AddRangeAsync(newHistoryRecords);
+            }
+
+            // STEP 6: Update bank balance
             var bankBalance = await _context.BankAccountBalances
                 .FirstOrDefaultAsync(b => b.BankAccountId == bankAccountId);
 
@@ -2544,7 +3318,7 @@ namespace ForexExchange.Services
                 bankBalance.Balance = runningBalance;
                 bankBalance.LastUpdated = DateTime.Now;
             }
-            else if (allTransactions.Any())
+            else if (orderedTransactions.Any())
             {
                 // Create balance record if it doesn't exist but we have transactions
                 bankBalance = new BankAccountBalance
@@ -2555,6 +3329,8 @@ namespace ForexExchange.Services
                 };
                 _context.BankAccountBalances.Add(bankBalance);
             }
+
+            await _context.SaveChangesAsync();
         }
 
         #endregion
@@ -2816,13 +3592,14 @@ namespace ForexExchange.Services
             }
 
             // Rebuild bank balance chains for affected bank accounts
+            // Pass document ID to ensure it's included in rebuild
             if (document.PayerType == PayerType.System && document.PayerBankAccountId.HasValue)
             {
-                await RebuildBankBalanceChain(document.PayerBankAccountId.Value);
+                await RebuildBankBalanceChain(document.PayerBankAccountId.Value, document.Id);
             }
             if (document.ReceiverType == ReceiverType.System && document.ReceiverBankAccountId.HasValue)
             {
-                await RebuildBankBalanceChain(document.ReceiverBankAccountId.Value);
+                await RebuildBankBalanceChain(document.ReceiverBankAccountId.Value, document.Id);
             }
         }
 
