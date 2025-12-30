@@ -8,6 +8,7 @@ using ForexExchange.Services.Notifications;
 using Microsoft.AspNetCore.Identity;
 using ForexExchange.Extensions;
 using ForexExchange.Helpers;
+using Microsoft.Data.Sqlite;
 
 namespace ForexExchange.Controllers
 {
@@ -100,12 +101,12 @@ namespace ForexExchange.Controllers
         }
 
         [HttpPost]
-        public IActionResult CreateBackup()
+        public async Task<IActionResult> CreateBackup()
         {
             try
             {
                 var now = DateTime.Now;
-                var backupFileName = $"Taban_Backup_{now.GetPersianYear()}-{now.GetPersianMonth()}-{now.GetPersianDayOfMonth()}-{now.Hour}-{now.Minute}.tbn";
+                var backupFileName = $"Taban_Backup_{now.GetPersianYear()}-{now.GetPersianMonth()}-{now.GetPersianDayOfMonth()}-{now.Hour}-{now.Minute}.db";
                 var backupPath = Path.Combine(_environment.WebRootPath, "backups");
 
                 if (!Directory.Exists(backupPath))
@@ -115,19 +116,70 @@ namespace ForexExchange.Controllers
 
                 var fullBackupPath = Path.Combine(backupPath, backupFileName);
 
-                // Create SQLite backup by copying the database file
+                // Get database connection string and path
                 var connectionString = _context.Database.GetConnectionString();
-                var dbPath = connectionString?.Replace("Data Source=", "").Replace(";", "");
-
-                if (!string.IsNullOrEmpty(dbPath) && System.IO.File.Exists(dbPath))
+                if (string.IsNullOrEmpty(connectionString))
                 {
-                    System.IO.File.Copy(dbPath, fullBackupPath, true);
+                    throw new InvalidOperationException("Connection string is not configured");
                 }
 
-                TempData["Success"] = $"پشتیبان‌گیری با موفقیت ایجاد شد: {backupFileName}";
+                var dbPath = connectionString?.Replace("Data Source=", "").Split(';')[0].Trim();
+                if (string.IsNullOrEmpty(dbPath) || !System.IO.File.Exists(dbPath))
+                {
+                    throw new FileNotFoundException($"Database file not found: {dbPath}");
+                }
+
+                // Use SQLite Backup API to ensure all data (including WAL) is backed up
+                // This method handles checkpointing automatically and includes all data
+                var sourceConnectionString = $"Data Source={dbPath};Cache=Shared";
+                var backupConnectionString = $"Data Source={fullBackupPath};Cache=Shared";
+
+                using (var sourceConnection = new SqliteConnection(sourceConnectionString))
+                using (var backupConnection = new SqliteConnection(backupConnectionString))
+                {
+                    await sourceConnection.OpenAsync();
+                    await backupConnection.OpenAsync();
+
+                    // Set busy timeout to handle concurrent access
+                    using (var cmd = sourceConnection.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA busy_timeout=10000;";
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    using (var cmd = backupConnection.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA busy_timeout=10000;";
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    // Perform a full checkpoint to ensure all WAL data is written to main database
+                    // This ensures we backup the most recent data
+                    using (var cmd = sourceConnection.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    // Use SQLite Backup API to copy entire database
+                    // This includes all data, even if it was in WAL files
+                    sourceConnection.BackupDatabase(backupConnection);
+                }
+
+                // Verify backup file was created and has content
+                if (!System.IO.File.Exists(fullBackupPath))
+                {
+                    throw new InvalidOperationException("Backup file was not created");
+                }
+
+                var fileInfo = new FileInfo(fullBackupPath);
+                if (fileInfo.Length == 0)
+                {
+                    throw new InvalidOperationException("Backup file is empty");
+                }
 
                 // Return the file directly for download
-                var fileBytes = System.IO.File.ReadAllBytes(fullBackupPath);
+                var fileBytes = await System.IO.File.ReadAllBytesAsync(fullBackupPath);
                 return File(fileBytes, "application/octet-stream", backupFileName);
             }
             catch (Exception ex)
@@ -204,11 +256,33 @@ namespace ForexExchange.Controllers
                 return RedirectToAction("Index");
             }
 
+            // Validate file extension
+            var allowedExtensions = new[] { ".db", ".tbn", ".sqlite", ".sqlite3" };
+            var fileExtension = Path.GetExtension(backupFile.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(fileExtension))
+            {
+                TempData["Error"] = $"فرمت فایل نامعتبر است. فرمت‌های مجاز: {string.Join(", ", allowedExtensions)}";
+                return RedirectToAction("Index");
+            }
+
             try
             {
-                // Create automatic backup before restore (file copy)
+                // Get database connection string and path
+                var connectionString = _context.Database.GetConnectionString();
+                if (string.IsNullOrEmpty(connectionString))
+                {
+                    throw new InvalidOperationException("Connection string is not configured");
+                }
+
+                var dbPath = connectionString?.Replace("Data Source=", "").Split(';')[0].Trim();
+                if (string.IsNullOrEmpty(dbPath) || !System.IO.File.Exists(dbPath))
+                {
+                    throw new FileNotFoundException($"Database file not found: {dbPath}");
+                }
+
+                // Create automatic backup before restore using SQLite Backup API (includes WAL)
                 var now = DateTime.Now;
-                var backupFileName = $"-Auto-Taban_Backup_{now.GetPersianYear()}-{now.GetPersianMonth()}-{now.GetPersianDayOfMonth()}-{now.Hour}-{now.Minute}.tbn";
+                var backupFileName = $"-Auto-Taban_Backup_{now.GetPersianYear()}-{now.GetPersianMonth()}-{now.GetPersianDayOfMonth()}-{now.Hour}-{now.Minute}.db";
                 var backupPath = Path.Combine(_environment.WebRootPath, "backups");
                 if (!Directory.Exists(backupPath))
                 {
@@ -216,12 +290,45 @@ namespace ForexExchange.Controllers
                 }
 
                 var autoBackupPath = Path.Combine(backupPath, backupFileName);
-                var connectionString = _context.Database.GetConnectionString();
-                var dbPath = connectionString?.Replace("Data Source=", "").Replace(";", "");
 
-                if (!string.IsNullOrEmpty(dbPath) && System.IO.File.Exists(dbPath))
+                // Create automatic backup using SQLite Backup API to ensure all data (including WAL) is backed up
+                var sourceConnectionString = $"Data Source={dbPath};Cache=Shared";
+                var autoBackupConnectionString = $"Data Source={autoBackupPath};Cache=Shared";
+
+                using (var sourceConnection = new SqliteConnection(sourceConnectionString))
+                using (var autoBackupConnection = new SqliteConnection(autoBackupConnectionString))
                 {
-                    System.IO.File.Copy(dbPath, autoBackupPath, true);
+                    await sourceConnection.OpenAsync();
+                    await autoBackupConnection.OpenAsync();
+
+                    // Set busy timeout
+                    using (var cmd = sourceConnection.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA busy_timeout=10000;";
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    using (var cmd = autoBackupConnection.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA busy_timeout=10000;";
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    // Perform a full checkpoint to ensure all WAL data is written to main database
+                    using (var cmd = sourceConnection.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    // Backup current database before restore
+                    sourceConnection.BackupDatabase(autoBackupConnection);
+                }
+
+                // Verify automatic backup was created
+                if (!System.IO.File.Exists(autoBackupPath))
+                {
+                    throw new InvalidOperationException("Automatic backup file was not created");
                 }
 
                 // Save uploaded file temporarily
@@ -231,49 +338,83 @@ namespace ForexExchange.Controllers
                     await backupFile.CopyToAsync(stream);
                 }
 
+                // Verify uploaded file is a valid SQLite database
+                try
+                {
+                    var testConnectionString = $"Data Source={tempPath};Mode=ReadOnly;Cache=Shared";
+                    using (var testConnection = new SqliteConnection(testConnectionString))
+                    {
+                        await testConnection.OpenAsync();
+                        using (var cmd = testConnection.CreateCommand())
+                        {
+                            cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table';";
+                            var tableCount = await cmd.ExecuteScalarAsync();
+                            if (tableCount == null || Convert.ToInt32(tableCount) == 0)
+                            {
+                                throw new InvalidOperationException("فایل آپلود شده یک دیتابیس SQLite معتبر نیست یا خالی است");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Cleanup temp file
+                    try { System.IO.File.Delete(tempPath); } catch { }
+                    throw new InvalidOperationException($"فایل آپلود شده معتبر نیست: {ex.Message}");
+                }
+
                 // Use SQLite backup API to copy contents from uploaded DB into the live database
                 // This avoids deleting/replacing the file while it's in use
                 var busyDest = $"Data Source={dbPath};Cache=Shared";
                 var busySrc = $"Data Source={tempPath};Mode=ReadOnly;Cache=Shared";
 
-                using (var dest = new Microsoft.Data.Sqlite.SqliteConnection(busyDest))
-                using (var src = new Microsoft.Data.Sqlite.SqliteConnection(busySrc))
+                using (var dest = new SqliteConnection(busyDest))
+                using (var src = new SqliteConnection(busySrc))
                 {
                     await dest.OpenAsync();
                     await src.OpenAsync();
 
-                    // Set busy timeout via PRAGMA on both connections (connection string keyword not supported)
+                    // Set busy timeout via PRAGMA on both connections
                     using (var cmd = dest.CreateCommand())
                     {
-                        cmd.CommandText = "PRAGMA busy_timeout=5000;";
-                        cmd.ExecuteNonQuery();
+                        cmd.CommandText = "PRAGMA busy_timeout=10000;";
+                        await cmd.ExecuteNonQueryAsync();
                     }
                     using (var cmd = src.CreateCommand())
                     {
-                        cmd.CommandText = "PRAGMA busy_timeout=5000;";
-                        cmd.ExecuteNonQuery();
+                        cmd.CommandText = "PRAGMA busy_timeout=10000;";
+                        await cmd.ExecuteNonQueryAsync();
                     }
 
                     // Ensure WAL is checkpointed to reduce locks
                     using (var cmd = dest.CreateCommand())
                     {
                         cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
-                        cmd.ExecuteNonQuery();
+                        await cmd.ExecuteNonQueryAsync();
                     }
+
                     // Temporarily disable foreign keys during restore to avoid temporary constraint errors
                     using (var cmd = dest.CreateCommand())
                     {
                         cmd.CommandText = "PRAGMA foreign_keys=OFF;";
-                        cmd.ExecuteNonQuery();
+                        await cmd.ExecuteNonQueryAsync();
                     }
 
-                    // Copy database content
+                    // Copy database content from uploaded file to live database
                     src.BackupDatabase(dest);
 
+                    // Re-enable foreign keys
                     using (var cmd = dest.CreateCommand())
                     {
                         cmd.CommandText = "PRAGMA foreign_keys=ON;";
-                        cmd.ExecuteNonQuery();
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    // Perform a final checkpoint to ensure all data is written
+                    using (var cmd = dest.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
+                        await cmd.ExecuteNonQueryAsync();
                     }
                 }
 

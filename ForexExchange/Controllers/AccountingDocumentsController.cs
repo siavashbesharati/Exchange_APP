@@ -7,6 +7,7 @@ using ForexExchange.Services;
 using Microsoft.AspNetCore.Identity;
 using ForexExchange.Services.Notifications;
 using ForexExchange.Helpers;
+using System.IO;
 
 namespace ForexExchange.Controllers
 {
@@ -382,7 +383,7 @@ namespace ForexExchange.Controllers
 
         // POST: AccountingDocuments/Upload
         [HttpPost]
-        //[ValidateAntiForgeryToken] // Temporarily disabled for debugging
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Upload(AccountingDocument accountingDocument, IFormFile documentFile)
         {
             // Check if this is an AJAX request
@@ -412,6 +413,24 @@ namespace ForexExchange.Controllers
             foreach (var file in Request.Form.Files)
             {
                 _logger.LogInformation($"File: {file.Name}, FileName: {file.FileName}, Size: {file.Length}, ContentType: {file.ContentType}");
+            }
+
+            // Try to get file from Request.Form.Files if not bound via parameter
+            if (documentFile == null && Request.Form.Files.Count > 0)
+            {
+                // Try to find file with name "documentFile"
+                var fileFromRequest = Request.Form.Files.FirstOrDefault(f => f.Name == "documentFile");
+                if (fileFromRequest != null && fileFromRequest.Length > 0)
+                {
+                    documentFile = fileFromRequest;
+                    _logger.LogInformation($"File retrieved from Request.Form.Files: {documentFile.FileName} ({documentFile.Length} bytes)");
+                }
+                else if (Request.Form.Files.Count == 1)
+                {
+                    // If only one file, use it
+                    documentFile = Request.Form.Files[0];
+                    _logger.LogInformation($"Single file retrieved from Request.Form.Files: {documentFile.FileName} ({documentFile.Length} bytes)");
+                }
             }
 
             // Log model state
@@ -540,7 +559,8 @@ namespace ForexExchange.Controllers
                         {
                             await documentFile.CopyToAsync(memoryStream);
                             accountingDocument.FileData = memoryStream.ToArray();
-                            accountingDocument.FileName = documentFile.FileName;
+                            // Save original filename (without path) to preserve the original file name
+                            accountingDocument.FileName = Path.GetFileName(documentFile.FileName);
                             accountingDocument.ContentType = documentFile.ContentType;
                         }
                     }
@@ -798,8 +818,8 @@ namespace ForexExchange.Controllers
                             accountingDocument.FileData = memoryStream.ToArray();
                         }
 
-                        // Update document properties
-                        accountingDocument.FileName = documentFile.FileName;
+                        // Update document properties - save original filename (without path)
+                        accountingDocument.FileName = Path.GetFileName(documentFile.FileName);
                         accountingDocument.ContentType = documentFile.ContentType;
                     }
 

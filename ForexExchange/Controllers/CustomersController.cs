@@ -60,19 +60,69 @@ namespace ForexExchange.Controllers
         {
             if (ModelState.IsValid)
             {
-                var customer = new Customer
+                try
                 {
-                    FullName = model.FullName,
-                    PhoneNumber = model.PhoneNumber,
-                    Gender = model.Gender,
-                    Address = model.Address ?? string.Empty,
-                    IsActive = model.IsActive,
-                    IsShareHolder = model.IsShareHolder,
-                    CreatedAt = DateTime.Now
-                };
-                _context.Customers.Add(customer);
-                await _context.SaveChangesAsync();
-                return RedirectToAction("Index");
+                    // Check if phone number already exists before attempting to save
+                    var existingCustomer = await _context.Customers
+                        .FirstOrDefaultAsync(c => c.PhoneNumber == model.PhoneNumber);
+                    
+                    if (existingCustomer != null)
+                    {
+                        ModelState.AddModelError("PhoneNumber", "شماره تلفن وارد شده قبلاً در سیستم ثبت شده است.");
+                        return View(model);
+                    }
+
+                    var customer = new Customer
+                    {
+                        FullName = model.FullName,
+                        PhoneNumber = model.PhoneNumber,
+                        Gender = model.Gender,
+                        Address = model.Address ?? string.Empty,
+                        IsActive = model.IsActive,
+                        IsShareHolder = model.IsShareHolder,
+                        CreatedAt = DateTime.Now
+                    };
+                    _context.Customers.Add(customer);
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction("Index");
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Handle database constraint violations (e.g., unique constraint on PhoneNumber)
+                    var innerException = ex.InnerException;
+                    if (innerException != null)
+                    {
+                        var errorMessage = innerException.Message;
+                        
+                        // Check if it's a unique constraint violation on PhoneNumber
+                        if (errorMessage.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) ||
+                            errorMessage.Contains("PhoneNumber", StringComparison.OrdinalIgnoreCase) ||
+                            errorMessage.Contains("unique", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ModelState.AddModelError("PhoneNumber", "شماره تلفن وارد شده قبلاً در سیستم ثبت شده است.");
+                        }
+                        else
+                        {
+                            // Generic database error
+                            ModelState.AddModelError("", "خطا در ذخیره اطلاعات. لطفاً دوباره تلاش کنید.");
+                            _logger.LogError(ex, "Database error while creating customer");
+                        }
+                    }
+                    else
+                    {
+                        ModelState.AddModelError("", "خطا در ذخیره اطلاعات. لطفاً دوباره تلاش کنید.");
+                        _logger.LogError(ex, "Database error while creating customer");
+                    }
+                    
+                    return View(model);
+                }
+                catch (Exception ex)
+                {
+                    // Handle any other unexpected errors
+                    ModelState.AddModelError("", "خطای غیرمنتظره‌ای رخ داد. لطفاً دوباره تلاش کنید.");
+                    _logger.LogError(ex, "Unexpected error while creating customer");
+                    return View(model);
+                }
             }
             return View(model);
         }
@@ -109,18 +159,72 @@ namespace ForexExchange.Controllers
                 return NotFound();
             if (ModelState.IsValid)
             {
-                var customer = await _context.Customers.FindAsync(id);
-                if (customer == null)
-                    return NotFound();
-                customer.FullName = model.FullName;
-                customer.PhoneNumber = model.PhoneNumber;
-                customer.Gender = model.Gender;
-                customer.Address = model.Address ?? string.Empty;
-                customer.IsActive = model.IsActive;
-                customer.IsSystem = model.IsSystem;
-                customer.IsShareHolder = model.IsShareHolder;
-                await _context.SaveChangesAsync();
-                return RedirectToAction("Index");
+                try
+                {
+                    var customer = await _context.Customers.FindAsync(id);
+                    if (customer == null)
+                        return NotFound();
+                    
+                    // Check if phone number already exists for another customer
+                    if (customer.PhoneNumber != model.PhoneNumber)
+                    {
+                        var existingCustomer = await _context.Customers
+                            .FirstOrDefaultAsync(c => c.PhoneNumber == model.PhoneNumber && c.Id != id);
+                        
+                        if (existingCustomer != null)
+                        {
+                            ModelState.AddModelError("PhoneNumber", "شماره تلفن وارد شده قبلاً در سیستم ثبت شده است.");
+                            return View(model);
+                        }
+                    }
+                    
+                    customer.FullName = model.FullName;
+                    customer.PhoneNumber = model.PhoneNumber;
+                    customer.Gender = model.Gender;
+                    customer.Address = model.Address ?? string.Empty;
+                    customer.IsActive = model.IsActive;
+                    customer.IsSystem = model.IsSystem;
+                    customer.IsShareHolder = model.IsShareHolder;
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction("Index");
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Handle database constraint violations (e.g., unique constraint on PhoneNumber)
+                    var innerException = ex.InnerException;
+                    if (innerException != null)
+                    {
+                        var errorMessage = innerException.Message;
+                        
+                        // Check if it's a unique constraint violation on PhoneNumber
+                        if (errorMessage.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) ||
+                            errorMessage.Contains("PhoneNumber", StringComparison.OrdinalIgnoreCase) ||
+                            errorMessage.Contains("unique", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ModelState.AddModelError("PhoneNumber", "شماره تلفن وارد شده قبلاً در سیستم ثبت شده است.");
+                        }
+                        else
+                        {
+                            // Generic database error
+                            ModelState.AddModelError("", "خطا در ذخیره اطلاعات. لطفاً دوباره تلاش کنید.");
+                            _logger.LogError(ex, "Database error while editing customer {CustomerId}", id);
+                        }
+                    }
+                    else
+                    {
+                        ModelState.AddModelError("", "خطا در ذخیره اطلاعات. لطفاً دوباره تلاش کنید.");
+                        _logger.LogError(ex, "Database error while editing customer {CustomerId}", id);
+                    }
+                    
+                    return View(model);
+                }
+                catch (Exception ex)
+                {
+                    // Handle any other unexpected errors
+                    ModelState.AddModelError("", "خطای غیرمنتظره‌ای رخ داد. لطفاً دوباره تلاش کنید.");
+                    _logger.LogError(ex, "Unexpected error while editing customer {CustomerId}", id);
+                    return View(model);
+                }
             }
             return View(model);
         }
