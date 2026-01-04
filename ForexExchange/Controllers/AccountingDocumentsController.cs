@@ -875,46 +875,12 @@ namespace ForexExchange.Controllers
 
             try
             {
-                // Exclude FileData to prevent memory leak - only load when needed in GetFile action
+                // Load the actual entity (not using Select) so we can update only specific fields without affecting FileData
                 var accountingDocument = await _context.AccountingDocuments
                     .Include(a => a.PayerCustomer)
                     .Include(a => a.ReceiverCustomer)
                     .Include(a => a.PayerBankAccount)
                     .Include(a => a.ReceiverBankAccount)
-                    .Select(a => new AccountingDocument
-                    {
-                        Id = a.Id,
-                        Type = a.Type,
-                        PayerType = a.PayerType,
-                        PayerCustomerId = a.PayerCustomerId,
-                        PayerBankAccountId = a.PayerBankAccountId,
-                        ReceiverType = a.ReceiverType,
-                        ReceiverCustomerId = a.ReceiverCustomerId,
-                        ReceiverBankAccountId = a.ReceiverBankAccountId,
-                        Amount = a.Amount,
-                        CurrencyCode = a.CurrencyCode,
-                        CurrencyId = a.CurrencyId,
-                        Title = a.Title,
-                        Description = a.Description,
-                        DocumentDate = a.DocumentDate,
-                        CreatedAt = a.CreatedAt,
-                        IsVerified = a.IsVerified,
-                        VerifiedAt = a.VerifiedAt,
-                        VerifiedBy = a.VerifiedBy,
-                        ReferenceNumber = a.ReferenceNumber,
-                        FileName = a.FileName,
-                        ContentType = a.ContentType,
-                        // FileData is excluded to prevent memory leak
-                        Notes = a.Notes,
-                        IsDeleted = a.IsDeleted,
-                        DeletedAt = a.DeletedAt,
-                        DeletedBy = a.DeletedBy,
-                        IsFrozen = a.IsFrozen,
-                        PayerCustomer = a.PayerCustomer,
-                        ReceiverCustomer = a.ReceiverCustomer,
-                        PayerBankAccount = a.PayerBankAccount,
-                        ReceiverBankAccount = a.ReceiverBankAccount
-                    })
                     .FirstOrDefaultAsync(a => a.Id == id);
 
                 if (accountingDocument == null)
@@ -977,14 +943,18 @@ namespace ForexExchange.Controllers
                             return RedirectToAction("Details", new { id });
                         }
 
-                        // CRITICAL: Save IsVerified status FIRST (independent transaction)
+                        // CRITICAL: Update only verification fields to preserve FileData
                         // This ensures IsVerified is saved and committed to database before rebuild
                         // The rebuild query will then see IsVerified=true and include the document
                         accountingDocument.IsVerified = true;
                         accountingDocument.VerifiedAt = DateTime.Now;
                         accountingDocument.VerifiedBy = User.Identity?.Name ?? "System";
                         
-                        _context.Update(accountingDocument);
+                        // Mark only the changed properties as modified to preserve FileData
+                        _context.Entry(accountingDocument).Property(x => x.IsVerified).IsModified = true;
+                        _context.Entry(accountingDocument).Property(x => x.VerifiedAt).IsModified = true;
+                        _context.Entry(accountingDocument).Property(x => x.VerifiedBy).IsModified = true;
+                        
                         await _context.SaveChangesAsync(); // CRITICAL: Save FIRST, then process
                         
                         // AFTER saving IsVerified=true, update balances through centralized service
