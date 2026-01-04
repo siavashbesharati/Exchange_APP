@@ -1061,25 +1061,201 @@ namespace ForexExchange.Services
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
             
             using var package = new ExcelPackage();
-            var worksheet = package.Workbook.Worksheets.Add("گزارش داشبورد");
 
-            // Set worksheet direction to RTL
+            // Handle empty transactions list
+            if (transactions == null || !transactions.Any())
+            {
+                var worksheet = package.Workbook.Worksheets.Add("گزارش داشبورد");
+                worksheet.View.RightToLeft = true;
+                worksheet.Cells[1, 1].Value = "گزارش داشبورد";
+                worksheet.Cells[1, 1, 1, 10].Merge = true;
+                StyleHeaderCell(worksheet.Cells[1, 1, 1, 10], 16, true);
+                worksheet.Cells[3, 1].Value = "هیچ تراکنشی یافت نشد";
+                worksheet.Cells[3, 1, 3, 10].Merge = true;
+                if (worksheet.Dimension != null)
+                {
+                    worksheet.Cells[worksheet.Dimension.Address].AutoFitColumns();
+                }
+                return package.GetAsByteArray();
+            }
+
+            // Group transactions by CurrencyCode if there are multiple currencies
+            var transactionsByCurrency = transactions
+                .Cast<dynamic>()
+                .GroupBy(t => t.CurrencyCode?.ToString() ?? "Unknown")
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            bool isMultipleCurrencies = transactionsByCurrency.Count > 1 || currencyCode == "همه";
+
+            // Calculate summary data
+            var summaryData = new List<(string Currency, int Count, decimal SumAmount, decimal FinalBalance)>();
+            foreach (var currencyGroup in transactionsByCurrency)
+            {
+                var currency = currencyGroup.Key;
+                var currencyTransactions = currencyGroup.ToList();
+                decimal sumAmount = 0;
+                decimal finalBalance = 0;
+
+                foreach (dynamic t in currencyTransactions)
+                {
+                    try
+                    {
+                        decimal amount = Convert.ToDecimal(t.Amount ?? 0);
+                        sumAmount += amount;
+                        finalBalance = Convert.ToDecimal(t.Balance ?? 0);
+                    }
+                    catch { }
+                }
+
+                summaryData.Add((currency, currencyTransactions.Count, sumAmount, finalBalance));
+            }
+
+            // Create summary sheet first
+            CreatePoolSummarySheet(package, summaryData, fromDate, toDate, currencyCode, isMultipleCurrencies);
+
+            // Create a worksheet for each currency
+            foreach (var currencyGroup in transactionsByCurrency)
+            {
+                var currency = currencyGroup.Key;
+                var currencyTransactions = currencyGroup.OrderBy(t =>
+                {
+                    try
+                    {
+                        var dateStr = t.Date?.ToString() ?? "";
+                        var timeStr = t.Time?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(dateStr) && !string.IsNullOrEmpty(timeStr))
+                        {
+                            return DateTime.Parse($"{dateStr} {timeStr}");
+                        }
+                        return DateTime.MinValue;
+                    }
+                    catch
+                    {
+                        return DateTime.MinValue;
+                    }
+                }).ToList();
+
+                CreatePoolCurrencySheet(package, currency, currencyTransactions, fromDate, toDate, isMultipleCurrencies);
+            }
+
+            return package.GetAsByteArray();
+        }
+
+        private void CreatePoolSummarySheet(ExcelPackage package, List<(string Currency, int Count, decimal SumAmount, decimal FinalBalance)> summaryData, DateTime? fromDate, DateTime? toDate, string currencyCode, bool isMultipleCurrencies)
+        {
+            var worksheet = package.Workbook.Worksheets.Add("خلاصه گزارش");
             worksheet.View.RightToLeft = true;
 
-            // Add header information
             int row = 1;
             
-            // Title
-            worksheet.Cells[row, 1].Value = "گزارش داشبورد";
-            worksheet.Cells[row, 1, row, 8].Merge = true;
-            StyleHeaderCell(worksheet.Cells[row, 1, row, 8], 16, true);
+            // Title - Colorful gradient style
+            worksheet.Cells[row, 1].Value = "خلاصه گزارش داشبورد ارزی";
+            worksheet.Cells[row, 1, row, 5].Merge = true;
+            StyleHeaderCellColorful(worksheet.Cells[row, 1, row, 5], 18, true, Color.FromArgb(68, 114, 196)); // Blue
+            row += 2;
+
+            // Report info
+            worksheet.Cells[row, 1].Value = "ارز انتخاب شده:";
+            worksheet.Cells[row, 2].Value = string.IsNullOrEmpty(currencyCode) || currencyCode == "همه" ? "همه ارزها" : currencyCode;
+            StyleInfoCell(worksheet.Cells[row, 1]);
+            StyleInfoCellBordered(worksheet.Cells[row, 2], Color.FromArgb(217, 225, 242)); // Light blue background
+            row++;
+
+            var fromDateStr = fromDate?.ToString("yyyy/MM/dd") ?? "ابتدای زمان";
+            var toDateStr = toDate?.ToString("yyyy/MM/dd") ?? "انتهای زمان";
+            worksheet.Cells[row, 1].Value = "بازه زمانی:";
+            worksheet.Cells[row, 2].Value = $"{fromDateStr} تا {toDateStr}";
+            StyleInfoCell(worksheet.Cells[row, 1]);
+            StyleInfoCellBordered(worksheet.Cells[row, 2], Color.FromArgb(217, 225, 242));
+            row++;
+
+            worksheet.Cells[row, 1].Value = "تعداد ارزها:";
+            worksheet.Cells[row, 2].Value = $"{summaryData.Count} ارز";
+            StyleInfoCell(worksheet.Cells[row, 1]);
+            StyleInfoCellBordered(worksheet.Cells[row, 2], Color.FromArgb(217, 225, 242));
+            row += 2;
+
+            // Summary table header - Colorful
+            worksheet.Cells[row, 1].Value = "خلاصه ارزها";
+            worksheet.Cells[row, 1, row, 5].Merge = true;
+            StyleHeaderCellColorful(worksheet.Cells[row, 1, row, 5], 14, true, Color.FromArgb(112, 173, 71)); // Green
+            row++;
+
+            // Table headers
+            worksheet.Cells[row, 1].Value = "ارز";
+            worksheet.Cells[row, 2].Value = "تعداد تراکنش";
+            worksheet.Cells[row, 3].Value = "جمع مبلغ";
+            worksheet.Cells[row, 4].Value = "موجودی نهایی";
+            worksheet.Cells[row, 5].Value = "برگه جزئیات";
+            StyleHeaderRowColorful(worksheet.Cells[row, 1, row, 5], Color.FromArgb(68, 114, 196)); // Blue header
+            row++;
+
+            // Summary data rows with alternating colors
+            int dataRowIndex = 0;
+            foreach (var summary in summaryData)
+            {
+                worksheet.Cells[row, 1].Value = summary.Currency;
+                worksheet.Cells[row, 2].Value = summary.Count;
+                worksheet.Cells[row, 3].Value = summary.SumAmount;
+                worksheet.Cells[row, 4].Value = summary.FinalBalance;
+                worksheet.Cells[row, 5].Value = isMultipleCurrencies ? $"داشبورد {summary.Currency}" : "گزارش داشبورد";
+                
+                // Alternate row colors
+                var bgColor = dataRowIndex % 2 == 0 ? Color.FromArgb(242, 242, 242) : Color.White;
+                StyleDataRowColorful(worksheet.Cells[row, 1, row, 5], bgColor);
+                
+                // Format number columns
+                worksheet.Cells[row, 2].Style.Numberformat.Format = "#,##0";
+                worksheet.Cells[row, 3].Style.Numberformat.Format = "#,##0";
+                worksheet.Cells[row, 4].Style.Numberformat.Format = "#,##0";
+                
+                row++;
+                dataRowIndex++;
+            }
+
+            // Total row
+            if (summaryData.Count > 1)
+            {
+                worksheet.Cells[row, 1].Value = "جمع کل";
+                worksheet.Cells[row, 2].Value = summaryData.Sum(s => s.Count);
+                worksheet.Cells[row, 3].Value = summaryData.Sum(s => s.SumAmount);
+                worksheet.Cells[row, 4].Value = ""; // Final balance doesn't sum across currencies
+                worksheet.Cells[row, 5].Value = "";
+                
+                StyleHeaderRowColorful(worksheet.Cells[row, 1, row, 5], Color.FromArgb(255, 192, 0)); // Orange/Gold for total
+                worksheet.Cells[row, 2].Style.Numberformat.Format = "#,##0";
+                worksheet.Cells[row, 3].Style.Numberformat.Format = "#,##0";
+                worksheet.Cells[row, 1].Style.Font.Bold = true;
+                worksheet.Cells[row, 2].Style.Font.Bold = true;
+                worksheet.Cells[row, 3].Style.Font.Bold = true;
+            }
+
+            // Auto-fit columns
+            if (worksheet.Dimension != null)
+            {
+                worksheet.Cells[worksheet.Dimension.Address].AutoFitColumns();
+            }
+        }
+
+        private void CreatePoolCurrencySheet(ExcelPackage package, string currency, List<dynamic> currencyTransactions, DateTime? fromDate, DateTime? toDate, bool isMultipleCurrencies)
+        {
+            var worksheet = package.Workbook.Worksheets.Add(isMultipleCurrencies ? $"داشبورد {currency}" : "گزارش داشبورد");
+            worksheet.View.RightToLeft = true;
+
+            int row = 1;
+            
+            // Title - Colorful
+            worksheet.Cells[row, 1].Value = "گزارش داشبورد ارزی";
+            worksheet.Cells[row, 1, row, 10].Merge = true;
+            StyleHeaderCellColorful(worksheet.Cells[row, 1, row, 10], 16, true, Color.FromArgb(68, 114, 196)); // Blue
             row += 2;
 
             // Currency
             worksheet.Cells[row, 1].Value = "ارز:";
-            worksheet.Cells[row, 2].Value = currencyCode;
+            worksheet.Cells[row, 2].Value = currency;
             StyleInfoCell(worksheet.Cells[row, 1]);
-            StyleInfoCell(worksheet.Cells[row, 2]);
+            StyleInfoCellBordered(worksheet.Cells[row, 2], Color.FromArgb(217, 225, 242)); // Light blue
             row++;
 
             // Date range
@@ -1088,48 +1264,144 @@ namespace ForexExchange.Services
             worksheet.Cells[row, 1].Value = "بازه زمانی:";
             worksheet.Cells[row, 2].Value = $"{fromDateStr} تا {toDateStr}";
             StyleInfoCell(worksheet.Cells[row, 1]);
-            StyleInfoCell(worksheet.Cells[row, 2]);
+            StyleInfoCellBordered(worksheet.Cells[row, 2], Color.FromArgb(217, 225, 242));
             row += 2;
 
-            // Transactions header
-            worksheet.Cells[row, 1].Value = "تاریخ";
-            worksheet.Cells[row, 2].Value = "نوع تراکنش";
-            worksheet.Cells[row, 3].Value = "مبلغ";
-            worksheet.Cells[row, 4].Value = "شرح";
-            worksheet.Cells[row, 5].Value = "موجودی پس از تراکنش";
-            worksheet.Cells[row, 6].Value = "شماره مرجع";
-            worksheet.Cells[row, 7].Value = "وضعیت";
-            worksheet.Cells[row, 8].Value = "یادداشت";
+            // Transactions header with row number column
+            worksheet.Cells[row, 1].Value = "#";
+            worksheet.Cells[row, 2].Value = "تاریخ";
+            worksheet.Cells[row, 3].Value = "نوع تراکنش";
+            worksheet.Cells[row, 4].Value = "مبلغ";
+            worksheet.Cells[row, 5].Value = "شرح";
+            worksheet.Cells[row, 6].Value = "موجودی پس از تراکنش";
+            worksheet.Cells[row, 7].Value = "شماره مرجع";
+            worksheet.Cells[row, 8].Value = "وضعیت";
+            worksheet.Cells[row, 9].Value = "مشتری";
+            worksheet.Cells[row, 10].Value = "ارز مقابل";
 
-            StyleHeaderRow(worksheet.Cells[row, 1, row, 8]);
+            StyleHeaderRowColorful(worksheet.Cells[row, 1, row, 10], Color.FromArgb(68, 114, 196)); // Blue header
             row++;
 
-            // Transaction data
-            foreach (dynamic transaction in transactions)
-            {
-                worksheet.Cells[row, 1].Value = DateTime.Parse(transaction.date.ToString()).ToString("yyyy/MM/dd");
-                worksheet.Cells[row, 2].Value = transaction.type?.ToString();
-                worksheet.Cells[row, 3].Value = decimal.Parse(transaction.amount?.ToString() ?? "0");
-                worksheet.Cells[row, 4].Value = transaction.description?.ToString();
-                worksheet.Cells[row, 5].Value = decimal.Parse(transaction.runningBalance?.ToString() ?? "0");
-                worksheet.Cells[row, 6].Value = transaction.referenceId?.ToString();
-                worksheet.Cells[row, 7].Value = "تایید شده";
-                worksheet.Cells[row, 8].Value = transaction.note?.ToString();
+            int rowNumber = 1;
+            decimal totalAmount = 0;
+            int dataRowIndex = 0;
 
-                // Style data row
-                StyleDataRow(worksheet.Cells[row, 1, row, 8]);
-                
-                // Format currency columns
-                worksheet.Cells[row, 3].Style.Numberformat.Format = "#,##0";
-                worksheet.Cells[row, 5].Style.Numberformat.Format = "#,##0";
-                
-                row++;
+            // Transaction data - use PascalCase property names
+            foreach (dynamic transaction in currencyTransactions)
+            {
+                try
+                {
+                    var dateStr = transaction.Date?.ToString() ?? "";
+                    
+                    decimal amount = Convert.ToDecimal(transaction.Amount ?? 0);
+                    totalAmount += amount;
+                    
+                    worksheet.Cells[row, 1].Value = rowNumber; // Row number
+                    worksheet.Cells[row, 2].Value = dateStr; // Date is already in yyyy/MM/dd format
+                    worksheet.Cells[row, 3].Value = transaction.TransactionType?.ToString() ?? "";
+                    worksheet.Cells[row, 4].Value = amount;
+                    worksheet.Cells[row, 5].Value = transaction.Description?.ToString() ?? "";
+                    worksheet.Cells[row, 6].Value = transaction.Balance ?? 0;
+                    worksheet.Cells[row, 7].Value = transaction.ReferenceId?.ToString() ?? "";
+                    worksheet.Cells[row, 8].Value = "تایید شده";
+                    worksheet.Cells[row, 9].Value = transaction.CustomerName?.ToString() ?? "";
+                    worksheet.Cells[row, 10].Value = transaction.PairedCurrencyCode?.ToString() ?? "";
+
+                    // Alternate row colors for better readability
+                    var bgColor = dataRowIndex % 2 == 0 ? Color.FromArgb(242, 242, 242) : Color.White;
+                    StyleDataRowColorful(worksheet.Cells[row, 1, row, 10], bgColor);
+                    
+                    // Format number columns
+                    worksheet.Cells[row, 1].Style.Numberformat.Format = "#,##0";
+                    worksheet.Cells[row, 4].Style.Numberformat.Format = "#,##0";
+                    worksheet.Cells[row, 6].Style.Numberformat.Format = "#,##0";
+                    
+                    row++;
+                    rowNumber++;
+                    dataRowIndex++;
+                }
+                catch (Exception ex)
+                {
+                    // Skip problematic transactions
+                    continue;
+                }
             }
 
-            // Auto-fit columns
-            worksheet.Cells[worksheet.Dimension.Address].AutoFitColumns();
+            // Add total row at the bottom
+            worksheet.Cells[row, 1].Value = "";
+            worksheet.Cells[row, 2].Value = "";
+            worksheet.Cells[row, 3].Value = "جمع کل:";
+            worksheet.Cells[row, 4].Value = totalAmount;
+            worksheet.Cells[row, 5].Value = "";
+            worksheet.Cells[row, 6].Value = "";
+            worksheet.Cells[row, 7].Value = "";
+            worksheet.Cells[row, 8].Value = "";
+            worksheet.Cells[row, 9].Value = "";
+            worksheet.Cells[row, 10].Value = "";
 
-            return package.GetAsByteArray();
+            // Style total row with gold/orange color
+            StyleHeaderRowColorful(worksheet.Cells[row, 1, row, 10], Color.FromArgb(255, 192, 0)); // Gold/Orange
+            worksheet.Cells[row, 3].Style.Font.Bold = true;
+            worksheet.Cells[row, 4].Style.Font.Bold = true;
+            worksheet.Cells[row, 4].Style.Numberformat.Format = "#,##0";
+
+            // Auto-fit columns
+            if (worksheet.Dimension != null)
+            {
+                worksheet.Cells[worksheet.Dimension.Address].AutoFitColumns();
+            }
+        }
+
+        private void StyleHeaderCellColorful(ExcelRange range, int fontSize, bool bold, Color backgroundColor)
+        {
+            range.Style.Font.Size = fontSize;
+            range.Style.Font.Bold = bold;
+            range.Style.Font.Color.SetColor(Color.White);
+            range.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            range.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            range.Style.Fill.PatternType = ExcelFillStyle.Solid;
+            range.Style.Fill.BackgroundColor.SetColor(backgroundColor);
+            range.Style.Border.BorderAround(ExcelBorderStyle.Thin, Color.Black);
+        }
+
+        private void StyleHeaderRowColorful(ExcelRange range, Color backgroundColor)
+        {
+            range.Style.Font.Bold = true;
+            range.Style.Font.Color.SetColor(Color.White);
+            range.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            range.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            range.Style.Fill.PatternType = ExcelFillStyle.Solid;
+            range.Style.Fill.BackgroundColor.SetColor(backgroundColor);
+            range.Style.Border.BorderAround(ExcelBorderStyle.Thin, Color.Black);
+            
+            foreach (var cell in range)
+            {
+                cell.Style.Border.BorderAround(ExcelBorderStyle.Thin, Color.Black);
+            }
+        }
+
+        private void StyleDataRowColorful(ExcelRange range, Color backgroundColor)
+        {
+            range.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            range.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            range.Style.Fill.PatternType = ExcelFillStyle.Solid;
+            range.Style.Fill.BackgroundColor.SetColor(backgroundColor);
+            range.Style.Border.BorderAround(ExcelBorderStyle.Thin, Color.FromArgb(217, 217, 217));
+            
+            foreach (var cell in range)
+            {
+                cell.Style.Border.BorderAround(ExcelBorderStyle.Thin, Color.FromArgb(217, 217, 217));
+            }
+        }
+
+        private void StyleInfoCellBordered(ExcelRange cell, Color backgroundColor)
+        {
+            cell.Style.Font.Bold = true;
+            cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+            cell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
+            cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+            cell.Style.Fill.BackgroundColor.SetColor(backgroundColor);
+            cell.Style.Border.BorderAround(ExcelBorderStyle.Thin, Color.FromArgb(217, 217, 217));
         }
 
         public byte[] GenerateBankAccountTimelineExcel(string bankAccountName, List<object> transactions, DateTime? fromDate = null, DateTime? toDate = null)

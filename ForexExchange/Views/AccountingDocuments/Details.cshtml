@@ -494,15 +494,19 @@
                 @{
                     var fileExtension = System.IO.Path.GetExtension(Model.FileName)?.ToLower();
                     var isImage = new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp" }.Contains(fileExtension);
+                    var fileDataBase64 = ViewData["FileDataBase64"] as string;
                 }
                 
-                @if (isImage)
+                @if (isImage && !string.IsNullOrEmpty(fileDataBase64))
                 {
-                    <img src="@Url.Action("GetFile", "AccountingDocuments", new { id = Model.Id })" 
+                    var base64DataUrl = $"data:{Model.ContentType ?? "image/jpeg"};base64,{fileDataBase64}";
+                    <img src="@base64DataUrl" 
                          alt="@Model.FileName" 
-                         class="attachment-image"
-                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-                    <div style="display: none; color: #7f8c8d; padding: 20px; text-align: center;">
+                         class="attachment-image" />
+                }
+                else if (isImage)
+                {
+                    <div style="color: #7f8c8d; padding: 20px; text-align: center;">
                         <i class="fas fa-image fa-2x file-icon"></i>
                         <p>تصویر قابل نمایش نیست</p>
                         <small>@Model.FileName</small>

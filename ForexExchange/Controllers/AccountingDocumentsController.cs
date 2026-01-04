@@ -242,51 +242,26 @@ namespace ForexExchange.Controllers
                 return NotFound();
             }
 
-            // Exclude FileData to prevent memory leak - use GetFile action to download file
             var accountingDocument = await _context.AccountingDocuments
                 .Include(a => a.PayerCustomer)
                 .Include(a => a.ReceiverCustomer)
                 .Include(a => a.PayerBankAccount)
                 .Include(a => a.ReceiverBankAccount)
-                .Select(a => new AccountingDocument
-                {
-                    Id = a.Id,
-                    Type = a.Type,
-                    PayerType = a.PayerType,
-                    PayerCustomerId = a.PayerCustomerId,
-                    PayerBankAccountId = a.PayerBankAccountId,
-                    ReceiverType = a.ReceiverType,
-                    ReceiverCustomerId = a.ReceiverCustomerId,
-                    ReceiverBankAccountId = a.ReceiverBankAccountId,
-                    Amount = a.Amount,
-                    CurrencyId = a.CurrencyId,
-                    CurrencyCode = a.Currency != null ? a.Currency.Code : a.CurrencyCode, // Display from navigation
-                    Title = a.Title,
-                    Description = a.Description,
-                    DocumentDate = a.DocumentDate,
-                    CreatedAt = a.CreatedAt,
-                    IsVerified = a.IsVerified,
-                    VerifiedAt = a.VerifiedAt,
-                    VerifiedBy = a.VerifiedBy,
-                    ReferenceNumber = a.ReferenceNumber,
-                    FileName = a.FileName,
-                    ContentType = a.ContentType,
-                    // FileData is excluded to prevent memory leak - use GetFile action to download
-                    Notes = a.Notes,
-                    IsDeleted = a.IsDeleted,
-                    DeletedAt = a.DeletedAt,
-                    DeletedBy = a.DeletedBy,
-                    IsFrozen = a.IsFrozen,
-                    PayerCustomer = a.PayerCustomer,
-                    ReceiverCustomer = a.ReceiverCustomer,
-                    PayerBankAccount = a.PayerBankAccount,
-                    ReceiverBankAccount = a.ReceiverBankAccount
-                })
                 .FirstOrDefaultAsync(m => m.Id == id);
 
             if (accountingDocument == null)
             {
                 return NotFound();
+            }
+
+            // Convert FileData to base64 for display in view
+            if (accountingDocument.FileData != null && accountingDocument.FileData.Length > 0)
+            {
+                ViewData["FileDataBase64"] = Convert.ToBase64String(accountingDocument.FileData);
+            }
+            else
+            {
+                ViewData["FileDataBase64"] = null;
             }
 
             return View(accountingDocument);

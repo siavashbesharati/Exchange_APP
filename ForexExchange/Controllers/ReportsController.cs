@@ -2388,21 +2388,41 @@ namespace ForexExchange.Controllers
 
         // GET: Reports/PrintPoolReport
         [HttpGet]
-        public async Task<IActionResult> PrintPoolReport(int currencyId, DateTime? fromDate = null, DateTime? toDate = null)
+        public async Task<IActionResult> PrintPoolReport(string? currencyCode = null, DateTime? fromDate = null, DateTime? toDate = null)
         {
             try
             {
+                // Date filters are optional - if not provided, use all dates
+                DateTime? formattedFromDate = null;
+                DateTime? formattedToDate = null;
 
+                if (fromDate.HasValue || toDate.HasValue)
+                {
+                    var (fromDateTime, toDateTime) = FormatDateRange(fromDate, toDate);
+                    formattedFromDate = fromDateTime;
+                    formattedToDate = toDateTime;
+                }
 
+                // Currency is optional - if not provided, show all currencies
+                object? currencyFilter = null;
+                string displayCurrencyName = "همه ارزها";
+                int? currencyId = null;
 
-                // Get currency code for display
-                var Currency = await _context.Currencies
-                    .FindAsync(currencyId);
+                if (!string.IsNullOrEmpty(currencyCode))
+                {
+                    var currency = await _context.Currencies
+                        .FirstOrDefaultAsync(c => c.Code == currencyCode);
+                    if (currency != null)
+                    {
+                        currencyFilter = currency.Id;
+                        currencyId = currency.Id;
+                        displayCurrencyName = currency.Code;
+                    }
+                }
 
-                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyId, fromDate, toDate);
-                var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyId);
+                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyFilter, formattedFromDate, formattedToDate);
 
-                if (timeline == null || summary == null)
+                if (timeline == null)
                     return StatusCode(500, "خطا در دریافت داده‌های گزارش داشبورد");
 
                 // Convert timeline to generic format with safe parsing
@@ -2438,38 +2458,61 @@ namespace ForexExchange.Controllers
                     }
                 }
 
-                // Get final balances from summary with safe conversion
+                // Get final balances - if single currency, get summary; otherwise calculate from transactions
                 var finalBalances = new Dictionary<string, decimal>();
-                if (summary.CurrencyBalances != null && summary.CurrencyBalances.ContainsKey(Currency.Code))
+                
+                if (currencyId.HasValue && currencyFilter != null)
                 {
-                    try
+                    // Single currency - get summary
+                    var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyFilter);
+                    if (summary?.CurrencyBalances != null)
                     {
-                        finalBalances[Currency.Code] = Convert.ToDecimal(summary.CurrencyBalances[Currency.Code]);
+                        var currency = await _context.Currencies.FindAsync(currencyId.Value);
+                        if (currency != null && summary.CurrencyBalances.ContainsKey(currency.Code))
+                        {
+                            try
+                            {
+                                finalBalances[currency.Code] = Convert.ToDecimal(summary.CurrencyBalances[currency.Code]);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Error converting balance for pool currency {CurrencyCode}", currency.Code);
+                            }
+                        }
                     }
-                    catch (Exception ex)
+                }
+                else
+                {
+                    // Multiple currencies - calculate final balances from transactions
+                    var currencyGroups = transactions.GroupBy(t => t.CurrencyCode);
+                    foreach (var group in currencyGroups)
                     {
-                        _logger.LogWarning(ex, "Error converting balance for pool currency {CurrencyCode}", Currency.Code);
+                        var lastTransaction = group.OrderByDescending(t => t.TransactionDate).FirstOrDefault();
+                        if (lastTransaction != null)
+                        {
+                            finalBalances[group.Key] = lastTransaction.RunningBalance;
+                        }
                     }
                 }
 
                 var reportModel = new FinancialReportViewModel
                 {
                     ReportType = "Pool",
-                    EntityName = Currency.Code,
-                    EntityId = currencyId,
-                    FromDate = fromDate ?? DateTime.MinValue,
-                    ToDate = toDate ?? DateTime.MaxValue,
+                    EntityName = displayCurrencyName,
+                    EntityId = currencyId ?? 0,
+                    FromDate = formattedFromDate ?? DateTime.MinValue,
+                    ToDate = formattedToDate ?? DateTime.MaxValue,
                     Transactions = transactions,
                     FinalBalances = finalBalances,
-                    ReportTitle = $"گزارش داشبورد - {Currency.Code}",
-                    ReportSubtitle = $"از {fromDate?.ToString("yyyy/MM/dd") ?? "ابتدا"} تا {toDate?.ToString("yyyy/MM/dd") ?? "انتها"}"
+                    ReportTitle = $"گزارش داشبورد - {displayCurrencyName}",
+                    ReportSubtitle = $"از {formattedFromDate?.ToString("yyyy/MM/dd") ?? "ابتدا"} تا {formattedToDate?.ToString("yyyy/MM/dd") ?? "انتها"}"
                 };
 
                 return View("~/Views/PrintViews/PoolPrintReport.cshtml", reportModel);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error generating pool report for currencyId {CurrencyId}", currencyId);
+                _logger.LogError(ex, "Error generating pool report for currencyCode {CurrencyCode}", currencyCode ?? "All");
                 // Return a proper error response instead of View("Error")
                 return StatusCode(500, "خطا در تولید گزارش داشبورد");
             }
@@ -4358,14 +4401,9 @@ namespace ForexExchange.Controllers
         // Pool Timeline Excel Export
         private async Task<IActionResult> ExportPoolTimeline(string? currencyCode, DateTime? fromDate, DateTime? toDate)
         {
-            if (string.IsNullOrEmpty(currencyCode))
-            {
-                return BadRequest("کد ارز الزامی است");
-            }
-
             try
             {
-                // Format date range
+                // Date filters are optional - if not provided, export all dates
                 DateTime? formattedFromDate = null;
                 DateTime? formattedToDate = null;
 
@@ -4376,22 +4414,37 @@ namespace ForexExchange.Controllers
                     formattedToDate = toDateTime;
                 }
 
-                // Get timeline data
-                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyCode, formattedFromDate, formattedToDate);
+                // Currency is optional - if not provided, export all currencies
+                object? currencyFilter = null;
+                if (!string.IsNullOrEmpty(currencyCode))
+                {
+                    // Convert currencyCode to currencyId for the service
+                    var currency = await _context.Currencies
+                        .FirstOrDefaultAsync(c => c.Code == currencyCode);
+                    if (currency != null)
+                    {
+                        currencyFilter = currency.Id;
+                    }
+                }
 
-                // Generate Excel file
+                // Get timeline data - if currencyFilter is null, returns all currencies
+                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyFilter, formattedFromDate, formattedToDate);
+
+                // Generate Excel file - handle both single currency and multiple currencies
                 var excelData = _excelExportService.GeneratePoolTimelineExcel(
-                    currencyCode,
+                    currencyCode ?? "همه",
                     timeline.Cast<object>().ToList(),
                     formattedFromDate,
                     formattedToDate);
 
-                var fileName = $"گزارش_داشبورد_{currencyCode}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                var fileName = string.IsNullOrEmpty(currencyCode) 
+                    ? $"گزارش_داشبورد_همه_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx"
+                    : $"گزارش_داشبورد_{currencyCode}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
                 return File(excelData, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error exporting pool timeline for currency {CurrencyCode}", currencyCode);
+                _logger.LogError(ex, "Error exporting pool timeline for currency {CurrencyCode}", currencyCode ?? "All");
                 return StatusCode(500, "خطا در تولید گزارش داشبورد");
             }
         }

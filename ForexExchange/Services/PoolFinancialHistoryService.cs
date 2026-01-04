@@ -67,13 +67,15 @@ namespace ForexExchange.Services
                 .Distinct()
                 .ToList();
 
-            // Load orders with customers in one query
+            // Load orders with customers and currencies in one query
             var orders = new Dictionary<int, Order>();
             if (orderIds.Any())
             {
                 var ordersList = await _context.Orders
                     .AsNoTracking()
                     .Include(o => o.Customer)
+                    .Include(o => o.FromCurrency)
+                    .Include(o => o.ToCurrency)
                     .Where(o => orderIds.Contains(o.Id))
                     .ToListAsync();
                 
@@ -86,13 +88,30 @@ namespace ForexExchange.Services
             // Convert history records to timeline items
             foreach (var record in historyRecords)
             {
-                // Get customer name from order if this is an Order transaction
+                // Get customer name and paired currency from order if this is an Order transaction
                 string customerName = string.Empty;
+                string pairedCurrencyCode = string.Empty;
                 if (record.TransactionType == CurrencyPoolTransactionType.Order && record.ReferenceId.HasValue)
                 {
                     if (orders.TryGetValue(record.ReferenceId.Value, out var order))
                     {
                         customerName = order.Customer?.FullName ?? string.Empty;
+                        
+                        // Determine the paired currency (the other currency in the exchange)
+                        var poolCurrencyCode = record.Currency != null ? record.Currency.Code : record.CurrencyCode;
+                        if (order.FromCurrency != null && order.ToCurrency != null)
+                        {
+                            if (order.FromCurrency.Code == poolCurrencyCode)
+                            {
+                                // Pool currency is FromCurrency, so paired is ToCurrency
+                                pairedCurrencyCode = order.ToCurrency.Code ?? string.Empty;
+                            }
+                            else if (order.ToCurrency.Code == poolCurrencyCode)
+                            {
+                                // Pool currency is ToCurrency, so paired is FromCurrency
+                                pairedCurrencyCode = order.FromCurrency.Code ?? string.Empty;
+                            }
+                        }
                     }
                 }
 
@@ -109,7 +128,8 @@ namespace ForexExchange.Services
                     Balance = record.BalanceAfter,
                     ReferenceId = record.ReferenceId,
                     CanNavigate = record.TransactionType == CurrencyPoolTransactionType.Order && record.ReferenceId.HasValue,
-                    CustomerName = customerName
+                    CustomerName = customerName,
+                    PairedCurrencyCode = pairedCurrencyCode
                 };
 
                 timelineItems.Add(item);
@@ -252,6 +272,7 @@ namespace ForexExchange.Services
         public string CurrencyCode { get; set; } = string.Empty;
         public int CurrencyId { get; set; }
         public string CustomerName { get; set; } = string.Empty; // Customer name for Order transactions
+        public string PairedCurrencyCode { get; set; } = string.Empty; // The other currency in the exchange (from Order transactions)
     }
 
     /// <summary>

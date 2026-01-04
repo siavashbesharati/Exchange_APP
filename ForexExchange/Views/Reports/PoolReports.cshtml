@@ -502,19 +502,19 @@
 
     function exportToExcel() {
         const currencyCode = document.getElementById('currencySelect').value;
-        if (!currencyCode) {
-            alert('لطفاً ابتدا ارز را انتخاب کنید');
-            return;
-        }
-
         const fromDate = document.getElementById('fromDate').value || null;
         const toDate = document.getElementById('toDate').value || null;
 
         // Build URL with parameters
         const params = new URLSearchParams();
         params.append('type', 'pool');
-        params.append('currencyCode', currencyCode);
         
+        // Currency is optional - if not selected, export all currencies
+        if (currencyCode) {
+            params.append('currencyCode', currencyCode);
+        }
+        
+        // Date filters are optional - if not provided, export all dates
         if (fromDate) params.append('fromDate', fromDate);
         if (toDate) params.append('toDate', toDate);
 
@@ -522,29 +522,22 @@
     }
 
     function printTimeline() {
-        if (!currentTimeline) {
-            alert('ابتدا تاریخچه مالی را بارگذاری کنید');
-            return;
-        }
-
         const currencySelect = document.getElementById('currencySelect');
-        const selectedOption = currencySelect.options[currencySelect.selectedIndex];
-        const currencyId = selectedOption.getAttribute('data-currency-id');
+        const currencyCode = currencySelect.value;
+        const fromDate = document.getElementById('fromDate').value || null;
+        const toDate = document.getElementById('toDate').value || null;
+
+        // Build URL with parameters - currency and dates are optional
+        const params = new URLSearchParams();
         
-        if (!currencyId) {
-            alert('لطفاً ابتدا ارز را انتخاب کنید');
-            return;
+        // Currency is optional - if not selected, print all currencies
+        if (currencyCode) {
+            params.append('currencyCode', currencyCode);
         }
-
-        const fromDate = document.getElementById('fromDate').value || '';
-        const toDate = document.getElementById('toDate').value || '';
-
-        // Build URL with query parameters - use currencyId (preferred)
-        const params = new URLSearchParams({
-            currencyId: currencyId,
-            fromDate: fromDate,
-            toDate: toDate
-        });
+        
+        // Date filters are optional - if not provided, print all dates
+        if (fromDate) params.append('fromDate', fromDate);
+        if (toDate) params.append('toDate', toDate);
 
         // Open pool report page in new window
         const url = '@Url.Action("PrintPoolReport", "Reports")?' + params.toString();
