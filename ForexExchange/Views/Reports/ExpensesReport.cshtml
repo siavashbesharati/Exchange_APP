@@ -410,14 +410,88 @@ function renderReport(currencies, summary) {
                 <td colspan="2" class="text-center text-muted">داده‌ای برای نمایش وجود ندارد</td>
             </tr>`;
 
-        const customerRows = (currency.customerDetails || []).map(item => `
+        const customerRows = (currency.customerDetails || []).map((item, index) => {
+            const customerDetailId = `customer-detail-${safeId}-${index}`;
+            const transactions = item.transactions || [];
+            const transactionRows = transactions.map(t => `
+                <tr>
+                    <td>${t.transactionDate}</td>
+                    <td>${t.transactionType}</td>
+                    <td>${t.description || '-'}</td>
+                    <td dir="ltr" class="${t.transactionAmount < 0 ? 'text-danger' : 'text-success'}">
+                        ${formatValue(t.transactionAmount, currencyCode)}
+                    </td>
+                    <td dir="ltr">${formatValue(t.balanceAfter, currencyCode)}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="5" class="text-center text-muted">تراکنشی یافت نشد</td></tr>';
+            
+            return `
+                <tr>
+                    <td colspan="2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>${item.customerName}</span>
+                            <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#${customerDetailId}" aria-expanded="false">
+                                <i class="fas fa-list me-1"></i>جزئیات تراکنش‌ها
+                            </button>
+                        </div>
+                    </td>
+                    <td dir="ltr">${formatValue(item.balance, currencyCode)}</td>
+                </tr>
+                <tr>
+                    <td colspan="3" class="p-0 border-0">
+                        <div class="collapse" id="${customerDetailId}">
+                            <div class="card card-body m-2">
+                                <div class="row mb-3">
+                                    <div class="col-md-3">
+                                        <div class="border rounded p-2 bg-light">
+                                            <small class="text-muted d-block">جمع هزینه‌ها</small>
+                                            <strong class="text-danger" dir="ltr">${formatValue(item.totalExpenses || 0, currencyCode)}</strong>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="border rounded p-2 bg-light">
+                                            <small class="text-muted d-block">جمع درآمد</small>
+                                            <strong class="text-success" dir="ltr">${formatValue(item.totalIncome || 0, currencyCode)}</strong>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="border rounded p-2 bg-light">
+                                            <small class="text-muted d-block">خالص</small>
+                                            <strong class="${(item.netAmount || 0) >= 0 ? 'text-success' : 'text-danger'}" dir="ltr">${formatValue(item.netAmount || 0, currencyCode)}</strong>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="border rounded p-2 bg-light">
+                                            <small class="text-muted d-block">تعداد تراکنش</small>
+                                            <strong>${item.transactionCount || 0}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h6 class="mb-2">لیست تراکنش‌ها</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>تاریخ</th>
+                                                <th>نوع</th>
+                                                <th>شرح</th>
+                                                <th>مبلغ</th>
+                                                <th>موجودی پس از تراکنش</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${transactionRows}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('') || `
             <tr>
-                <td>${item.customerName}</td>
-                <td dir="ltr">${formatValue(item.balance, currencyCode)}</td>
-            </tr>
-        `).join('') || `
-            <tr>
-                <td colspan="2" class="text-center text-muted">داده‌ای برای نمایش وجود ندارد</td>
+                <td colspan="3" class="text-center text-muted">داده‌ای برای نمایش وجود ندارد</td>
             </tr>`;
 
         cardsContainer.innerHTML += `
@@ -493,6 +567,7 @@ function renderReport(currencies, summary) {
                                             <thead>
                                                 <tr>
                                                     <th>سهامدار</th>
+                                                    <th>جزئیات</th>
                                                     <th>موجودی</th>
                                                 </tr>
                                             </thead>

@@ -458,25 +458,68 @@
                         }
                         else
                         {
-                            <table class="details-table">
-                                <thead>
-                                    <tr>
-                                        <th>سهامدار</th>
-                                        <th>موجودی</th>
-                                        <th>آخرین تراکنش</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var customer in currency.CustomerDetails)
+                            @foreach (var customer in currency.CustomerDetails)
+                            {
+                                <div style="margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; padding: 15px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2px solid #001f4d;">
+                                        <h6 style="margin: 0; font-weight: bold;">@customer.CustomerName</h6>
+                                        <div style="text-align: left;">
+                                            <div style="font-size: 14px; color: #666;">موجودی: <strong dir="ltr">@customer.Balance.FormatCurrency(currency.CurrencyCode)</strong></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px;">
+                                        <div style="background: #fff3cd; padding: 10px; border-radius: 5px; text-align: center;">
+                                            <div style="font-size: 11px; color: #856404; margin-bottom: 5px;">جمع هزینه‌ها</div>
+                                            <div style="font-weight: bold; color: #e74c3c;" dir="ltr">@customer.TotalExpenses.FormatCurrency(currency.CurrencyCode)</div>
+                                        </div>
+                                        <div style="background: #d1ecf1; padding: 10px; border-radius: 5px; text-align: center;">
+                                            <div style="font-size: 11px; color: #0c5460; margin-bottom: 5px;">جمع درآمد</div>
+                                            <div style="font-weight: bold; color: #27ae60;" dir="ltr">@customer.TotalIncome.FormatCurrency(currency.CurrencyCode)</div>
+                                        </div>
+                                        <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; text-align: center;">
+                                            <div style="font-size: 11px; color: #495057; margin-bottom: 5px;">خالص</div>
+                                            <div style="font-weight: bold; color: @(customer.NetAmount >= 0 ? "#27ae60" : "#e74c3c");" dir="ltr">@customer.NetAmount.FormatCurrency(currency.CurrencyCode)</div>
+                                        </div>
+                                        <div style="background: #e7f3ff; padding: 10px; border-radius: 5px; text-align: center;">
+                                            <div style="font-size: 11px; color: #004085; margin-bottom: 5px;">تعداد تراکنش</div>
+                                            <div style="font-weight: bold; color: #004085;">@customer.TransactionCount</div>
+                                        </div>
+                                    </div>
+                                    
+                                    @if (customer.Transactions.Any())
                                     {
-                                        <tr>
-                                            <td>@customer.CustomerName</td>
-                                            <td class="amount">@customer.Balance.FormatCurrency(currency.CurrencyCode)</td>
-                                            <td>@customer.LastTransactionAt.ToString("yyyy/MM/dd HH:mm")</td>
-                                        </tr>
+                                        <h6 style="margin-bottom: 10px; font-size: 13px;">لیست تراکنش‌ها:</h6>
+                                        <table class="details-table" style="font-size: 10px;">
+                                            <thead>
+                                                <tr>
+                                                    <th>تاریخ</th>
+                                                    <th>نوع</th>
+                                                    <th>شرح</th>
+                                                    <th>مبلغ</th>
+                                                    <th>موجودی پس از تراکنش</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var transaction in customer.Transactions.OrderByDescending(t => t.TransactionDate))
+                                                {
+                                                    <tr>
+                                                        <td>@transaction.TransactionDate.ToString("yyyy/MM/dd HH:mm")</td>
+                                                        <td>@transaction.TransactionType</td>
+                                                        <td>@(transaction.Description ?? "-")</td>
+                                                        <td class="amount" style="color: @(transaction.TransactionAmount < 0 ? "#e74c3c" : "#27ae60");">@transaction.TransactionAmount.FormatCurrency(currency.CurrencyCode)</td>
+                                                        <td class="amount">@transaction.BalanceAfter.FormatCurrency(currency.CurrencyCode)</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
                                     }
-                                </tbody>
-                            </table>
+                                    else
+                                    {
+                                        <div class="no-data" style="font-size: 11px;">تراکنشی در بازه زمانی انتخاب شده یافت نشد.</div>
+                                    }
+                                </div>
+                            }
                         }
                     </div>
 

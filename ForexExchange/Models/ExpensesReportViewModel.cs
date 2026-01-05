@@ -75,6 +75,25 @@ namespace ForexExchange.Models
         public string CustomerName { get; set; } = string.Empty;
         public decimal Balance { get; set; }
         public DateTime LastTransactionAt { get; set; }
+        public List<ExpensesReportTransactionViewModel> Transactions { get; set; } = new();
+        
+        // Summary properties
+        public decimal TotalExpenses => Transactions.Where(t => t.TransactionAmount < 0).Sum(t => Math.Abs(t.TransactionAmount));
+        public decimal TotalIncome => Transactions.Where(t => t.TransactionAmount > 0).Sum(t => t.TransactionAmount);
+        public int TransactionCount => Transactions.Count;
+        public decimal NetAmount => TotalIncome - TotalExpenses;
+    }
+
+    public class ExpensesReportTransactionViewModel
+    {
+        public long Id { get; set; }
+        public DateTime TransactionDate { get; set; }
+        public decimal TransactionAmount { get; set; }
+        public decimal BalanceAfter { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public string TransactionType { get; set; } = string.Empty;
+        public int? ReferenceId { get; set; }
+        public string? TransactionNumber { get; set; }
     }
 
     public class ExpensesReportSummaryConversionViewModel

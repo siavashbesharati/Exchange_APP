@@ -3024,7 +3024,22 @@ namespace ForexExchange.Controllers
                         c.CustomerId,
                         c.CustomerName,
                         c.Balance,
-                        lastTransactionAt = c.LastTransactionAt.ToString("yyyy/MM/dd HH:mm")
+                        lastTransactionAt = c.LastTransactionAt.ToString("yyyy/MM/dd HH:mm"),
+                        transactions = c.Transactions.Select(t => new
+                        {
+                            t.Id,
+                            transactionDate = t.TransactionDate.ToString("yyyy/MM/dd HH:mm"),
+                            transactionAmount = t.TransactionAmount,
+                            balanceAfter = t.BalanceAfter,
+                            description = t.Description,
+                            transactionType = t.TransactionType,
+                            referenceId = t.ReferenceId,
+                            transactionNumber = t.TransactionNumber
+                        }).ToList(),
+                        totalExpenses = c.TotalExpenses,
+                        totalIncome = c.TotalIncome,
+                        transactionCount = c.TransactionCount,
+                        netAmount = c.NetAmount
                     })
                 }).ToList();
 
@@ -3694,7 +3709,8 @@ namespace ForexExchange.Controllers
                 (startDate, endDate) = (endDate, startDate);
             }
 
-            // Set time boundaries: end at 23:59:59 for the end date
+            // Set time boundaries: start at 00:00:00 for start date, end at 23:59:59 for the end date
+            var startDateTime = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0);
             var endDateTime = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59);
 
             var currencies = await _context.Currencies
@@ -3713,41 +3729,65 @@ namespace ForexExchange.Controllers
 
             var currencyLookup = currencies.ToDictionary(c => c.Code, StringComparer.OrdinalIgnoreCase);
 
-            // Get latest bank balances for system customers (IsSystem = true) up to end date
+            // Get bank account transactions within the date range for shareholders
+            var bankTransactionsInRange = await _context.BankAccountBalanceHistory
+                .Where(h => !h.IsDeleted 
+                    && h.TransactionDate >= startDateTime 
+                    && h.TransactionDate <= endDateTime)
+                .Include(h => h.BankAccount)
+                    .ThenInclude(ba => ba.Customer)
+                .Where(h => h.BankAccount != null
+                    && h.BankAccount.Customer != null
+                    && h.BankAccount.Customer.IsShareHolder == true
+                    && !string.IsNullOrEmpty(h.BankAccount.CurrencyCode))
+                .ToListAsync();
+
+            // Get customer transactions within the date range for shareholders
+            var customerTransactionsInRange = await _context.CustomerBalanceHistory
+                .Where(h => !h.IsDeleted 
+                    && h.TransactionDate >= startDateTime 
+                    && h.TransactionDate <= endDateTime)
+                .Include(h => h.Customer)
+                .Where(h => h.Customer != null
+                    && h.Customer.IsShareHolder == true
+                    && !string.IsNullOrEmpty(h.CurrencyCode))
+                .ToListAsync();
+
+            // Get latest bank balances up to end date for shareholders (for current balance display)
             var latestBankBalances = await _context.BankAccountBalanceHistory
                 .Where(h => !h.IsDeleted && h.TransactionDate <= endDateTime)
                 .Include(h => h.BankAccount)
                     .ThenInclude(ba => ba.Customer)
+                .Where(h => h.BankAccount != null
+                    && h.BankAccount.Customer != null
+                    && h.BankAccount.Customer.IsShareHolder == true
+                    && !string.IsNullOrEmpty(h.BankAccount.CurrencyCode))
                 .GroupBy(h => h.BankAccountId)
                 .Select(g => g.OrderByDescending(h => h.TransactionDate)
                               .ThenByDescending(h => h.Id)
                               .First())
                 .ToListAsync();
 
-            // Filter bank accounts that belong to shareholders (IsShareHolder = true)
+            // Group bank transactions by currency
             var bankGroups = latestBankBalances
-                .Where(h => h.BankAccount != null
-                    && h.BankAccount.Customer != null
-                    && h.BankAccount.Customer.IsShareHolder == true
-                    && !string.IsNullOrEmpty(h.BankAccount.CurrencyCode))
                 .GroupBy(h => h.BankAccount.CurrencyCode)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            // Get latest customer balances for shareholders (IsShareHolder = true) up to end date
+            // Get latest customer balances up to end date for shareholders (for current balance display)
             var latestCustomerBalances = await _context.CustomerBalanceHistory
                 .Where(h => !h.IsDeleted && h.TransactionDate <= endDateTime)
                 .Include(h => h.Customer)
+                .Where(h => h.Customer != null
+                    && h.Customer.IsShareHolder == true
+                    && !string.IsNullOrEmpty(h.CurrencyCode))
                 .GroupBy(h => new { h.CustomerId, h.CurrencyCode })
                 .Select(g => g.OrderByDescending(h => h.TransactionDate)
                               .ThenByDescending(h => h.Id)
                               .First())
                 .ToListAsync();
 
-            // Filter for shareholders only
+            // Group customer transactions by currency
             var customerGroups = latestCustomerBalances
-                .Where(h => h.Customer != null
-                    && h.Customer.IsShareHolder == true
-                    && !string.IsNullOrEmpty(h.CurrencyCode))
                 .GroupBy(h => h.CurrencyCode)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -3764,6 +3804,16 @@ namespace ForexExchange.Controllers
 
                 var bankEntries = bankEntriesRaw ?? new List<BankAccountBalanceHistory>();
                 var customerEntries = customerEntriesRaw ?? new List<CustomerBalanceHistory>();
+
+                // Get bank transactions for this currency within date range
+                var bankTransactionsForCurrency = bankTransactionsInRange
+                    .Where(t => t.BankAccount?.CurrencyCode == currency.Code)
+                    .ToList();
+
+                // Get customer transactions for this currency within date range
+                var customerTransactionsForCurrency = customerTransactionsInRange
+                    .Where(t => t.CurrencyCode == currency.Code)
+                    .ToList();
 
                 // حساب‌های بانکی متعلق به سهامداران (سیستم کاستمرها)
                 var bankDetails = bankEntries
@@ -3783,12 +3833,34 @@ namespace ForexExchange.Controllers
                 // موجودی سهامداران (سیستم کاستمرها)
                 var customerDetails = customerEntries
                     .Where(c => c.BalanceAfter != 0)
-                    .Select(c => new ExpensesReportCustomerDetailViewModel
+                    .Select(c =>
                     {
-                        CustomerId = c.CustomerId,
-                        CustomerName = c.Customer?.FullName ?? "نامشخص",
-                        Balance = c.BalanceAfter,
-                        LastTransactionAt = c.TransactionDate
+                        // Get all transactions for this customer in this currency within date range
+                        var transactions = customerTransactionsForCurrency
+                            .Where(t => t.CustomerId == c.CustomerId)
+                            .OrderByDescending(t => t.TransactionDate)
+                            .ThenByDescending(t => t.Id)
+                            .Select(t => new ExpensesReportTransactionViewModel
+                            {
+                                Id = t.Id,
+                                TransactionDate = t.TransactionDate,
+                                TransactionAmount = t.TransactionAmount,
+                                BalanceAfter = t.BalanceAfter,
+                                Description = t.Description ?? GetTransactionDescription(t.TransactionType, t.ReferenceId),
+                                TransactionType = GetTransactionTypeName(t.TransactionType),
+                                ReferenceId = t.ReferenceId,
+                                TransactionNumber = t.TransactionNumber
+                            })
+                            .ToList();
+
+                        return new ExpensesReportCustomerDetailViewModel
+                        {
+                            CustomerId = c.CustomerId,
+                            CustomerName = c.Customer?.FullName ?? "نامشخص",
+                            Balance = c.BalanceAfter,
+                            LastTransactionAt = c.TransactionDate,
+                            Transactions = transactions
+                        };
                     })
                     .OrderByDescending(c => c.Balance)
                     .ToList();
@@ -3873,6 +3945,28 @@ namespace ForexExchange.Controllers
                 ?? model.DefaultSummary?.CurrencyCode;
 
             return model;
+        }
+
+        private string GetTransactionDescription(CustomerBalanceTransactionType transactionType, int? referenceId)
+        {
+            return transactionType switch
+            {
+                CustomerBalanceTransactionType.Order => $"معامله #{referenceId}",
+                CustomerBalanceTransactionType.AccountingDocument => $"سند حسابداری #{referenceId}",
+                CustomerBalanceTransactionType.Manual => "تعدیل دستی",
+                _ => "تراکنش"
+            };
+        }
+
+        private string GetTransactionTypeName(CustomerBalanceTransactionType transactionType)
+        {
+            return transactionType switch
+            {
+                CustomerBalanceTransactionType.Order => "معامله",
+                CustomerBalanceTransactionType.AccountingDocument => "سند حسابداری",
+                CustomerBalanceTransactionType.Manual => "دستی",
+                _ => "نامشخص"
+            };
         }
 
         private async Task<dynamic> CalculateCustomerBalancesForDate(DateTime date)
