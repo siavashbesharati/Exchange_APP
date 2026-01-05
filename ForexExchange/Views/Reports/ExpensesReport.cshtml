@@ -634,10 +634,6 @@ function renderSummary(summary) {
                     </div>
                     <div class="flex-grow-1">
                         <div class="row g-3" id="summaryTotals"></div>
-                        <div class="summary-warning-banner d-none" id="summaryMissingRates">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <span>برخی از ارزها به دلیل نبود نرخ معتبر در جمع لحاظ نشده‌اند.</span>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -657,7 +653,6 @@ function renderSummary(summary) {
 function updateSummaryTotals(currencyCode) {
     const summaryState = window.expensesReportSummary;
     const totalsContainer = document.getElementById('summaryTotals');
-    const warningElement = document.getElementById('summaryMissingRates');
 
     if (!summaryState || !totalsContainer) {
         return;

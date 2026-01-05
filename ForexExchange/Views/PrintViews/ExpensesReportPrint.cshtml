@@ -383,14 +383,6 @@
                         <h4><i class="fas fa-balance-scale"></i> تراز نهایی (@summaryCurrencyCode)</h4>
                         <div class="amount" style="color: @(summary.Difference >= 0 ? "#27ae60" : "#e74c3c")">@summary.Difference.FormatCurrency(summaryCurrencyCode)</div>
                     </div>
-
-                    @if (summary.HasMissingRates)
-                    {
-                        <div class="summary-card summary-warning-card">
-                            <h4>هشدار نرخ تبدیل</h4>
-                            <div class="amount">برخی ارزها بدون نرخ معتبر بوده‌اند.</div>
-                        </div>
-                    }
                 }
                 else
                 {
