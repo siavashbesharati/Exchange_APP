@@ -671,10 +671,6 @@ function updateSummaryTotals(currencyCode) {
                 <div class="alert alert-info mb-0">نرخ تبدیل معتبر برای ارز انتخاب شده یافت نشد.</div>
             </div>`;
 
-        if (warningElement) {
-            warningElement.classList.add('d-none');
-        }
-
         summaryState.selectedCurrency = currencyCode;
         return;
     }
@@ -715,10 +711,6 @@ function updateSummaryTotals(currencyCode) {
         </div>`;
     
     totalsContainer.innerHTML = cardsHTML;
-
-    if (warningElement) {
-        warningElement.classList.toggle('d-none', !totals.hasMissingRates);
-    }
 }
 
 function toggleLoading(show) {
