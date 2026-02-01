@@ -103,6 +103,7 @@ namespace ForexExchange.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateBackup()
         {
+            string? tempBackupPath = null;
             try
             {
                 var now = DateTime.Now;
@@ -129,10 +130,12 @@ namespace ForexExchange.Controllers
                     throw new FileNotFoundException($"Database file not found: {dbPath}");
                 }
 
-                // Use SQLite Backup API to ensure all data (including WAL) is backed up
-                // This method handles checkpointing automatically and includes all data
+                // Backup to a TEMPORARY file first so SQLite never holds the final backup path.
+                // On Windows, SQLite can keep the file handle briefly after Dispose; writing to
+                // temp and then copying avoids "file is being used by another process" when reading.
+                tempBackupPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");
                 var sourceConnectionString = $"Data Source={dbPath};Cache=Shared";
-                var backupConnectionString = $"Data Source={fullBackupPath};Cache=Shared";
+                var backupConnectionString = $"Data Source={tempBackupPath};Cache=Shared";
 
                 using (var sourceConnection = new SqliteConnection(sourceConnectionString))
                 using (var backupConnection = new SqliteConnection(backupConnectionString))
@@ -140,7 +143,6 @@ namespace ForexExchange.Controllers
                     await sourceConnection.OpenAsync();
                     await backupConnection.OpenAsync();
 
-                    // Set busy timeout to handle concurrent access
                     using (var cmd = sourceConnection.CreateCommand())
                     {
                         cmd.CommandText = "PRAGMA busy_timeout=10000;";
@@ -153,17 +155,29 @@ namespace ForexExchange.Controllers
                         await cmd.ExecuteNonQueryAsync();
                     }
 
-                    // Perform a full checkpoint to ensure all WAL data is written to main database
-                    // This ensures we backup the most recent data
                     using (var cmd = sourceConnection.CreateCommand())
                     {
                         cmd.CommandText = "PRAGMA wal_checkpoint(FULL);";
                         await cmd.ExecuteNonQueryAsync();
                     }
 
-                    // Use SQLite Backup API to copy entire database
-                    // This includes all data, even if it was in WAL files
                     sourceConnection.BackupDatabase(backupConnection);
+                }
+
+                // Copy temp backup to final path with retries (Windows may release file handle shortly after Dispose)
+                const int maxRetries = 5;
+                const int delayMs = 150;
+                for (int i = 0; i < maxRetries; i++)
+                {
+                    try
+                    {
+                        System.IO.File.Copy(tempBackupPath, fullBackupPath, overwrite: true);
+                        break;
+                    }
+                    catch (IOException) when (i < maxRetries - 1)
+                    {
+                        await Task.Delay(delayMs);
+                    }
                 }
 
                 // Verify backup file was created and has content
@@ -178,7 +192,7 @@ namespace ForexExchange.Controllers
                     throw new InvalidOperationException("Backup file is empty");
                 }
 
-                // Return the file directly for download
+                // Read from final path (never held by SQLite) and return for download
                 var fileBytes = await System.IO.File.ReadAllBytesAsync(fullBackupPath);
                 return File(fileBytes, "application/octet-stream", backupFileName);
             }
@@ -186,6 +200,21 @@ namespace ForexExchange.Controllers
             {
                 TempData["Error"] = $"خطا در ایجاد پشتیبان: {ex.Message}";
                 return Json(new { success = false, error = ex.Message });
+            }
+            finally
+            {
+                // Clean up temp file if it exists
+                if (tempBackupPath != null && System.IO.File.Exists(tempBackupPath))
+                {
+                    try
+                    {
+                        System.IO.File.Delete(tempBackupPath);
+                    }
+                    catch
+                    {
+                        // Ignore; temp will be cleared by OS later
+                    }
+                }
             }
         }
 
