@@ -1,0 +1,153 @@
+date,type,currency,referenceNumber,amount,note
+2025/12/01,Receivee,IRR,6453,-36000000,"شخصی havala - Amount: 36,000,000 IRR "
+2025/12/02,Pay,IRR,6453,29000000,"havala Amount: 29,000,000 IRR transaction_id: 6453 "
+2025/12/02,Pay,IRR,2534,50000000,"havala Amount: 50,000,000 IRR transaction id: 2534 "
+2025/12/03,Buy,IRR,701,43300000,"BUY 141.96 OMR | SELL 43,300,000 IRR | via Rate: 305000 | Behnam Beshagh "
+2025/12/03,Pay,IRR,5814,12000000,"havala - Amount: 12,000,000 IRR transaction_id: 5814 "
+2025/12/03,Receivee,IRR,, -6500000,"havala Amount: 6,500,000 IRR "
+2025/12/03,Receivee,IRR,, -3746880,"شخصی havala - Amount: 3,746,880 IRR "
+2025/12/03,Pay,IRR,0235,13000000,"havala - Amount: 13,000,000 IRR transaction_id: 0235 "
+2025/12/03,Receivee,IRR,,-4000000,"havala - Amount: 4,000,000 IRR "
+2025/12/04,Buy,IRR,710,3746000,"BUY 12.28 OMR | SELL 3,746,000 IRR | via Rate: 305000 | Behnam Beshagh "
+2025/12/05,Receivee,IRR,5080,-13000000,"havala Amount: 13,000,000 IRR transaction_id: 5080 "
+2025/12/01,Receive,IRR,6453,-36000000,شخصی havala - Amount: 36,000,000 IRR 
+2025/12/02,Pay,IRR,6453,29000000,havala Amount: 29,000,000 IRR 
+2025/12/02,Pay,IRR,2534,50000000,havala Amount: 50,000,000 IRR 
+2025/12/03,Buy,IRR,701,43300000,BUY 141.96 OMR | SELL 43,300,000 IRR 
+2025/12/03,Pay,IRR,9247,12000000,havala - Amount: 12,000,000 IRR 
+2025/12/03,Sell,OMR,701,-141.96,BUY 141.96 OMR | SELL 43,300,000 IRR 
+2025/12/03,Pay,OMR,3364,100,havala - Amount: 100 OMR 
+2025/12/03,Pay,OMR,3364,50,havala - Amount: 50 OMR 
+2025/12/04,Sell,OMR,710,-12.28,BUY 12.28 OMR | SELL 3,746,000 IRR 
+2025/12/05,Receive,IRR,0010,-15000000,transaction id: 0010 
+2025/12/05,Receive,IRR,4481,-1600000,havala Amount: 1,600,000 IRR 
+2025/12/05,Receive,IRR,0278,-400000,havala - Amount: 400,000 IRR 
+2025/12/06,Receive,IRR,,-250000,havala - Amount: 250,000 IRR 
+2025/12/06,Receive,IRR,,-12900000,havala - Amount: 12,900,000 IRR, Ticket 
+2025/12/06,Buy,IRR,714,37900000,BUY 122.25 OMR | SELL 37,900,000 IRR 
+2025/12/06,Sell,OMR,714,-122.25,BUY 122.25 OMR | SELL 37,900,000 IRR 
+2025/12/06,Receive,OMR,,-38.9,havala Amount: 38.9 OMR 
+2025/12/06,Receive,OMR,,-8,havala - Amount: 8 OMR 
+2025/12/06,Receive,OMR,,-3.76,havala - Amount: 3.76 OMR 
+2025/12/07,Receive,OMR,,-1.57,havala Amount: 1.57 OMR 
+2025/12/07,Receive,OMR,,-1.36,havala Amount: 1.36 OMR 
+2025/12/07,Receive,OMR,,-2.17,havala Amount: 2.17 OMR 
+2025/12/07,Receive,OMR,,-3.1,havala Amount: 3.1 OMR 
+2025/12/08,Buy,IRR,721,31600000,BUY 31,600,000 IRR | SELL 98.75 OMR 
+2025/12/08,Sell,OMR,721,-98.75,BUY 31,600,000 IRR | SELL 98.75 OMR 
+2025/12/08,Pay,OMR,8449,650,havala Amount: 650 OMR 
+2025/12/08,Receive,OMR,,-2.51,havala - Amount: 2.51 OMR 
+2025/12/09,Buy,IRR,739,15750000,BUY 15,750,000 IRR | SELL 49.37 OMR 
+2025/12/09,Sell,OMR,739,-49.37,BUY 49.37 OMR | SELL 15,750,000 IRR 
+2025/12/09,Pay,OMR,0152,50,havala Amount: 50 OMR 
+2025/12/09,Receive,OMR,,-7.14,havala - Amount: 7.14 OMR 
+2025/12/09,Receive,OMR,,4.46,havala Amount: 4.46 OMR 
+2025/12/09,Receive,OMR,,-13,havala - Amount: 13 OMR 
+2025/12/09,Receive,OMR,,-3.5,havala Amount: 3.5 OMR 
+2025/12/10,Receive,IRR,7087,-5000000,havala - Amount: 5,000,000 IRR 
+2025/12/10,Receive,IRR,,-9890000,havala - Amount: 9,890,000 IRR, Ticket 
+2025/12/10,Buy,IRR,747,15140000,BUY 48.21 OMR | SELL 15,140,000 IRR 
+2025/12/10,Sell,OMR,747,-48.21,BUY 48.21 OMR | SELL 15,140,000 IRR 
+2025/12/10,Receive,OMR,,-2.4,havala - Amount: 2.4 OMR 
+2025/12/11,Receive,OMR,,-3.1,havala Amount: 3.1 OMR 
+2025/12/11,Receive,OMR,,-10.42,havala Amount: 10.42 OMR 
+2025/12/11,Receive,OMR,,-3.76,havala Amount: 3.76 OMR 
+2025/12/11,Receive,OMR,,1,کارمزد havala - Amount: 1 OMR 
+2025/12/12,Receive,OMR,,-3.62,havala Amount: 3.62 OMR 
+2025/12/13,Receive,OMR,,-2.85,havala Amount: 2.85 OMR
+2025/12/13,Receive,OMR,,-5.77,havala Amount: 5.77 OMR 
+2025/12/13,Receive,OMR,,-1.7,havala Amount: 1.7 OMR 
+2025/12/14,Receive,OMR,,-22.5,cash-Amount: 22.5 OMR 
+2025/12/14,Receive,OMR,,-9.5,"havala - Amount 9.5 OMR, Super market" 
+2025/12/14,Receive,OMR,,-14.8,"havala - Amount: 14.8 OMR, Baby" 
+2025/12/14,Receive,OMR,,-47,"havala Amount: 47 OMR, Mobile bill" 
+2025/12/14,Receive,OMR,,-65.8,"havala - Amount: 65.8 OMR, Sanaz" 
+2025/12/14,Receive,OMR,,-10,havala Amount: 10 OMR 
+2025/12/15,Receive,OMR,,-29.85,BUY 29.85 OMR | SELL 10,000,000 IRR 
+2025/12/16,Receive,IRR,4485,-5000000,havala Amount: 5,000,000 IRR 
+2025/12/16,Buy,IRR,779,5000000,BUY 15.15 OMR | SELL 5,000,000 IRR 
+2025/12/16,Buy,IRR,780,5000000,BUY 15.15 OMR | SELL 5,000,000 IRR 
+2025/12/16,Receive,OMR,,-20,havala Amount: 20 OMR 
+2025/12/16,Receive,OMR,,-10,پارکینگ havala - Amount: 10 OMR 
+2025/12/16,Receive,OMR,,-13.5,قری شاپ havala - Amount: 13.5 OMR 
+2025/12/16,Receive,OMR,,-10,پارکینگ بنز havala - Amount: 10 OMR 
+2025/12/16,Sell,OMR,779,-15.15,BUY 15.15 OMR | SELL 5,000,000 IRR 
+2025/12/16,Sell,OMR,780,-15.15,BUY 15.15 OMR | SELL 5,000,000 IRR 
+2025/12/17,Sell,OMR,840,-887.57,BUY 887.57 OMR | SELL 300,000,000 IRR 
+2025/12/17,Pay,OMR,1888,890,havala - Amount: 890 OMR 
+2025/12/17,Buy,IRR,788,18550000,BUY 54.88 OMR | SELL 18,550,000 IRR 
+2025/12/17,Receive,IRR,2994,-10000000,havala - Amount: 10,000,000 IRR 
+2025/12/17,Receive,IRR,9004,-6550000,havala - Amount: 6,550,000 IRR 
+2025/12/17,Receive,IRR,,-1974200,havala - Amount: 1,974,200 IRR 
+2025/12/17,Receive,IRR,2472,-2000000,havala Amount: 2,000,000 IRR 
+2025/12/17,Receive,IRR,,-1070000,havala - Amount: 1,070,000 IRR 
+2025/12/17,Sell,OMR,788,-54.88,BUY 54.88 OMR | SELL 18,550,000 IRR
+2025/12/20,Receive,IRR,,-2000000,havala Amount: 2,000,000 IRR 
+2025/12/20,Buy,IRR,798,5045000,BUY 14.88 OMR | SELL 5,045,000 IRR 
+2025/12/21,Buy,IRR,867,19000000,BUY 19,000,000 IRR | SELL 56.88 OMR 
+2025/12/21,Sell,OMR,867,-56.88,BUY 56.88 OMR | SELL 19,000,000 IRR 
+2025/12/21,Pay,OMR,2272,75.25,havala Amount: 75.25 OMR 
+2025/12/21,Receive,IRR,,-85000000,havala - Amount: 85,000,000 IRR 
+2025/12/21,Receive,IRR,,-1320000,havala Amount: 1,320,000 IRR 
+2025/12/21,Receive,IRR,,-5100000,havala - Amount: 5,100,000 IRR 
+2025/12/21,Receive,IRR,,-3000000,havala Amount: 3,000,000 IRR 
+2025/12/21,Buy,IRR,825,93921000,BUY 280.36 OMR | SELL 93,921,000 IRR 
+2025/12/22,Pay,OMR,3266,200,havala Amount: 200 OMR 
+2025/12/22,Pay,OMR,6931,500,havala - Amount: 500 OMR 
+2025/12/22,Receive,IRR,6136,-2280000,havala Amount: 2,280,000 IRR 
+2025/12/22,Receive,IRR,5510,-10000000,havala - Amount: 10,000,000 IRR
+2025/12/22,Buy,IRR,822,12279000,BUY 36.11 OMR | SELL 12,279,000 IRR 
+2025/12/23,Receive,IRR,9402,-5000000,havala - Amount: 5,000,000 IRR 
+2025/12/23,Buy,IRR,840,5000000,BUY 14.7 OMR | SELL 5,000,000 IRR 
+2025/12/25,Receive,IRR,,-500000,havala - Amount: 500,000 IRR 
+2025/12/25,Receive,IRR,,-5000000,havala Amount: 5,000,000 IRR 
+2025/12/26,Receive,IRR,,-400000,havala Amount: 400,000 IRR 
+2025/12/27,Pay,OMR,6794,500,havala - Amount: 500 OMR 
+2025/12/27,Pay,OMR,8950,500,havala Amount: 500 OMR 
+2025/12/27,Pay,OMR,5248,500,havala Amount: 500 OMR 
+2025/12/28,Receive,IRR,,-5000000,havala - Amount: 5,000,000 IRR, Shakhsi 
+2025/12/29,Buy,IRR,877,10900000,BUY 30.27 OMR | SELL 10,900,000 IRR 
+2025/12/29,Receive,IRR,,-32250000,havala - Amount: 32,250,000 IRR, Shakhsi 
+2025/12/29,Buy,IRR,878,32250000,BUY 89.58 OMR | SELL 32,250,000 IRR 
+2025/12/29,Sell,OMR,877,-30.27,BUY 30.27 OMR | SELL 10,900,000 IRR 
+2025/12/29,Sell,OMR,878,-89.58,BUY 89.58 OMR | SELL 32,250,000 IRR 
+2025/12/30,Receive,OMR,3420,-250,havala - Amount: 250 OMR
+2025/12/30,Receive,IRR,4728,-2120340,havala - Amount: 2,120,340 IRR 
+2025/12/30,Receive,IRR,8879,-173000,havala-Amount: 173,000 IRR 
+2025/12/31,Receive,IRR,8031,-10000000,havala - Amount: 10,000,000 IRR 
+2025/12/31,Receive,IRR,3749,-1203000,havala - Amount: 1,203,000 IRR 
+2025/12/31,Receive,IRR,8048,-1000000,havala Amount: 1,000,000 IRR 
+2025/12/31,Receive,IRR,4561,-500000,havala-Amount: 500,000 IRR 
+2025/12/31,Receive,IRR,,-25000000,حقوق ماه havala - Amount: 25,000,000 IRR آذر 
+2025/12/31,Receive,IRR,7210,-2100000,havala - Amount: 2,100,000 IRR 
+2025/12/31,Buy,IRR,909,42096000,BUY 118.91 OMR | SELL 42,096,000 IRR
+2025/12/31,Receive,OMR,0642,-39,havala Amount: 39 OMR transaction_id: 0642 
+2025/12/31,Sell,OMR,909,-118.91,BUY 118.91 OMR | SELL 42,096,000 IRR
+2025/12/13,Receivee,OMR,, -5.77,"havala Amount: 5.77 OMR"
+2025/12/13,Receivee,OMR,, -1.7,"havala Amount: 1.7 OMR"
+2025/12/14,Receivee,OMR,, -22.5,"cash-Amount: 22.5 OMR"
+2025/12/14,Receivee,OMR,, -9.5,"havala - Amount 9.5 OMR, Super market"
+2025/12/14,Receivee,OMR,, -14.8,"havala - Amount: 14.8 OMR, Baby"
+2025/12/14,Receivee,OMR,, -47,"havala Amount: 47 OMR, Mobile bill"
+2025/12/14,Receivee,OMR,, -65.8,"havala - Amount: 65.8 OMR, Sanaz"
+2025/12/14,Receivee,OMR,, -26.22,"havala - Amount: 26.22 OMR"
+2025/12/14,Receivee,OMR,, -12.18,"havala Amount: 12.18 OMR"
+2025/12/14,Receivee,OMR,, -4.6,"havala Amount: 4.6 OMR"
+2025/12/15,Receivee,OMR,, -3.09,"havala - Amount: 3.09 OMR"
+2025/12/15,Receivee,OMR,, -16,"havala Amount: 16 OMR"
+2025/12/15,Receivee,OMR,, -38.97,"havala Amount: 38.97 OMR"
+2025/12/15,Receivee,OMR,, -5,"havala - Amount: 5 OMR"
+2025/12/15,Receivee,OMR,, -12.71,"havala Amount: 12.71 OMR"
+2025/12/15,Receivee,OMR,, -1.83,"havala Amount: 1.83 OMR"
+2025/12/16,Receivee,OMR,, -11.3,"havala Amount: 11.3 OMR"
+2025/12/16,Receivee,OMR,, -10,"پارکینگ havala - Amount: 10 OMR"
+2025/12/16,Receivee,OMR,, -13.5,"قری شاپ havala - Amount: 13.5 OMR"
+2025/12/16,Receivee,OMR,, -10,"پارکینگ بنز havala - Amount: 10 OMR"
+2025/12/16,Sell,OMR,779,-15.15,"BUY 15.15 OMR | SELL 5,000,000 IRR | via Rate: 330000 | Behnam Beshagh"
+2025/12/16,Sell,OMR,780,-15.15,"BUY 15.15 OMR | SELL 5,000,000 IRR | via Rate: 330000 | Behnam Beshagh"
+2025/12/17,Sell,OMR,788,-54.88,"BUY 54.88 OMR | SELL 18,550,000 IRR | via Rate: 338000 | Behnam Beshagh"
+2025/12/20,Sell,OMR,798,-14.88,"BUY 14.88 OMR | SELL 5,045,000 IRR | via Rate: 339000 | Behnam Beshagh"
+2025/12/21,Sell,OMR,825,-280.36,"BUY 280.36 OMR | SELL 93,921,000 IRR | via Rate: 335000 | Behnam Beshagh"
+2025/12/22,Sell,OMR,822,-36.11,"BUY 36.11 OMR | SELL 12,279,000 IRR | via Rate: 340000 | Behnam Beshagh"
+2025/12/23,Sell,OMR,840,-14.7,"BUY 14.7 OMR SELL 5,000,000 IRR | via Rate: 340000 | Behnam Beshagh"
+2025/12/23,Receivee,OMR,, -48.1,"قبض موبايل havala - Amount: 48.1 OMR"

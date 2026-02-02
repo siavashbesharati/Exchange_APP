@@ -9,6 +9,9 @@ using Microsoft.AspNetCore.Identity;
 using ForexExchange.Extensions;
 using ForexExchange.Helpers;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
+using System.IO;
+using System.Text;
 
 namespace ForexExchange.Controllers
 {
@@ -21,10 +24,15 @@ namespace ForexExchange.Controllers
         private readonly ICentralFinancialService _centralFinancialService;
         private readonly INotificationHub _notificationHub;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly ICsvImportService _csvImportService;
+        private readonly IOrderDataService _orderDataService;
+        private readonly ILogger<DatabaseController> _logger;
 
         public DatabaseController(ForexDbContext context, IWebHostEnvironment environment,
             ICurrencyPoolService currencyPoolService, ICentralFinancialService centralFinancialService,
-            INotificationHub notificationHub, UserManager<ApplicationUser> userManager)
+            INotificationHub notificationHub, UserManager<ApplicationUser> userManager,
+            ICsvImportService csvImportService, IOrderDataService orderDataService,
+            ILogger<DatabaseController> logger)
         {
             _context = context;
             _environment = environment;
@@ -32,20 +40,27 @@ namespace ForexExchange.Controllers
             _centralFinancialService = centralFinancialService;
             _notificationHub = notificationHub;
             _userManager = userManager;
+            _csvImportService = csvImportService;
+            _orderDataService = orderDataService;
+            _logger = logger;
         }
 
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
             var model = new DatabaseManagementViewModel
             {
                 CustomersCount = _context.Customers.Where(c => !c.IsSystem).Count(),
                 OrdersCount = _context.Orders.Count(),
                 CurrencyPoolsCount = _context.CurrencyPools.Count(),
-                // TODO: Replace with AccountingDocument counts
-                TransactionsCount = 0, // _context.Transactions.Count(),
+                TransactionsCount = 0,
                 ExchangeRatesCount = _context.ExchangeRates.Count(),
-                AccountingDocumentsCount = 0 // _context.Receipts.Count()
+                AccountingDocumentsCount = _context.AccountingDocuments.Count()
             };
+            ViewBag.Customers = await _context.Customers
+                .Where(c => c.IsActive && !c.IsSystem)
+                .OrderBy(c => c.FullName)
+                .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = c.Id.ToString(), Text = c.FullName ?? c.Id.ToString() })
+                .ToListAsync();
             return View(model);
         }
 
@@ -1277,5 +1292,414 @@ namespace ForexExchange.Controllers
             return RedirectToAction("Index");
         }
 
+        /// <summary>
+        /// Upload unified CSV (documents + orders) for one customer. Documents are two-sided: new ref = create with temp bank; existing ref = update other side if temp, else mark duplicate for review.
+        /// </summary>
+        [HttpPost]
+        [RequestSizeLimit(10_485_760)]
+        public async Task<IActionResult> UploadCustomerCsv(IFormFile csvFile, int customerId)
+        {
+            var importedDocs = 0;
+            var updatedDocs = 0;
+            var skippedDocs = 0;
+            var importedOrders = 0;
+            var skippedOrders = 0;
+            var duplicateRefs = new List<string>();
+            var duplicateForReview = new List<object>();
+            var errors = new List<object>();
+
+            if (csvFile == null || csvFile.Length == 0)
+            {
+                return Json(new { success = false, message = "فایلی انتخاب نشده است.", importedDocs = 0, updatedDocs = 0, skippedDocs = 0, importedOrders = 0, skippedOrders = 0, duplicateRefs, duplicateForReview, errors });
+            }
+
+            try
+            {
+                var customer = await _context.Customers.FindAsync(customerId);
+                if (customer == null)
+                {
+                    return Json(new { success = false, message = "مشتری یافت نشد.", importedDocs = 0, updatedDocs = 0, skippedDocs = 0, importedOrders = 0, skippedOrders = 0, duplicateRefs, duplicateForReview, errors });
+                }
+
+                UnifiedCsvParseResult parseResult;
+                try
+                {
+                    using var reader = new StreamReader(csvFile.OpenReadStream(), Encoding.UTF8);
+                    parseResult = ParseUnifiedCustomerCsv(reader, errors);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error parsing unified customer CSV");
+                    return Json(new { success = false, message = $"خطا در خواندن فایل: {ex.Message}", importedDocs = 0, updatedDocs = 0, skippedDocs = 0, importedOrders = 0, skippedOrders = 0, duplicateRefs, duplicateForReview, errors });
+                }
+
+                var currencies = await _context.Currencies.Where(c => c.Code != null).ToListAsync();
+
+                // --- Documents (Receive / Pay) - two-sided logic ---
+                var docRefs = parseResult.DocRows.Select(r => r.ReferenceNumber).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+                var existingDocsByRef = docRefs.Count > 0
+                    ? await _context.AccountingDocuments
+                        .Where(a => a.ReferenceNumber != null && docRefs.Contains(a.ReferenceNumber))
+                        .ToListAsync()
+                    : new List<AccountingDocument>();
+
+                // If DB has duplicate ReferenceNumbers (e.g. same CSV uploaded twice), take first per ref to avoid "duplicate key" exception
+                var existingDocByRef = existingDocsByRef
+                    .GroupBy(d => d.ReferenceNumber ?? "")
+                    .Where(g => !string.IsNullOrWhiteSpace(g.Key))
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                foreach (var row in parseResult.DocRows)
+                {
+                    var refId = row.ReferenceNumber ?? "";
+                    if (string.IsNullOrWhiteSpace(refId)) continue;
+
+                    var codeUpper = (row.CurrencyCode ?? "").Trim().ToUpperInvariant();
+                    var currency = currencies.FirstOrDefault(c => (c.Code ?? "").Trim().ToUpperInvariant() == codeUpper);
+                    if (currency == null)
+                    {
+                        errors.Add(new { refId, message = "ارز معتبر نیست." });
+                        continue;
+                    }
+
+                    var amount = Math.Abs(row.Amount);
+                    if (amount <= 0) continue;
+
+                    BankAccount tempBank;
+                    try
+                    {
+                        tempBank = await _csvImportService.GetOrCreateTempBankAccountForCsvImportAsync(currency.Id, currency.Code ?? "IRR");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to get/create temp bank for CSV import");
+                        errors.Add(new { refId, message = ex.Message });
+                        continue;
+                    }
+
+                    var isReceive = row.Type?.Trim().Equals("Receive", StringComparison.OrdinalIgnoreCase) == true;
+
+                    if (!existingDocByRef.TryGetValue(refId, out var existingDoc))
+                    {
+                        // New document: customer + temp bank
+                        var doc = new AccountingDocument
+                        {
+                            Type = DocumentType.Havala,
+                            CurrencyId = currency.Id,
+                            CurrencyCode = currency.Code ?? "IRR",
+                            Amount = amount,
+                            Title = $"ورود CSV - {refId}",
+                            Description = row.Note,
+                            DocumentDate = row.Date ?? DateTime.Today,
+                            CreatedAt = DateTime.Now,
+                            ReferenceNumber = refId,
+                            IsVerified = true,
+                            IsFrozen = false
+                        };
+                        if (isReceive)
+                        {
+                            doc.PayerType = PayerType.System;
+                            doc.PayerBankAccountId = tempBank.Id;
+                            doc.ReceiverType = ReceiverType.Customer;
+                            doc.ReceiverCustomerId = customerId;
+                        }
+                        else
+                        {
+                            doc.PayerType = PayerType.Customer;
+                            doc.PayerCustomerId = customerId;
+                            doc.ReceiverType = ReceiverType.System;
+                            doc.ReceiverBankAccountId = tempBank.Id;
+                        }
+                        try
+                        {
+                            _context.Add(doc);
+                            await _context.SaveChangesAsync();
+                            importedDocs++;
+                            existingDocByRef[refId] = doc;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error saving document for ref {RefId}", refId);
+                            errors.Add(new { refId, message = ex.Message });
+                        }
+                        continue;
+                    }
+
+                    // Ref exists: check if this row is the "other side" (same amount, and we fill the temp side)
+                    var amountMatch = Math.Abs(existingDoc.Amount - amount) < 0.01m;
+                    var payerIsTemp = existingDoc.PayerType == PayerType.System && existingDoc.PayerBankAccountId == tempBank.Id;
+                    var receiverIsTemp = existingDoc.ReceiverType == ReceiverType.System && existingDoc.ReceiverBankAccountId == tempBank.Id;
+
+                    if (amountMatch && payerIsTemp && !isReceive)
+                    {
+                        existingDoc.PayerType = PayerType.Customer;
+                        existingDoc.PayerCustomerId = customerId;
+                        existingDoc.PayerBankAccountId = null;
+                        try
+                        {
+                            _context.Update(existingDoc);
+                            await _context.SaveChangesAsync();
+                            updatedDocs++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error updating document other side for ref {RefId}", refId);
+                            errors.Add(new { refId, message = ex.Message });
+                        }
+                    }
+                    else if (amountMatch && receiverIsTemp && isReceive)
+                    {
+                        existingDoc.ReceiverType = ReceiverType.Customer;
+                        existingDoc.ReceiverCustomerId = customerId;
+                        existingDoc.ReceiverBankAccountId = null;
+                        try
+                        {
+                            _context.Update(existingDoc);
+                            await _context.SaveChangesAsync();
+                            updatedDocs++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error updating document other side for ref {RefId}", refId);
+                            errors.Add(new { refId, message = ex.Message });
+                        }
+                    }
+                    else
+                    {
+                        skippedDocs++;
+                        duplicateRefs.Add(refId);
+                        // سند از قبل کامل است = هر دو طرف واقعی هستند؛ وگرنه طرف دوم موقت است ولی مبلغ/نقش مطابقت نداشت
+                        var docAlreadyComplete = !payerIsTemp && !receiverIsTemp;
+                        var reason = docAlreadyComplete
+                            ? "این سند یا این شماره رفرنس موجود بوده است."
+                            : "طرف دوم مطابقت نداشت (مبلغ یا نقش متفاوت است).";
+                        duplicateForReview.Add(new { refId, reason });
+                    }
+                }
+
+                // --- Orders (Buy + Sell by referenceNumber) ---
+                var orderExistingRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var ordersWithImportRef = await _context.Orders
+                    .Where(o => o.CustomerId == customerId && o.Notes != null && o.Notes.Contains("ImportRef:"))
+                    .Select(o => o.Notes)
+                    .ToListAsync();
+                foreach (var notes in ordersWithImportRef)
+                {
+                    if (notes == null) continue;
+                    var idx = notes.IndexOf("ImportRef:", StringComparison.OrdinalIgnoreCase);
+                    if (idx < 0) continue;
+                    var start = idx + "ImportRef:".Length;
+                    var end = notes.IndexOf(' ', start);
+                    if (end < 0) end = notes.Length;
+                    var refId = notes.Substring(start, Math.Min(end - start, notes.Length - start)).Trim();
+                    if (!string.IsNullOrEmpty(refId)) orderExistingRefs.Add(refId);
+                }
+
+                var orderGroups = parseResult.OrderRows.GroupBy(r => r.ReferenceNumber ?? "").Where(g => !string.IsNullOrWhiteSpace(g.Key)).ToList();
+
+                foreach (var group in orderGroups)
+                {
+                    var refId = group.Key;
+                    if (orderExistingRefs.Contains(refId))
+                    {
+                        skippedOrders++;
+                        duplicateRefs.Add(refId);
+                        continue;
+                    }
+
+                    // Sell = FromCurrency / FromAmount ; Buy = ToCurrency / ToAmount (یک رفرنس = یک معامله)
+                    var list = group.ToList();
+                    var sellRow = list.FirstOrDefault(r => r.Type?.Equals("Sell", StringComparison.OrdinalIgnoreCase) == true);
+                    var buyRow = list.FirstOrDefault(r => r.Type?.Equals("Buy", StringComparison.OrdinalIgnoreCase) == true);
+
+                    if (buyRow == null || sellRow == null)
+                    {
+                        errors.Add(new { refId, message = "برای هر سفارش باید یک ردیف Buy و یک ردیف Sell با همان referenceNumber وجود داشته باشد." });
+                        continue;
+                    }
+
+                    var fromCode = sellRow.CurrencyCode?.Trim();
+                    var toCode = buyRow.CurrencyCode?.Trim();
+                    var fromCurrency = currencies.FirstOrDefault(c => (c.Code ?? "").Trim().ToUpperInvariant() == (fromCode ?? "").ToUpperInvariant());
+                    var toCurrency = currencies.FirstOrDefault(c => (c.Code ?? "").Trim().ToUpperInvariant() == (toCode ?? "").ToUpperInvariant());
+                    if (fromCurrency == null || toCurrency == null)
+                    {
+                        errors.Add(new { refId, message = "ارز مبدا یا مقصد معتبر نیست." });
+                        continue;
+                    }
+
+                    var fromAmount = Math.Abs(sellRow.Amount);
+                    var toAmount = Math.Abs(buyRow.Amount);
+                    if (fromAmount <= 0 || toAmount <= 0)
+                    {
+                        errors.Add(new { refId, message = "مبلغ باید بزرگتر از صفر باشد." });
+                        continue;
+                    }
+
+                    var rate = toAmount / fromAmount;
+                    var createdAt = sellRow.Date ?? buyRow.Date ?? DateTime.Today;
+                    var notes = (sellRow.Note ?? buyRow.Note ?? "") + " ImportRef:" + refId;
+
+                    var dto = new OrderFormDataDto
+                    {
+                        CustomerId = customerId,
+                        FromCurrencyId = fromCurrency.Id,
+                        ToCurrencyId = toCurrency.Id,
+                        FromAmount = fromAmount,
+                        ToAmount = toAmount,
+                        Rate = rate,
+                        CreatedAt = createdAt,
+                        Notes = notes
+                    };
+
+                    try
+                    {
+                        var orderResult = await _orderDataService.PrepareOrderFromFormDataAsync(dto);
+                        if (!orderResult.IsSuccess)
+                        {
+                            errors.Add(new { refId, message = orderResult.ErrorMessage ?? "خطا در آماده‌سازی سفارش." });
+                            continue;
+                        }
+                        var order = orderResult.Order!;
+                        order.Notes = notes;
+                        _context.Orders.Add(order);
+                        await _context.SaveChangesAsync();
+                        importedOrders++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error creating order for ref {RefId}", refId);
+                        errors.Add(new { refId, message = ex.Message });
+                    }
+                }
+
+                var message = $"واردات انجام شد. اسناد: {importedDocs} جدید، {updatedDocs} به‌روز (طرف دوم)، {skippedDocs} رد شده؛ سفارش‌ها: {importedOrders} وارد شده، {skippedOrders} رد شده.";
+                return Json(new
+                {
+                    success = true,
+                    message,
+                    importedDocs,
+                    updatedDocs,
+                    skippedDocs,
+                    importedOrders,
+                    skippedOrders,
+                    duplicateRefs,
+                    duplicateForReview,
+                    errors
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in UploadCustomerCsv");
+                return Json(new { success = false, message = $"خطا در ارتباط با سرور: {ex.Message}", importedDocs = 0, updatedDocs = 0, skippedDocs = 0, importedOrders = 0, skippedOrders = 0, duplicateRefs = new List<string>(), duplicateForReview = new List<object>(), errors = new List<object>() });
+            }
+        }
+
+        private static UnifiedCsvParseResult ParseUnifiedCustomerCsv(StreamReader reader, List<object> errors)
+        {
+            var docRows = new List<UnifiedDocRow>();
+            var orderRows = new List<UnifiedOrderRow>();
+            var lineNum = 0;
+            string? headerLine = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(headerLine)) return new UnifiedCsvParseResult { DocRows = docRows, OrderRows = orderRows };
+            lineNum++;
+            // Strip BOM if present (e.g. UTF-8 BOM makes first header "﻿date")
+            var headerLineNormalized = headerLine!.TrimStart('\uFEFF');
+            var headers = headerLineNormalized.Split(',').Select(h => h.Trim().ToLowerInvariant()).ToArray();
+            int idxDate = Array.FindIndex(headers, h => h == "date");
+            int idxType = Array.FindIndex(headers, h => h == "type");
+            int idxCurrency = Array.FindIndex(headers, h => h == "currency");
+            // Accept "referencenumber", "refrencenumber" (typo), "reference_number", "transactionid", "id"
+            int idxRef = Array.FindIndex(headers, h => h == "referencenumber" || h == "refrencenumber" || (h.Contains("reference") && h.Contains("number")) || h == "reference_number");
+            if (idxRef < 0) idxRef = Array.FindIndex(headers, h => h == "transactionid" || h == "id");
+            int idxAmount = Array.FindIndex(headers, h => h == "amount");
+            int idxNote = Array.FindIndex(headers, h => h == "note");
+            int idxDesc = Array.FindIndex(headers, h => h == "description");
+            if (idxNote < 0 && idxDesc >= 0) idxNote = idxDesc;
+
+            if (idxDate < 0 || idxType < 0 || idxRef < 0 || idxAmount < 0)
+            {
+                errors.Add(new { line = lineNum, message = "ستون‌های ضروری (date, type, referenceNumber, amount) یافت نشد." });
+                return new UnifiedCsvParseResult { DocRows = docRows, OrderRows = orderRows };
+            }
+
+            while (reader.ReadLine() is { } line)
+            {
+                lineNum++;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var parts = SplitCsvLine(line);
+                var maxIdx = Math.Max(Math.Max(idxDate, idxType), Math.Max(idxRef, idxAmount));
+                if (parts.Count <= maxIdx) continue;
+
+                var refId = idxRef < parts.Count ? NormalizeRefId(parts[idxRef]) : "";
+                if (string.IsNullOrWhiteSpace(refId)) continue;
+
+                DateTime? date = null;
+                if (idxDate >= 0 && idxDate < parts.Count && DateTime.TryParse(parts[idxDate], CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                    date = d;
+                var type = (idxType >= 0 && idxType < parts.Count) ? parts[idxType]?.Trim() : null;
+                var currency = (idxCurrency >= 0 && idxCurrency < parts.Count) ? parts[idxCurrency]?.Trim() : null;
+                var amountStr = (idxAmount >= 0 && idxAmount < parts.Count) ? parts[idxAmount].Replace(",", "", StringComparison.Ordinal).Trim() : "0";
+                if (!decimal.TryParse(amountStr, NumberStyles.Number, CultureInfo.InvariantCulture, out var amt)) continue;
+                var note = (idxNote >= 0 && idxNote < parts.Count) ? parts[idxNote] : null;
+
+                if (type?.Equals("Receive", StringComparison.OrdinalIgnoreCase) == true || type?.Equals("Pay", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    docRows.Add(new UnifiedDocRow { ReferenceNumber = refId, Date = date, Type = type, CurrencyCode = currency, Amount = amt, Note = note });
+                }
+                else if (type?.Equals("Buy", StringComparison.OrdinalIgnoreCase) == true || type?.Equals("Sell", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    orderRows.Add(new UnifiedOrderRow { ReferenceNumber = refId, Date = date, Type = type, CurrencyCode = currency, Amount = amt, Note = note });
+                }
+            }
+            return new UnifiedCsvParseResult { DocRows = docRows, OrderRows = orderRows };
+        }
+
+        private static List<string> SplitCsvLine(string line)
+        {
+            var list = new List<string>();
+            var sb = new StringBuilder();
+            var inQuotes = false;
+            for (var i = 0; i < line.Length; i++)
+            {
+                var c = line[i];
+                if (c == '"') { inQuotes = !inQuotes; continue; }
+                if (!inQuotes && c == ',') { list.Add(sb.ToString().Trim()); sb.Clear(); continue; }
+                sb.Append(c);
+            }
+            list.Add(sb.ToString().Trim());
+            return list;
+        }
+
+        private static string NormalizeRefId(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "" : value.Trim();
+        }
+
+        private class UnifiedCsvParseResult
+        {
+            public List<UnifiedDocRow> DocRows { get; set; } = new();
+            public List<UnifiedOrderRow> OrderRows { get; set; } = new();
+        }
+
+        private sealed class UnifiedDocRow
+        {
+            public string? ReferenceNumber { get; set; }
+            public DateTime? Date { get; set; }
+            public string? Type { get; set; }
+            public string? CurrencyCode { get; set; }
+            public decimal Amount { get; set; }
+            public string? Note { get; set; }
+        }
+
+        private sealed class UnifiedOrderRow
+        {
+            public string? ReferenceNumber { get; set; }
+            public DateTime? Date { get; set; }
+            public string? Type { get; set; }
+            public string? CurrencyCode { get; set; }
+            public decimal Amount { get; set; }
+            public string? Note { get; set; }
+        }
     }
 }

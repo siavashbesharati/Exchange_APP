@@ -174,6 +174,8 @@ builder.Services.AddScoped<ExcelExportService>();
 builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 // Task management service - simplified
 builder.Services.AddScoped<ITaskManagementService, TaskManagementService>();
+// CSV import service - temp bank accounts for document import only
+builder.Services.AddScoped<ICsvImportService, CsvImportService>();
 
 // Central notification system
 builder.Services.AddScoped<INotificationHub>(serviceProvider =>

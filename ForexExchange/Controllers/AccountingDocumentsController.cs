@@ -7,7 +7,9 @@ using ForexExchange.Services;
 using Microsoft.AspNetCore.Identity;
 using ForexExchange.Services.Notifications;
 using ForexExchange.Helpers;
+using System.Globalization;
 using System.IO;
+using System.Text;
 
 namespace ForexExchange.Controllers
 {
@@ -22,6 +24,7 @@ namespace ForexExchange.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly INotificationHub _notificationHub;
         private readonly ICentralFinancialService _centralFinancialService;
+        private readonly ICsvImportService _csvImportService;
         private readonly ILogger<AccountingDocumentsController> _logger;
 
         public AccountingDocumentsController(
@@ -33,6 +36,7 @@ namespace ForexExchange.Controllers
             UserManager<ApplicationUser> userManager,
             INotificationHub notificationHub,
             ICentralFinancialService centralFinancialService,
+            ICsvImportService csvImportService,
             ILogger<AccountingDocumentsController> logger)
         {
             _context = context;
@@ -43,6 +47,7 @@ namespace ForexExchange.Controllers
             _userManager = userManager;
             _notificationHub = notificationHub;
             _centralFinancialService = centralFinancialService;
+            _csvImportService = csvImportService;
             _logger = logger;
         }
 
@@ -1404,6 +1409,276 @@ namespace ForexExchange.Controllers
         private bool AccountingDocumentExists(int id)
         {
             return _context.AccountingDocuments.Any(e => e.Id == id);
+        }
+
+        /// <summary>
+        /// GET: Show view to upload CSV file for importing accounting documents.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> UploadDocumentsCsv()
+        {
+            var customers = await _context.Customers
+                .Where(c => c.IsActive && !c.IsSystem)
+                .OrderBy(c => c.FullName)
+                .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = c.Id.ToString(), Text = c.FullName ?? c.Id.ToString() })
+                .ToListAsync();
+            ViewBag.Customers = customers;
+            return View();
+        }
+
+        /// <summary>
+        /// Upload CSV file to import accounting documents. Uses temp bank accounts per currency for "other side" when reference is unique; duplicate reference in CSV = both sides of one document.
+        /// Checks ReferenceNumber from database to avoid re-importing.
+        /// </summary>
+        [HttpPost]
+        [RequestSizeLimit(10_485_760)] // 10 MB
+        public async Task<IActionResult> UploadDocumentsCsv(IFormFile csvFile, int customerId)
+        {
+            var importedCount = 0;
+            var skippedCount = 0;
+            var duplicateRefs = new List<string>();
+            var errors = new List<object>();
+
+            if (csvFile == null || csvFile.Length == 0)
+            {
+                return Json(new { success = false, message = "فایلی انتخاب نشده است.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+            }
+
+            try
+            {
+                var customer = await _context.Customers.FindAsync(customerId);
+                if (customer == null)
+                {
+                    return Json(new { success = false, message = "مشتری یافت نشد.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+                }
+
+                List<DocCsvRow> rows;
+                try
+                {
+                    using var reader = new StreamReader(csvFile.OpenReadStream(), Encoding.UTF8);
+                    rows = ParseDocumentsCsv(reader, errors);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error parsing documents CSV");
+                    return Json(new { success = false, message = $"خطا در خواندن فایل: {ex.Message}", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+                }
+
+                if (rows.Count == 0)
+                {
+                    return Json(new { success = true, message = "هیچ ردیف معتبری در فایل یافت نشد.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+                }
+
+                var refIds = rows.Select(r => r.ReferenceId).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+                var existingRefs = await _context.AccountingDocuments
+                .Where(a => a.ReferenceNumber != null && refIds.Contains(a.ReferenceNumber))
+                .Select(a => a.ReferenceNumber!)
+                .ToListAsync();
+
+            var groups = rows.GroupBy(r => r.ReferenceId ?? "").Where(g => !string.IsNullOrWhiteSpace(g.Key)).ToList();
+
+            foreach (var group in groups)
+            {
+                var refId = group.Key;
+                if (existingRefs.Contains(refId))
+                {
+                    skippedCount++;
+                    duplicateRefs.Add(refId);
+                    continue;
+                }
+
+                var list = group.ToList();
+                DocCsvRow useRow = list[0];
+                bool isReceive = useRow.Type?.Trim().Equals("Receive", StringComparison.OrdinalIgnoreCase) == true;
+
+                if (list.Count >= 2)
+                {
+                    var payRow = list.FirstOrDefault(r => r.Type?.Trim().Equals("Pay", StringComparison.OrdinalIgnoreCase) == true);
+                    var receiveRow = list.FirstOrDefault(r => r.Type?.Trim().Equals("Receive", StringComparison.OrdinalIgnoreCase) == true);
+                    useRow = receiveRow ?? payRow ?? list[0];
+                    isReceive = useRow.Type?.Trim().Equals("Receive", StringComparison.OrdinalIgnoreCase) == true;
+                }
+
+                int? currencyId = useRow.CurrencyId;
+                string? currencyCode = useRow.CurrencyCode;
+                if (!currencyId.HasValue && !string.IsNullOrWhiteSpace(currencyCode))
+                {
+                    // Filter in memory: EF/SQLite cannot translate ToUpperInvariant to SQL
+                    var codeUpper = currencyCode.Trim().ToUpperInvariant();
+                    var currencies = await _context.Currencies.Where(c => c.Code != null).ToListAsync();
+                    var currency = currencies.FirstOrDefault(c => (c.Code ?? "").Trim().ToUpperInvariant() == codeUpper);
+                    if (currency != null) { currencyId = currency.Id; currencyCode = currency.Code; }
+                }
+                if (!currencyId.HasValue || currencyId.Value <= 0)
+                {
+                    errors.Add(new { refId, message = "ارز معتبر نیست." });
+                    continue;
+                }
+
+                var amount = Math.Abs(useRow.Amount);
+
+                BankAccount tempBank;
+                try
+                {
+                    tempBank = await _csvImportService.GetOrCreateTempBankAccountForCsvImportAsync(currencyId.Value, currencyCode ?? "IRR");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to get/create temp bank for CSV import");
+                    errors.Add(new { refId, message = ex.Message });
+                    continue;
+                }
+
+                var doc = new AccountingDocument
+                {
+                    Type = DocumentType.Havala,
+                    CurrencyId = currencyId,
+                    CurrencyCode = currencyCode ?? "IRR",
+                    Amount = amount,
+                    Title = $"ورود CSV - {refId}",
+                    Description = useRow.Description ?? useRow.Note,
+                    DocumentDate = useRow.Date ?? DateTime.Today,
+                    CreatedAt = DateTime.Now,
+                    ReferenceNumber = refId,
+                    IsVerified = true,
+                    IsFrozen = false
+                };
+
+                if (isReceive)
+                {
+                    doc.PayerType = PayerType.System;
+                    doc.PayerBankAccountId = tempBank.Id;
+                    doc.ReceiverType = ReceiverType.Customer;
+                    doc.ReceiverCustomerId = customerId;
+                }
+                else
+                {
+                    doc.PayerType = PayerType.Customer;
+                    doc.PayerCustomerId = customerId;
+                    doc.ReceiverType = ReceiverType.System;
+                    doc.ReceiverBankAccountId = tempBank.Id;
+                }
+
+                try
+                {
+                    _context.Add(doc);
+                    await _context.SaveChangesAsync();
+                    await _centralFinancialService.ProcessAccountingDocumentAsync(doc, "CSV Import");
+                    importedCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error saving document for ref {RefId}", refId);
+                    errors.Add(new { refId, message = ex.Message });
+                }
+            }
+
+                return Json(new
+                {
+                    success = true,
+                    message = $"واردات انجام شد. تعداد: {importedCount}، رد شده (موجود در دیتابیس): {skippedCount}",
+                    importedCount,
+                    skippedCount,
+                    duplicateRefs,
+                    errors
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in UploadDocumentsCsv");
+                return Json(new { success = false, message = $"خطا در ارتباط با سرور: {ex.Message}", importedCount = 0, skippedCount = 0, duplicateRefs = new List<string>(), errors = new List<object>() });
+            }
+        }
+
+        private static List<DocCsvRow> ParseDocumentsCsv(StreamReader reader, List<object> errors)
+        {
+            var rows = new List<DocCsvRow>();
+            var lineNum = 0;
+            string? headerLine = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(headerLine)) return rows;
+            lineNum++;
+            var headers = headerLine!.Split(',').Select(h => h.Trim().ToLowerInvariant()).ToArray();
+            int idxDate = Array.FindIndex(headers, h => h == "date");
+            int idxType = Array.FindIndex(headers, h => h == "type");
+            int idxCurrencyId = Array.FindIndex(headers, h => h == "currencyid");
+            int idxCurrencyCode = Array.FindIndex(headers, h => h == "currencycode");
+            int idxCurrency = Array.FindIndex(headers, h => h == "currency");
+            int idxTransactionId = Array.FindIndex(headers, h => h == "transactionid");
+            int idxId = Array.FindIndex(headers, h => h == "id");
+            int idxAmount = Array.FindIndex(headers, h => h == "amount");
+            int idxAmountIrr = Array.FindIndex(headers, h => h.Contains("amount") && h.Contains("irr"));
+            int idxDesc = Array.FindIndex(headers, h => h == "description");
+            int idxNote = Array.FindIndex(headers, h => h == "note");
+
+            int refCol = idxTransactionId >= 0 ? idxTransactionId : idxId;
+            int amountCol = idxAmount >= 0 ? idxAmount : idxAmountIrr;
+            if (idxDate < 0 || idxType < 0 || refCol < 0 || amountCol < 0) { errors.Add(new { line = lineNum, message = "ستون‌های ضروری (Date, Type, Reference, Amount) یافت نشد." }); return rows; }
+
+            while (reader.ReadLine() is { } line)
+            {
+                lineNum++;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var parts = SplitCsvLine(line);
+                if (parts.Count <= Math.Max(refCol, amountCol)) continue;
+                var refId = refCol < parts.Count ? NormalizeRefId(parts[refCol]) : "";
+                if (string.IsNullOrWhiteSpace(refId)) continue;
+                DateTime? date = null;
+                if (idxDate >= 0 && idxDate < parts.Count && DateTime.TryParse(parts[idxDate], CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                    date = d;
+                var type = (idxType >= 0 && idxType < parts.Count) ? parts[idxType] : null;
+                int? currencyId = null;
+                if (idxCurrencyId >= 0 && idxCurrencyId < parts.Count && int.TryParse(parts[idxCurrencyId], NumberStyles.Integer, CultureInfo.InvariantCulture, out var cid))
+                    currencyId = cid;
+                var currencyCode = (idxCurrencyCode >= 0 && idxCurrencyCode < parts.Count) ? parts[idxCurrencyCode] : ((idxCurrency >= 0 && idxCurrency < parts.Count) ? parts[idxCurrency] : null);
+                var amountStr = (amountCol >= 0 && amountCol < parts.Count) ? parts[amountCol].Replace(",", "", StringComparison.Ordinal) : "0";
+                if (!decimal.TryParse(amountStr, NumberStyles.Number, CultureInfo.InvariantCulture, out var amt)) continue;
+                var desc = (idxDesc >= 0 && idxDesc < parts.Count) ? parts[idxDesc] : ((idxNote >= 0 && idxNote < parts.Count) ? parts[idxNote] : null);
+                rows.Add(new DocCsvRow { ReferenceId = refId, Date = date, Type = type, CurrencyId = currencyId, CurrencyCode = currencyCode?.Trim(), Amount = Math.Abs(amt), Description = desc, Note = desc });
+            }
+            return rows;
+        }
+
+        private static List<string> SplitCsvLine(string line)
+        {
+            var list = new List<string>();
+            var sb = new StringBuilder();
+            var inQuotes = false;
+            for (int i = 0; i < line.Length; i++)
+            {
+                var c = line[i];
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    continue;
+                }
+                if (!inQuotes && c == ',')
+                {
+                    list.Add(sb.ToString().Trim());
+                    sb.Clear();
+                    continue;
+                }
+                sb.Append(c);
+            }
+            list.Add(sb.ToString().Trim());
+            return list;
+        }
+
+        private static string NormalizeRefId(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "";
+            return value.Trim();
+        }
+
+        private sealed class DocCsvRow
+        {
+            public string? ReferenceId { get; set; }
+            public DateTime? Date { get; set; }
+            public string? Type { get; set; }
+            public int? CurrencyId { get; set; }
+            public string? CurrencyCode { get; set; }
+            public decimal Amount { get; set; }
+            public string? Description { get; set; }
+            public string? Note { get; set; }
         }
     }
 }

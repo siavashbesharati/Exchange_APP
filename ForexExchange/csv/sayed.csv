@@ -1,0 +1,40 @@
+date,type,currency,refrenceNumber,amount,note
+2025/12/09,Pay,OMR,5602,500,havala Amount: 500 OMR
+2025/12/09,Receive,OMR,-,-160,havala - Amount: 160 OMR, Visa
+2025/12/09,Receive,OMR,5582,-150,havala - Amount: 150 OMR
+2025/12/09,Receive,OMR,5693,-180,havala - Amount: 180 OMR
+2025/12/10,Receive,OMR,8312,-150,havala - Amount: 150 OMR
+2025/12/10,Receive,OMR,9849,-20,havala - Amount: 20 OMR
+2025/12/13,Buy,IRR,755,4900000,BUY 15.31 OMR | SELL 4,900,000 IRR | via Rate: 320000 | Seyed ali
+2025/12/13,Sell,OMR,755,-15.31,BUY 15.31 OMR | SELL 4,900,000 IRR
+2025/12/13,Buy,IRR,760,66200000,BUY 200 OMR | SELL 66,200,000 IRR | via Rate: 331000 | Seyed ali
+2025/12/13,Sell,OMR,760,-200,BUY 200 OMR | SELL 66,200,000 IRR
+2025/12/13,Pay,OMR,0565,200,havala Amount: 200 OMR
+2025/12/13,Pay,OMR,1097,120.9,havala Amount: 120.9 OMR
+2025/12/13,Receive,IRR,7966,-4900000,havala Amount: 4,900,000 IRR transaction_id: 7966
+2025/12/14,Receive,IRR,1980,-127400000,havala - Amount: 127,400,000 IRR transaction_id: 1980
+2025/12/14,Receive,IRR,3964,-65800000,havala - Amount: 65,800,000 IRR transaction_id: 3964
+2025/12/14,Pay,OMR,1412,217.4,cash Amount: 217.4 OMR
+2025/12/15,Buy,IRR,775,127400000,BUY 388.41 OMR | SELL 127,400,000 IRR | via Rate: 328000 | Seyed ali
+2025/12/15,Sell,OMR,775,-388.41,BUY 388.41 OMR | SELL 127,400,000 IRR
+2025/12/15,Buy,IRR,776,35250000,BUY 105.22 OMR | SELL 35,250,000 IRR | via Rate: 335000 | Seyed ali
+2025/12/15,Sell,OMR,776,-105.22,BUY 105.22 OMR | SELL 35,250,000 IRR
+2025/12/15,Receive,IRR,0248,-20000000,havala - Amount: 20,000,000 IRR transaction_id: 0248
+2025/12/15,Receive,IRR,2957,-14000000,havala - Amount: 14,000,000 IRR transaction_id: 2957
+2025/12/15,Receive,IRR,4296,-7000000,havala Amount: 7,000,000 IRR transaction_id: 4296
+2025/12/15,Receive,IRR,4443,-4950000,havala - Amount: 4,950,000 IRR transaction id: 4443
+2025/12/15,Receive,IRR,8954,-33000000,havala - Amount: 3,300,000 IRR transaction_id: 8954
+2025/12/15,Pay,IRR,8458,14000000,havala - Amount: 14,000,000 IRR transaction_id: 8458
+2025/12/15,Pay,OMR,1512,105.22,havala Amount: 105.22 OMR
+2025/12/16,Pay,OMR,-,10,پارکینگ havala - Amount: 10 OMR
+2025/12/16,Pay,OMR,-,13.5,فری شاپ havala - Amount: 13.5 OMR
+2025/12/16,Pay,OMR,-,10,پارکینگ بنز havala - Amount: 10 OMR
+2025/12/16,Pay,OMR,,100,هزینه ی شرکت havala - Amount: 100 OMR
+2025/12/17,Buy,IRR,785,467050000,BUY 1,381.8 OMR | SELL 467,050,000 IRR| via Rate: 338000 | Seyed ali
+2025/12/17,Sell,OMR,785,-1381.8,BUY 1,381.8 OMR | SELL 467,050,000 IRR
+2025/12/17,Receive,IRR,7310,-100000000,havala - Amount: 100,000,000 IRR
+2025/12/17,Receive,IRR,7382,-73000000,havala - Amount: 73,000,000 IRR transaction_id: 7382
+2025/12/17,Pay,OMR,7026,150,havala - Amount: 150 OMR
+2025/12/17,Pay,OMR,,980.5,بجای دلار ریال havala - Amount: 980.5 OMR پرداخت شد
+2025/12/30,Receive,OMR,3240,-250,havala Amount: 250 OMR
+2025/12/31,Pay,OMR,1250,1000,havala Amount: 1,000 OMR

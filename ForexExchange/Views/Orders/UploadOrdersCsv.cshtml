@@ -1,0 +1,118 @@
+@{
+    ViewData["Title"] = "ورود معاملات از CSV";
+}
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">ورود معاملات از CSV</h2>
+            <div class="text-muted small">فایل CSV را انتخاب کنید و مشتری را در صورت نیاز مشخص کنید. شناسه رهگیری از دیتابیس بررسی می‌شود.</div>
+        </div>
+        <a asp-action="Index" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> بازگشت به لیست
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">آپلود فایل CSV</h5>
+                </div>
+                <div class="card-body">
+                    <form id="uploadOrdersCsvForm" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <div class="mb-3">
+                            <label for="csvFile" class="form-label">فایل CSV <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="csvFile" name="csvFile" accept=".csv" required />
+                            <div class="form-text">فرمت: برای هر سفارش یک ردیف Buy و یک ردیف Sell با همان TransactionID (ستون‌های Date, Type, CurrencyId, TransactionID, Description, Amount)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="customerId" class="form-label">مشتری</label>
+                            <select class="form-select" id="customerId" name="customerId" required>
+                                <option value="">انتخاب مشتری...</option>
+                                @if (ViewBag.Customers != null)
+                                {
+                                    @foreach (var item in ViewBag.Customers as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)
+                                    {
+                                        <option value="@item.Value">@item.Text</option>
+                                    }
+                                }
+                            </select>
+                            <div class="form-text">مشتری مربوط به این فایل CSV (نام فایل معمولاً برابر با شناسه مشتری است)</div>
+                        </div>
+                        <div id="uploadOrdersResult" class="alert mb-0" style="display: none;" role="alert"></div>
+                        <button type="submit" class="btn btn-primary" id="uploadOrdersBtn">
+                            <i class="fas fa-upload"></i> آپلود و ورود
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('uploadOrdersCsvForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var form = e.target;
+            var fileInput = document.getElementById('csvFile');
+            var customerSelect = document.getElementById('customerId');
+            var resultDiv = document.getElementById('uploadOrdersResult');
+            var btn = document.getElementById('uploadOrdersBtn');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                resultDiv.className = 'alert alert-danger';
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = 'لطفاً یک فایل CSV انتخاب کنید.';
+                return;
+            }
+            if (!customerSelect.value) {
+                resultDiv.className = 'alert alert-danger';
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = 'لطفاً یک مشتری انتخاب کنید.';
+                return;
+            }
+
+            btn.disabled = true;
+            resultDiv.style.display = 'none';
+
+            var formData = new FormData();
+            formData.append('csvFile', fileInput.files[0]);
+            formData.append('customerId', customerSelect.value);
+            formData.append('__RequestVerificationToken', form.querySelector('input[name="__RequestVerificationToken"]').value);
+
+            try {
+                var response = await fetch('@Url.Action("UploadOrdersCsv", "Orders")', {
+                    method: 'POST',
+                    body: formData
+                });
+                var data = await response.json();
+
+                resultDiv.style.display = 'block';
+                if (data.success) {
+                    resultDiv.className = 'alert alert-success';
+                    var html = '<strong>' + data.message + '</strong>';
+                    if (data.importedCount !== undefined) html += '<br/>وارد شده: ' + data.importedCount;
+                    if (data.skippedCount !== undefined && data.skippedCount > 0) html += ' | رد شده: ' + data.skippedCount;
+                    if (data.duplicateRefs && data.duplicateRefs.length > 0) html += '<br/>شناسه‌های تکراری: ' + data.duplicateRefs.join(', ');
+                    if (data.errors && data.errors.length > 0) {
+                        html += '<br/><small>خطاها: ';
+                        data.errors.forEach(function (err) { html += (err.refId || '') + ': ' + (err.message || '') + '; '; });
+                        html += '</small>';
+                    }
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.className = 'alert alert-danger';
+                    resultDiv.innerHTML = (data.message || 'خطا در آپلود') + (data.errors && data.errors.length ? '<br/><small>' + data.errors.map(function(e){ return e.message; }).join('; ') + '</small>' : '');
+                }
+            } catch (err) {
+                resultDiv.className = 'alert alert-danger';
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = 'خطا در ارتباط با سرور: ' + err.message;
+            }
+            btn.disabled = false;
+        });
+    </script>
+}

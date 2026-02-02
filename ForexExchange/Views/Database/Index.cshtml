@@ -167,7 +167,44 @@
                             </div>
                         </div>
 
-                      
+                        <!-- ورود یکپارچه داده مشتری (CSV) -->
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-file-csv me-2"></i>
+                                        ورود یکپارچه داده مشتری (CSV)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small">اسناد (Receive/Pay) و سفارش‌ها (Buy/Sell) در یک فایل. هر فایل برای یک مشتری. ستون‌ها: date, type, currency, referenceNumber, amount, note</p>
+                                    <form id="uploadCustomerCsvForm" enctype="multipart/form-data">
+                                        @Html.AntiForgeryToken()
+                                        <div class="mb-3">
+                                            <label for="customerCsvFile" class="form-label">فایل CSV <span class="text-danger">*</span></label>
+                                            <input type="file" class="form-control" id="customerCsvFile" name="csvFile" accept=".csv" required />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="uploadCustomerId" class="form-label">مشتری <span class="text-danger">*</span></label>
+                                            <select class="form-select" id="uploadCustomerId" name="customerId" required>
+                                                <option value="">انتخاب مشتری...</option>
+                                                @if (ViewBag.Customers != null)
+                                                {
+                                                    @foreach (var item in ViewBag.Customers as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)
+                                                    {
+                                                        <option value="@item.Value">@item.Text</option>
+                                                    }
+                                                }
+                                            </select>
+                                        </div>
+                                        <div id="uploadCustomerCsvResult" class="alert mb-0" style="display: none;" role="alert"></div>
+                                        <button type="submit" class="btn btn-primary w-100" id="uploadCustomerCsvBtn">
+                                            <i class="fas fa-upload me-2"></i> آپلود و ورود
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <hr>
@@ -311,6 +348,75 @@
         function confirmRestore() {
             return confirm('آیا مطمئن هستید که می‌خواهید پایگاه داده را بازیابی کنید؟ این عمل تمام اطلاعات فعلی را جایگزین خواهد کرد.');
         }
+
+        $(function () {
+            $('#uploadCustomerCsvForm').on('submit', async function (e) {
+                e.preventDefault();
+                var form = e.target;
+                var fileInput = document.getElementById('customerCsvFile');
+                var customerSelect = document.getElementById('uploadCustomerId');
+                var resultDiv = document.getElementById('uploadCustomerCsvResult');
+                var btn = document.getElementById('uploadCustomerCsvBtn');
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    resultDiv.className = 'alert alert-danger';
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = 'لطفاً یک فایل CSV انتخاب کنید.';
+                    return;
+                }
+                if (!customerSelect.value) {
+                    resultDiv.className = 'alert alert-danger';
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = 'لطفاً یک مشتری انتخاب کنید.';
+                    return;
+                }
+                btn.disabled = true;
+                resultDiv.style.display = 'none';
+                var formData = new FormData();
+                formData.append('csvFile', fileInput.files[0]);
+                formData.append('customerId', customerSelect.value);
+                formData.append('__RequestVerificationToken', form.querySelector('input[name="__RequestVerificationToken"]').value);
+                try {
+                    var response = await fetch('@Url.Action("UploadCustomerCsv", "Database")', { method: 'POST', body: formData });
+                    var contentType = response.headers.get('content-type') || '';
+                    var data;
+                    if (contentType.indexOf('application/json') !== -1) {
+                        data = await response.json();
+                    } else {
+                        var text = await response.text();
+                        throw new Error(response.ok ? ('پاسخ نامعتبر: ' + text.substring(0, 200)) : ('خطا ' + response.status + ': ' + (text || response.statusText)));
+                    }
+                    resultDiv.style.display = 'block';
+                    if (data.success) {
+                        resultDiv.className = 'alert alert-success';
+                        var html = '<strong>' + data.message + '</strong>';
+                        if (data.importedDocs !== undefined) html += '<br/>اسناد جدید: ' + data.importedDocs;
+                        if (data.updatedDocs !== undefined) html += ' | اسناد به‌روز (طرف دوم): ' + data.updatedDocs;
+                        if (data.skippedDocs !== undefined && data.skippedDocs > 0) html += ' | رد شده: ' + data.skippedDocs;
+                        if (data.importedOrders !== undefined) html += '<br/>سفارش‌های وارد شده: ' + data.importedOrders;
+                        if (data.skippedOrders !== undefined && data.skippedOrders > 0) html += ' | سفارش رد شده: ' + data.skippedOrders;
+                        if (data.duplicateForReview && data.duplicateForReview.length > 0) {
+                            html += '<br/><small>برای بررسی دستی: ';
+                            data.duplicateForReview.forEach(function (x) { html += (x.refId || '') + ': ' + (x.reason || '') + '; '; });
+                            html += '</small>';
+                        }
+                        if (data.errors && data.errors.length > 0) {
+                            html += '<br/><small>خطاها: ';
+                            data.errors.forEach(function (err) { html += (err.refId || '') + ': ' + (err.message || '') + '; '; });
+                            html += '</small>';
+                        }
+                        resultDiv.innerHTML = html;
+                    } else {
+                        resultDiv.className = 'alert alert-danger';
+                        resultDiv.innerHTML = (data.message || 'خطا در آپلود') + (data.errors && data.errors.length ? '<br/><small>' + data.errors.map(function (e) { return e.message; }).join('; ') + '</small>' : '');
+                    }
+                } catch (err) {
+                    resultDiv.className = 'alert alert-danger';
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = 'خطا در ارتباط با سرور: ' + err.message;
+                }
+                btn.disabled = false;
+            });
+        });
 
         function cleanCustomers() {
         }

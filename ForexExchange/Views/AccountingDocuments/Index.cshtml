@@ -10,9 +10,14 @@
             <h2 class="mb-1">مدیریت اسناد حسابداری</h2>
             <div class="text-muted small">فهرست اسناد حسابداری ثبت‌شده در سیستم</div>
         </div>
-        <a asp-action="Upload" class="btn btn-primary">
-            <i class="fas fa-plus"></i> ثبت سند جدید
-        </a>
+        <div class="d-flex gap-2">
+            <a asp-action="UploadDocumentsCsv" class="btn btn-outline-primary">
+                <i class="fas fa-file-csv"></i> ورود از CSV
+            </a>
+            <a asp-action="Upload" class="btn btn-primary">
+                <i class="fas fa-plus"></i> ثبت سند جدید
+            </a>
+        </div>
     </div>
 
     @if (TempData["SuccessMessage"] != null)

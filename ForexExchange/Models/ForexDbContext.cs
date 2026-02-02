@@ -26,7 +26,7 @@ namespace ForexExchange.Models
                 {
                     await Database.ExecuteSqlRawAsync("PRAGMA journal_mode = WAL;", cancellationToken);
                     await Database.ExecuteSqlRawAsync("PRAGMA busy_timeout = 5000;", cancellationToken);
-                    await Database.ExecuteSqlRawAsync("PRAGMA synchronous = NORMAL;", cancellationToken);
+                    // PRAGMA synchronous = NORMAL often fails in WAL mode (logs "Failed executing DbCommand") - skip it
                     await Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000;", cancellationToken); // 64MB cache
                     _pragmaConfigured = true;
                 }

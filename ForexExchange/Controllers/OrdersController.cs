@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using ForexExchange.Services;
 using ForexExchange.Models;
 using Microsoft.AspNetCore.Identity;
@@ -683,6 +686,273 @@ namespace ForexExchange.Controllers
             }
 
             return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>
+        /// GET: Show view to upload CSV file for importing orders.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> UploadOrdersCsv()
+        {
+            var customers = await _context.Customers
+                .Where(c => c.IsActive && !c.IsSystem)
+                .OrderBy(c => c.FullName)
+                .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = c.Id.ToString(), Text = c.FullName ?? c.Id.ToString() })
+                .ToListAsync();
+            ViewBag.Customers = customers;
+            return View();
+        }
+
+        /// <summary>
+        /// Upload CSV file to import orders. Checks reference (stored in Notes as ImportRef:xxx) from database to avoid re-importing.
+        /// </summary>
+        [HttpPost]
+        [RequestSizeLimit(10_485_760)]
+        public async Task<IActionResult> UploadOrdersCsv(IFormFile csvFile, int customerId)
+        {
+            var importedCount = 0;
+            var skippedCount = 0;
+            var duplicateRefs = new List<string>();
+            var errors = new List<object>();
+
+            if (csvFile == null || csvFile.Length == 0)
+            {
+                return Json(new { success = false, message = "فایلی انتخاب نشده است.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+            }
+
+            var customer = await _context.Customers.FindAsync(customerId);
+            if (customer == null)
+            {
+                return Json(new { success = false, message = "مشتری یافت نشد.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+            }
+
+            List<OrderCsvRow> rows;
+            try
+            {
+                using var reader = new StreamReader(csvFile.OpenReadStream(), Encoding.UTF8);
+                rows = ParseOrdersCsv(reader, errors);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing orders CSV");
+                return Json(new { success = false, message = $"خطا در خواندن فایل: {ex.Message}", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+            }
+
+            if (rows.Count == 0)
+            {
+                return Json(new { success = true, message = "هیچ ردیف معتبری در فایل یافت نشد.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+            }
+
+            var existingRefsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var ordersWithImportRef = await _context.Orders
+                .Where(o => o.CustomerId == customerId && o.Notes != null && o.Notes.Contains("ImportRef:"))
+                .Select(o => o.Notes)
+                .ToListAsync();
+            foreach (var notes in ordersWithImportRef)
+            {
+                if (notes == null) continue;
+                var idx = notes.IndexOf("ImportRef:", StringComparison.OrdinalIgnoreCase);
+                if (idx < 0) continue;
+                var start = idx + "ImportRef:".Length;
+                var end = notes.IndexOf(' ', start);
+                if (end < 0) end = notes.Length;
+                var refId = notes.Substring(start, Math.Min(end - start, notes.Length - start)).Trim();
+                if (!string.IsNullOrEmpty(refId)) existingRefsSet.Add(refId);
+            }
+
+            var orderGroups = rows.GroupBy(r => r.ReferenceId ?? "").Where(g => !string.IsNullOrWhiteSpace(g.Key)).ToList();
+
+            foreach (var group in orderGroups)
+            {
+                var refId = group.Key;
+                if (existingRefsSet.Contains(refId))
+                {
+                    skippedCount++;
+                    duplicateRefs.Add(refId);
+                    continue;
+                }
+
+                var list = group.OrderBy(r => r.Type == "Buy" ? 0 : 1).ToList();
+                var buyRow = list.FirstOrDefault(r => r.Type?.Equals("Buy", StringComparison.OrdinalIgnoreCase) == true);
+                var sellRow = list.FirstOrDefault(r => r.Type?.Equals("Sell", StringComparison.OrdinalIgnoreCase) == true);
+
+                if (buyRow == null || sellRow == null)
+                {
+                    errors.Add(new { refId, message = "برای هر سفارش باید یک ردیف Buy و یک ردیف Sell با همان TransactionID وجود داشته باشد." });
+                    continue;
+                }
+
+                int fromCurrencyId = buyRow.CurrencyId ?? 0;
+                int toCurrencyId = sellRow.CurrencyId ?? 0;
+                var fromCode = buyRow.CurrencyCode;
+                var toCode = sellRow.CurrencyCode;
+                if (fromCurrencyId <= 0 && !string.IsNullOrWhiteSpace(fromCode))
+                {
+                    var c = await _context.Currencies.FirstOrDefaultAsync(cu => cu.Code != null && cu.Code.Trim().ToUpperInvariant() == fromCode!.Trim().ToUpperInvariant());
+                    if (c != null) { fromCurrencyId = c.Id; fromCode = c.Code; }
+                }
+                if (toCurrencyId <= 0 && !string.IsNullOrWhiteSpace(toCode))
+                {
+                    var c = await _context.Currencies.FirstOrDefaultAsync(cu => cu.Code != null && cu.Code.Trim().ToUpperInvariant() == toCode!.Trim().ToUpperInvariant());
+                    if (c != null) { toCurrencyId = c.Id; toCode = c.Code; }
+                }
+                if (fromCurrencyId <= 0 || toCurrencyId <= 0)
+                {
+                    errors.Add(new { refId, message = "ارز مبدا یا مقصد معتبر نیست." });
+                    continue;
+                }
+
+                decimal fromAmount = Math.Abs(buyRow.Amount);
+                decimal toAmount = Math.Abs(sellRow.Amount);
+                if (fromAmount <= 0 || toAmount <= 0)
+                {
+                    errors.Add(new { refId, message = "مبلغ باید بزرگتر از صفر باشد." });
+                    continue;
+                }
+
+                decimal rate = buyRow.Rate ?? (fromAmount / toAmount);
+                var createdAt = buyRow.Date ?? DateTime.Today;
+                var notes = (buyRow.Description ?? sellRow.Description ?? "") + " ImportRef:" + refId;
+
+                var dto = new OrderFormDataDto
+                {
+                    CustomerId = customerId,
+                    FromCurrencyId = fromCurrencyId,
+                    ToCurrencyId = toCurrencyId,
+                    FromAmount = fromAmount,
+                    ToAmount = toAmount,
+                    Rate = rate,
+                    CreatedAt = createdAt,
+                    Notes = notes
+                };
+
+                try
+                {
+                    var orderResult = await _orderDataService.PrepareOrderFromFormDataAsync(dto);
+                    if (!orderResult.IsSuccess)
+                    {
+                        errors.Add(new { refId, message = orderResult.ErrorMessage ?? "خطا در آماده‌سازی سفارش." });
+                        continue;
+                    }
+                    var order = orderResult.Order!;
+                    order.Notes = notes;
+                    await _centralFinancialService.ProcessOrderCreationAsync(order, "CSV Import");
+                    importedCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error creating order for ref {RefId}", refId);
+                    errors.Add(new { refId, message = ex.Message });
+                }
+            }
+
+            return Json(new
+            {
+                success = true,
+                message = $"واردات انجام شد. تعداد: {importedCount}، رد شده: {skippedCount}",
+                importedCount,
+                skippedCount,
+                duplicateRefs,
+                errors
+            });
+        }
+
+        private static List<OrderCsvRow> ParseOrdersCsv(StreamReader reader, List<object> errors)
+        {
+            var rows = new List<OrderCsvRow>();
+            var lineNum = 0;
+            string? headerLine = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(headerLine)) return rows;
+            lineNum++;
+            var headers = headerLine!.Split(',').Select(h => h.Trim().ToLowerInvariant()).ToArray();
+            int idxDate = Array.FindIndex(headers, h => h == "date");
+            int idxType = Array.FindIndex(headers, h => h == "type");
+            int idxCurrencyId = Array.FindIndex(headers, h => h == "currencyid");
+            int idxCurrencyCode = Array.FindIndex(headers, h => h == "currencycode");
+            int idxCurrency = Array.FindIndex(headers, h => h == "currency");
+            int idxTransactionId = Array.FindIndex(headers, h => h == "transactionid");
+            int idxId = Array.FindIndex(headers, h => h == "id");
+            int idxAmount = Array.FindIndex(headers, h => h == "amount");
+            int idxAmountIrr = Array.FindIndex(headers, h => h.Contains("amount") && h.Contains("irr"));
+            int idxDesc = Array.FindIndex(headers, h => h == "description");
+            int idxNote = Array.FindIndex(headers, h => h == "note");
+
+            int refCol = idxTransactionId >= 0 ? idxTransactionId : idxId;
+            int amountCol = idxAmount >= 0 ? idxAmount : idxAmountIrr;
+            if (idxDate < 0 || idxType < 0 || refCol < 0 || amountCol < 0) { errors.Add(new { line = lineNum, message = "ستون‌های ضروری (Date, Type, Reference, Amount) یافت نشد." }); return rows; }
+
+            while (reader.ReadLine() is { } line)
+            {
+                lineNum++;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var parts = SplitCsvLine(line);
+                if (parts.Count <= Math.Max(refCol, amountCol)) continue;
+                var refId = refCol < parts.Count ? NormalizeRefId(parts[refCol]) : "";
+                if (string.IsNullOrWhiteSpace(refId)) continue;
+                DateTime? date = null;
+                if (idxDate >= 0 && idxDate < parts.Count && DateTime.TryParse(parts[idxDate], CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                    date = d;
+                var type = (idxType >= 0 && idxType < parts.Count) ? parts[idxType] : null;
+                int? currencyId = null;
+                if (idxCurrencyId >= 0 && idxCurrencyId < parts.Count && int.TryParse(parts[idxCurrencyId], NumberStyles.Integer, CultureInfo.InvariantCulture, out var cid))
+                    currencyId = cid;
+                var currencyCode = (idxCurrencyCode >= 0 && idxCurrencyCode < parts.Count) ? parts[idxCurrencyCode] : ((idxCurrency >= 0 && idxCurrency < parts.Count) ? parts[idxCurrency] : null);
+                var amountStr = (amountCol >= 0 && amountCol < parts.Count) ? parts[amountCol].Replace(",", "", StringComparison.Ordinal) : "0";
+                if (!decimal.TryParse(amountStr, NumberStyles.Number, CultureInfo.InvariantCulture, out var amt)) continue;
+                var desc = (idxDesc >= 0 && idxDesc < parts.Count) ? parts[idxDesc] : ((idxNote >= 0 && idxNote < parts.Count) ? parts[idxNote] : null);
+                decimal? rate = null;
+                if (desc != null)
+                {
+                    var rateMatch = Regex.Match(desc, @"Rate:\s*([\d,\.]+)", RegexOptions.IgnoreCase);
+                    if (rateMatch.Success && decimal.TryParse(rateMatch.Groups[1].Value.Replace(",", "", StringComparison.Ordinal), NumberStyles.Number, CultureInfo.InvariantCulture, out var r))
+                        rate = r;
+                }
+                rows.Add(new OrderCsvRow { ReferenceId = refId, Date = date, Type = type, CurrencyId = currencyId, CurrencyCode = currencyCode?.Trim(), Amount = Math.Abs(amt), Description = desc, Rate = rate });
+            }
+            return rows;
+        }
+
+        private static List<string> SplitCsvLine(string line)
+        {
+            var list = new List<string>();
+            var sb = new StringBuilder();
+            var inQuotes = false;
+            for (int i = 0; i < line.Length; i++)
+            {
+                var c = line[i];
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    continue;
+                }
+                if (!inQuotes && c == ',')
+                {
+                    list.Add(sb.ToString().Trim());
+                    sb.Clear();
+                    continue;
+                }
+                sb.Append(c);
+            }
+            list.Add(sb.ToString().Trim());
+            return list;
+        }
+
+        private static string NormalizeRefId(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "";
+            return value.Trim();
+        }
+
+        private sealed class OrderCsvRow
+        {
+            public string? ReferenceId { get; set; }
+            public DateTime? Date { get; set; }
+            public string? Type { get; set; }
+            public int? CurrencyId { get; set; }
+            public string? CurrencyCode { get; set; }
+            public decimal Amount { get; set; }
+            public string? Description { get; set; }
+            public decimal? Rate { get; set; }
         }
     }
 }
