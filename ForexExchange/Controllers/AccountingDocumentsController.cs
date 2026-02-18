@@ -1470,23 +1470,18 @@ namespace ForexExchange.Controllers
                 }
 
                 var refIds = rows.Select(r => r.ReferenceId).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
-                var existingRefs = await _context.AccountingDocuments
-                .Where(a => a.ReferenceNumber != null && refIds.Contains(a.ReferenceNumber))
-                .Select(a => a.ReferenceNumber!)
-                .ToListAsync();
+                // فقط وقتی رد می‌کنیم که همین مشتری با همین رفرنس و همان مبلغ (در نقش پرداخت‌کننده یا دریافت‌کننده) از قبل سند داشته باشد
+                var existingDocsSameCustomer = await _context.AccountingDocuments
+                    .Where(a => a.ReferenceNumber != null && refIds.Contains(a.ReferenceNumber)
+                        && (a.PayerCustomerId == customerId || a.ReceiverCustomerId == customerId))
+                    .Select(a => new { a.ReferenceNumber, a.Amount })
+                    .ToListAsync();
 
             var groups = rows.GroupBy(r => r.ReferenceId ?? "").Where(g => !string.IsNullOrWhiteSpace(g.Key)).ToList();
 
             foreach (var group in groups)
             {
                 var refId = group.Key;
-                if (existingRefs.Contains(refId))
-                {
-                    skippedCount++;
-                    duplicateRefs.Add(refId);
-                    continue;
-                }
-
                 var list = group.ToList();
                 DocCsvRow useRow = list[0];
                 bool isReceive = useRow.Type?.Trim().Equals("Receive", StringComparison.OrdinalIgnoreCase) == true;
@@ -1516,6 +1511,14 @@ namespace ForexExchange.Controllers
                 }
 
                 var amount = Math.Abs(useRow.Amount);
+
+                // داپلیکیت واقعی: همین مشتری + همین رفرنس + همان مبلغ (در یک طرف سند) از قبل وجود دارد
+                if (existingDocsSameCustomer.Any(d => (d.ReferenceNumber ?? "").Trim() == refId && Math.Abs(d.Amount - amount) < 0.01m))
+                {
+                    skippedCount++;
+                    duplicateRefs.Add(refId);
+                    continue;
+                }
 
                 BankAccount tempBank;
                 try

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using ForexExchange.Extensions;
 using ForexExchange.Helpers;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -27,12 +28,13 @@ namespace ForexExchange.Controllers
         private readonly ICsvImportService _csvImportService;
         private readonly IOrderDataService _orderDataService;
         private readonly ILogger<DatabaseController> _logger;
+        private readonly IServiceScopeFactory _scopeFactory;
 
         public DatabaseController(ForexDbContext context, IWebHostEnvironment environment,
             ICurrencyPoolService currencyPoolService, ICentralFinancialService centralFinancialService,
             INotificationHub notificationHub, UserManager<ApplicationUser> userManager,
             ICsvImportService csvImportService, IOrderDataService orderDataService,
-            ILogger<DatabaseController> logger)
+            ILogger<DatabaseController> logger, IServiceScopeFactory scopeFactory)
         {
             _context = context;
             _environment = environment;
@@ -43,6 +45,7 @@ namespace ForexExchange.Controllers
             _csvImportService = csvImportService;
             _orderDataService = orderDataService;
             _logger = logger;
+            _scopeFactory = scopeFactory;
         }
 
         public async Task<IActionResult> Index()
@@ -61,6 +64,17 @@ namespace ForexExchange.Controllers
                 .OrderBy(c => c.FullName)
                 .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = c.Id.ToString(), Text = c.FullName ?? c.Id.ToString() })
                 .ToListAsync();
+
+            var logsDir = Path.Combine(_environment.ContentRootPath, "Logs");
+            var runningPath = Path.Combine(logsDir, "MatchDocsRunning.txt");
+            var logPath = Path.Combine(logsDir, "MatchDocsLog.txt");
+            if (System.IO.File.Exists(runningPath))
+                ViewBag.MatchDocsRunning = true;
+            if (System.IO.File.Exists(logPath))
+            {
+                try { ViewBag.MatchDocsLog = await System.IO.File.ReadAllTextAsync(logPath, Encoding.UTF8); } catch { }
+            }
+
             return View(model);
         }
 
@@ -1100,6 +1114,97 @@ namespace ForexExchange.Controllers
         }
 
         /// <summary>
+        /// حذف اسناد حسابداری تکراری: معیار = همان ReferenceNumber، مبلغ، پرداخت‌کننده و دریافت‌کننده.
+        /// در هر گروه تکراری اولین سند (کمترین Id) نگه داشته می‌شود و بقیه با برگرداندن تأثیر مالی حذف می‌شوند.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RemoveDuplicateAccountingDocuments()
+        {
+            try
+            {
+                var user = await _userManager.GetUserAsync(User);
+                var performedBy = user?.UserName ?? "Admin";
+                var logMessages = new List<string>();
+
+                logMessages.Add("=== حذف اسناد حسابداری تکراری ===");
+                logMessages.Add($"شروع: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                logMessages.Add($"اجرا شده توسط: {performedBy}");
+                logMessages.Add("معیار تکراری: همان ReferenceNumber، Amount، Payer (مشتری/حساب)، Receiver (مشتری/حساب)");
+                logMessages.Add("");
+
+                var docs = await _context.AccountingDocuments
+                    .OrderBy(d => d.Id)
+                    .ToListAsync();
+
+                var duplicateGroups = docs
+                    .GroupBy(d => new
+                    {
+                        Ref = (d.ReferenceNumber ?? "").Trim(),
+                        d.Amount,
+                        PayerCustomerId = d.PayerCustomerId ?? -1,
+                        PayerBankAccountId = d.PayerBankAccountId ?? -1,
+                        ReceiverCustomerId = d.ReceiverCustomerId ?? -1,
+                        ReceiverBankAccountId = d.ReceiverBankAccountId ?? -1
+                    })
+                    .Where(g => g.Count() > 1)
+                    .ToList();
+
+                int deletedCount = 0;
+                foreach (var group in duplicateGroups)
+                {
+                    var toDelete = group.OrderBy(d => d.Id).Skip(1).ToList();
+                    foreach (var doc in toDelete)
+                    {
+                        try
+                        {
+                            await _centralFinancialService.DeleteAccountingDocumentAsync(doc, performedBy);
+                            deletedCount++;
+                            logMessages.Add($"  حذف سند تکراری #{doc.Id} (Ref: {doc.ReferenceNumber}, مبلغ: {doc.Amount})");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error deleting duplicate document {DocId}", doc.Id);
+                            logMessages.Add($"  خطا در حذف سند #{doc.Id}: {ex.Message}");
+                        }
+                    }
+                }
+
+                if (deletedCount == 0)
+                    logMessages.Add("هیچ سند تکراری یافت نشد.");
+                else
+                    logMessages.Add($"مجموع: {deletedCount} سند تکراری حذف شد.");
+
+                logMessages.Add("");
+                logMessages.Add("=== عملیات انجام شد ===");
+
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                {
+                    return Json(new
+                    {
+                        success = true,
+                        message = deletedCount > 0
+                            ? $"حذف اسناد تکراری با موفقیت انجام شد. {deletedCount} سند حذف شد."
+                            : "هیچ سند تکراری یافت نشد.",
+                        deletedCount,
+                        logLines = logMessages
+                    });
+                }
+
+                TempData["Success"] = string.Join("<br/>", logMessages);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RemoveDuplicateAccountingDocuments failed");
+                if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                    return Json(new { success = false, error = $"خطا: {ex.Message}" });
+                TempData["Error"] = $"خطا در حذف اسناد تکراری: {ex.Message}";
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>
         /// Populates CurrencyId fields from CurrencyCode in all tables
         /// This migration script fills CurrencyId for records that have CurrencyCode but missing CurrencyId
         /// </summary>
@@ -1336,18 +1441,13 @@ namespace ForexExchange.Controllers
                 var currencies = await _context.Currencies.Where(c => c.Code != null).ToListAsync();
 
                 // --- Documents (Receive / Pay) - two-sided logic ---
+                // همه اسناد با این رفرنس‌ها را می‌گیریم تا هم داپلیکیت را با (مشتری+رفرنس+مبلغ+طرف) چک کنیم هم در صورت وجود طرف موقت، به‌روزرسانی کنیم
                 var docRefs = parseResult.DocRows.Select(r => r.ReferenceNumber).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
-                var existingDocsByRef = docRefs.Count > 0
+                var existingDocsAll = docRefs.Count > 0
                     ? await _context.AccountingDocuments
                         .Where(a => a.ReferenceNumber != null && docRefs.Contains(a.ReferenceNumber))
                         .ToListAsync()
                     : new List<AccountingDocument>();
-
-                // If DB has duplicate ReferenceNumbers (e.g. same CSV uploaded twice), take first per ref to avoid "duplicate key" exception
-                var existingDocByRef = existingDocsByRef
-                    .GroupBy(d => d.ReferenceNumber ?? "")
-                    .Where(g => !string.IsNullOrWhiteSpace(g.Key))
-                    .ToDictionary(g => g.Key, g => g.First());
 
                 foreach (var row in parseResult.DocRows)
                 {
@@ -1379,101 +1479,97 @@ namespace ForexExchange.Controllers
 
                     var isReceive = row.Type?.Trim().Equals("Receive", StringComparison.OrdinalIgnoreCase) == true;
 
-                    if (!existingDocByRef.TryGetValue(refId, out var existingDoc))
+                    // داپلیکیت واقعی: همین مشتری با همین رفرنس و همان مبلغ در همان نقش (پرداخت‌کننده یا دریافت‌کننده) از قبل وجود دارد
+                    var isDuplicate = existingDocsAll.Any(d =>
+                        (d.ReferenceNumber ?? "").Trim() == refId
+                        && Math.Abs(d.Amount - amount) < 0.01m
+                        && (isReceive ? d.ReceiverCustomerId == customerId : d.PayerCustomerId == customerId));
+                    if (isDuplicate)
                     {
-                        // New document: customer + temp bank
-                        var doc = new AccountingDocument
+                        skippedDocs++;
+                        duplicateRefs.Add(refId);
+                        duplicateForReview.Add(new { refId, reason = "این سند (همان مشتری و طرف) از قبل وجود دارد." });
+                        continue;
+                    }
+
+                    // آیا سندی با این رفرنس و مبلغ وجود دارد که یک طرفش موقت باشد تا آن را با این مشتری پر کنیم؟
+                    var existingDoc = existingDocsAll.FirstOrDefault(d =>
+                        (d.ReferenceNumber ?? "").Trim() == refId
+                        && Math.Abs(d.Amount - amount) < 0.01m
+                        && ((d.PayerType == PayerType.System && d.PayerBankAccountId == tempBank.Id)
+                            || (d.ReceiverType == ReceiverType.System && d.ReceiverBankAccountId == tempBank.Id)));
+                    var payerIsTemp = existingDoc != null && existingDoc.PayerType == PayerType.System && existingDoc.PayerBankAccountId == tempBank.Id;
+                    var receiverIsTemp = existingDoc != null && existingDoc.ReceiverType == ReceiverType.System && existingDoc.ReceiverBankAccountId == tempBank.Id;
+
+                    if (existingDoc != null && ((!isReceive && payerIsTemp) || (isReceive && receiverIsTemp)))
+                    {
+                        // پر کردن طرف موقت با این مشتری
+                        if (!isReceive && payerIsTemp)
                         {
-                            Type = DocumentType.Havala,
-                            CurrencyId = currency.Id,
-                            CurrencyCode = currency.Code ?? "IRR",
-                            Amount = amount,
-                            Title = $"ورود CSV - {refId}",
-                            Description = row.Note,
-                            DocumentDate = row.Date ?? DateTime.Today,
-                            CreatedAt = DateTime.Now,
-                            ReferenceNumber = refId,
-                            IsVerified = true,
-                            IsFrozen = false
-                        };
-                        if (isReceive)
-                        {
-                            doc.PayerType = PayerType.System;
-                            doc.PayerBankAccountId = tempBank.Id;
-                            doc.ReceiverType = ReceiverType.Customer;
-                            doc.ReceiverCustomerId = customerId;
+                            existingDoc.PayerType = PayerType.Customer;
+                            existingDoc.PayerCustomerId = customerId;
+                            existingDoc.PayerBankAccountId = null;
                         }
                         else
                         {
-                            doc.PayerType = PayerType.Customer;
-                            doc.PayerCustomerId = customerId;
-                            doc.ReceiverType = ReceiverType.System;
-                            doc.ReceiverBankAccountId = tempBank.Id;
+                            existingDoc.ReceiverType = ReceiverType.Customer;
+                            existingDoc.ReceiverCustomerId = customerId;
+                            existingDoc.ReceiverBankAccountId = null;
                         }
                         try
                         {
-                            _context.Add(doc);
+                            _context.Update(existingDoc);
                             await _context.SaveChangesAsync();
-                            importedDocs++;
-                            existingDocByRef[refId] = doc;
+                            updatedDocs++;
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Error saving document for ref {RefId}", refId);
+                            _logger.LogError(ex, "Error updating document other side for ref {RefId}", refId);
                             errors.Add(new { refId, message = ex.Message });
                         }
                         continue;
                     }
 
-                    // Ref exists: check if this row is the "other side" (same amount, and we fill the temp side)
-                    var amountMatch = Math.Abs(existingDoc.Amount - amount) < 0.01m;
-                    var payerIsTemp = existingDoc.PayerType == PayerType.System && existingDoc.PayerBankAccountId == tempBank.Id;
-                    var receiverIsTemp = existingDoc.ReceiverType == ReceiverType.System && existingDoc.ReceiverBankAccountId == tempBank.Id;
-
-                    if (amountMatch && payerIsTemp && !isReceive)
+                    // سند جدید: مشتری + بانک موقت
+                    var doc = new AccountingDocument
                     {
-                        existingDoc.PayerType = PayerType.Customer;
-                        existingDoc.PayerCustomerId = customerId;
-                        existingDoc.PayerBankAccountId = null;
-                        try
-                        {
-                            _context.Update(existingDoc);
-                            await _context.SaveChangesAsync();
-                            updatedDocs++;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error updating document other side for ref {RefId}", refId);
-                            errors.Add(new { refId, message = ex.Message });
-                        }
-                    }
-                    else if (amountMatch && receiverIsTemp && isReceive)
+                        Type = DocumentType.Havala,
+                        CurrencyId = currency.Id,
+                        CurrencyCode = currency.Code ?? "IRR",
+                        Amount = amount,
+                        Title = $"ورود CSV - {refId}",
+                        Description = row.Note,
+                        DocumentDate = row.Date ?? DateTime.Today,
+                        CreatedAt = DateTime.Now,
+                        ReferenceNumber = refId,
+                        IsVerified = true,
+                        IsFrozen = false
+                    };
+                    if (isReceive)
                     {
-                        existingDoc.ReceiverType = ReceiverType.Customer;
-                        existingDoc.ReceiverCustomerId = customerId;
-                        existingDoc.ReceiverBankAccountId = null;
-                        try
-                        {
-                            _context.Update(existingDoc);
-                            await _context.SaveChangesAsync();
-                            updatedDocs++;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error updating document other side for ref {RefId}", refId);
-                            errors.Add(new { refId, message = ex.Message });
-                        }
+                        doc.PayerType = PayerType.System;
+                        doc.PayerBankAccountId = tempBank.Id;
+                        doc.ReceiverType = ReceiverType.Customer;
+                        doc.ReceiverCustomerId = customerId;
                     }
                     else
                     {
-                        skippedDocs++;
-                        duplicateRefs.Add(refId);
-                        // سند از قبل کامل است = هر دو طرف واقعی هستند؛ وگرنه طرف دوم موقت است ولی مبلغ/نقش مطابقت نداشت
-                        var docAlreadyComplete = !payerIsTemp && !receiverIsTemp;
-                        var reason = docAlreadyComplete
-                            ? "این سند یا این شماره رفرنس موجود بوده است."
-                            : "طرف دوم مطابقت نداشت (مبلغ یا نقش متفاوت است).";
-                        duplicateForReview.Add(new { refId, reason });
+                        doc.PayerType = PayerType.Customer;
+                        doc.PayerCustomerId = customerId;
+                        doc.ReceiverType = ReceiverType.System;
+                        doc.ReceiverBankAccountId = tempBank.Id;
+                    }
+                    try
+                    {
+                        _context.Add(doc);
+                        await _context.SaveChangesAsync();
+                        importedDocs++;
+                        existingDocsAll.Add(doc);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error saving document for ref {RefId}", refId);
+                        errors.Add(new { refId, message = ex.Message });
                     }
                 }
 
@@ -1632,12 +1728,19 @@ namespace ForexExchange.Controllers
                 if (parts.Count <= maxIdx) continue;
 
                 var refId = idxRef < parts.Count ? NormalizeRefId(parts[idxRef]) : "";
-                if (string.IsNullOrWhiteSpace(refId)) continue;
+                var type = (idxType >= 0 && idxType < parts.Count) ? parts[idxType]?.Trim() : null;
+                var isDocRow = type?.Equals("Receive", StringComparison.OrdinalIgnoreCase) == true || type?.Equals("Pay", StringComparison.OrdinalIgnoreCase) == true;
+                if (string.IsNullOrWhiteSpace(refId) || refId == "-")
+                {
+                    if (isDocRow)
+                        refId = "IMPORT-" + lineNum + "-" + Guid.NewGuid().ToString("N")[..8];
+                    else
+                        continue; // Orders need ref to match Buy+Sell
+                }
 
                 DateTime? date = null;
                 if (idxDate >= 0 && idxDate < parts.Count && DateTime.TryParse(parts[idxDate], CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
                     date = d;
-                var type = (idxType >= 0 && idxType < parts.Count) ? parts[idxType]?.Trim() : null;
                 var currency = (idxCurrency >= 0 && idxCurrency < parts.Count) ? parts[idxCurrency]?.Trim() : null;
                 var amountStr = (idxAmount >= 0 && idxAmount < parts.Count) ? parts[idxAmount].Replace(",", "", StringComparison.Ordinal).Trim() : "0";
                 if (!decimal.TryParse(amountStr, NumberStyles.Number, CultureInfo.InvariantCulture, out var amt)) continue;
@@ -1700,6 +1803,210 @@ namespace ForexExchange.Controllers
             public string? CurrencyCode { get; set; }
             public decimal Amount { get; set; }
             public string? Note { get; set; }
+        }
+
+        /// <summary>
+        /// Starts document matching in background to avoid timeout. Log is written to Logs/MatchDocsLog.txt; refresh page to see result.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult MatchAccountingDocuments()
+        {
+            var logsDir = Path.Combine(_environment.ContentRootPath, "Logs");
+            var runningPath = Path.Combine(logsDir, "MatchDocsRunning.txt");
+            var logPath = Path.Combine(logsDir, "MatchDocsLog.txt");
+            try
+            {
+                Directory.CreateDirectory(logsDir);
+                System.IO.File.WriteAllText(runningPath, DateTime.Now.ToString("O"));
+                var scopeFactory = _scopeFactory;
+                var env = _environment;
+                var log = _logger;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var scope = scopeFactory.CreateScope();
+                        var ctx = scope.ServiceProvider.GetRequiredService<ForexDbContext>();
+                        var logLines = await RunMatchAccountingDocumentsCoreAsync(ctx);
+                        var outPath = Path.Combine(env.ContentRootPath, "Logs", "MatchDocsLog.txt");
+                        await System.IO.File.WriteAllTextAsync(outPath, string.Join("\n", logLines), Encoding.UTF8);
+                    }
+                    catch (Exception ex)
+                    {
+                        log.LogError(ex, "MatchAccountingDocuments background failed");
+                        var outPath = Path.Combine(env.ContentRootPath, "Logs", "MatchDocsLog.txt");
+                        await System.IO.File.WriteAllTextAsync(outPath, "خطا: " + ex.Message + "\n" + ex.StackTrace, Encoding.UTF8);
+                    }
+                    finally
+                    {
+                        try { System.IO.File.Delete(Path.Combine(env.ContentRootPath, "Logs", "MatchDocsRunning.txt")); } catch { }
+                    }
+                });
+                TempData["Success"] = "عملیات تطبیق اسناد در پس‌زمینه شروع شد. پس از چند دقیقه صفحه را رفرش کنید تا لاگ نمایش داده شود.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MatchAccountingDocuments start failed");
+                try { if (System.IO.File.Exists(runningPath)) System.IO.File.Delete(runningPath); } catch { }
+                TempData["Error"] = "خطا در شروع تطبیق اسناد: " + ex.Message;
+            }
+            return RedirectToAction(nameof(Index));
+        }
+
+        private static async Task<List<string>> RunMatchAccountingDocumentsCoreAsync(ForexDbContext ctx)
+        {
+            var log = new List<string>();
+            var tempBankIds = await ctx.BankAccounts
+                .Where(b => b.AccountNumber != null && b.AccountNumber.StartsWith("IMPORT-TEMP-"))
+                .Select(b => b.Id)
+                .ToListAsync();
+
+            var docs = await ctx.AccountingDocuments
+                .Where(a => !a.IsDeleted)
+                .OrderBy(a => a.ReferenceNumber)
+                .ThenBy(a => a.Id)
+                .ToListAsync();
+
+            var withRef = docs.Where(d => !string.IsNullOrWhiteSpace(d.ReferenceNumber)).ToList();
+            var byRef = withRef.GroupBy(d => (d.ReferenceNumber ?? "").Trim()).Where(g => !string.IsNullOrWhiteSpace(g.Key)).ToList();
+
+            int matchedByRef = 0;
+            foreach (var group in byRef)
+            {
+                var list = group.ToList();
+                if (list.Count != 2) { log.Add($"Ref {group.Key}: تعداد اسناد {list.Count} (انتظار 2)."); continue; }
+
+                var doc1 = list[0];
+                var doc2 = list[1];
+
+                var d1PayerTemp = doc1.PayerType == PayerType.System && doc1.PayerBankAccountId.HasValue && tempBankIds.Contains(doc1.PayerBankAccountId.Value);
+                var d1ReceiverTemp = doc1.ReceiverType == ReceiverType.System && doc1.ReceiverBankAccountId.HasValue && tempBankIds.Contains(doc1.ReceiverBankAccountId.Value);
+                var d2PayerTemp = doc2.PayerType == PayerType.System && doc2.PayerBankAccountId.HasValue && tempBankIds.Contains(doc2.PayerBankAccountId.Value);
+                var d2ReceiverTemp = doc2.ReceiverType == ReceiverType.System && doc2.ReceiverBankAccountId.HasValue && tempBankIds.Contains(doc2.ReceiverBankAccountId.Value);
+
+                if (d1PayerTemp && doc1.ReceiverCustomerId.HasValue && d2ReceiverTemp && doc2.PayerCustomerId.HasValue)
+                {
+                    doc1.PayerType = PayerType.Customer;
+                    doc1.PayerCustomerId = doc2.PayerCustomerId;
+                    doc1.PayerBankAccountId = null;
+                    doc2.ReceiverType = ReceiverType.Customer;
+                    doc2.ReceiverCustomerId = doc1.ReceiverCustomerId;
+                    doc2.ReceiverBankAccountId = null;
+                    matchedByRef++;
+                    log.Add($"Ref {group.Key}: سند {doc1.Id} و {doc2.Id} به‌روز شد (طرف موقت با مشتری جایگزین شد).");
+                }
+                else if (d1ReceiverTemp && doc1.PayerCustomerId.HasValue && d2PayerTemp && doc2.ReceiverCustomerId.HasValue)
+                {
+                    doc1.ReceiverType = ReceiverType.Customer;
+                    doc1.ReceiverCustomerId = doc2.ReceiverCustomerId;
+                    doc1.ReceiverBankAccountId = null;
+                    doc2.PayerType = PayerType.Customer;
+                    doc2.PayerCustomerId = doc1.PayerCustomerId;
+                    doc2.PayerBankAccountId = null;
+                    matchedByRef++;
+                    log.Add($"Ref {group.Key}: سند {doc1.Id} و {doc2.Id} به‌روز شد.");
+                }
+            }
+
+            var noRef = docs.Where(d => string.IsNullOrWhiteSpace(d.ReferenceNumber)).ToList();
+            int matchedByParams = 0;
+            var used = new HashSet<int>();
+
+            foreach (var doc1 in noRef)
+            {
+                if (used.Contains(doc1.Id)) continue;
+                var d1PayerTemp = doc1.PayerType == PayerType.System && doc1.PayerBankAccountId.HasValue && tempBankIds.Contains(doc1.PayerBankAccountId.Value);
+                var d1ReceiverTemp = doc1.ReceiverType == ReceiverType.System && doc1.ReceiverBankAccountId.HasValue && tempBankIds.Contains(doc1.ReceiverBankAccountId.Value);
+                if (!d1PayerTemp && !d1ReceiverTemp) continue;
+
+                var match = noRef.FirstOrDefault(d2 => d2.Id != doc1.Id && !used.Contains(d2.Id)
+                    && d2.CurrencyId == doc1.CurrencyId
+                    && Math.Abs(d2.Amount - doc1.Amount) < 0.01m
+                    && d2.DocumentDate.Date == doc1.DocumentDate.Date
+                    && ((d1PayerTemp && doc1.ReceiverCustomerId.HasValue && d2.ReceiverType == ReceiverType.System && d2.ReceiverBankAccountId.HasValue && tempBankIds.Contains(d2.ReceiverBankAccountId.Value) && d2.PayerCustomerId.HasValue)
+                      || (d1ReceiverTemp && doc1.PayerCustomerId.HasValue && d2.PayerType == PayerType.System && d2.PayerBankAccountId.HasValue && tempBankIds.Contains(d2.PayerBankAccountId.Value) && d2.ReceiverCustomerId.HasValue)));
+
+                if (match == null) continue;
+
+                if (d1PayerTemp && match.PayerCustomerId.HasValue)
+                {
+                    doc1.PayerType = PayerType.Customer;
+                    doc1.PayerCustomerId = match.PayerCustomerId;
+                    doc1.PayerBankAccountId = null;
+                    match.ReceiverType = ReceiverType.Customer;
+                    match.ReceiverCustomerId = doc1.ReceiverCustomerId;
+                    match.ReceiverBankAccountId = null;
+                }
+                else
+                {
+                    doc1.ReceiverType = ReceiverType.Customer;
+                    doc1.ReceiverCustomerId = match.ReceiverCustomerId;
+                    doc1.ReceiverBankAccountId = null;
+                    match.PayerType = PayerType.Customer;
+                    match.PayerCustomerId = doc1.PayerCustomerId;
+                    match.PayerBankAccountId = null;
+                }
+                matchedByParams++;
+                used.Add(doc1.Id);
+                used.Add(match.Id);
+                log.Add($"بدون رفرنس: سند {doc1.Id} و {match.Id} با مبلغ/ارز/تاریخ یکسان به‌روز شد.");
+            }
+
+            await ctx.SaveChangesAsync();
+
+            log.Insert(0, $"تطبیق اسناد: {matchedByRef} جفت با ReferenceNumber، {matchedByParams} جفت بدون رفرنس (بر اساس مبلغ/ارز/تاریخ).");
+            return log;
+        }
+
+        /// <summary>
+        /// Scans Orders, finds groups with same ImportRef (in Notes) per customer, reports duplicates for review.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MatchOrders()
+        {
+            var log = new List<string>();
+            try
+            {
+                var orders = await _context.Orders
+                    .Where(o => !o.IsDeleted && o.Notes != null && o.Notes.Contains("ImportRef:"))
+                    .Select(o => new { o.Id, o.CustomerId, o.Notes, o.FromAmount, o.ToAmount, o.CreatedAt })
+                    .ToListAsync();
+
+                var refs = new Dictionary<string, List<(int OrderId, int CustomerId)>>();
+                foreach (var o in orders)
+                {
+                    var idx = o.Notes!.IndexOf("ImportRef:", StringComparison.OrdinalIgnoreCase);
+                    if (idx < 0) continue;
+                    var start = idx + "ImportRef:".Length;
+                    var end = o.Notes.IndexOf(' ', start);
+                    if (end < 0) end = o.Notes.Length;
+                    var refId = o.Notes.Substring(start, Math.Min(end - start, o.Notes.Length - start)).Trim();
+                    if (string.IsNullOrEmpty(refId)) continue;
+                    var key = refId + "@" + o.CustomerId;
+                    if (!refs.ContainsKey(key)) refs[key] = new List<(int, int)>();
+                    refs[key].Add((o.Id, o.CustomerId));
+                }
+
+                int duplicateGroups = 0;
+                foreach (var kv in refs.Where(x => x.Value.Count > 1))
+                {
+                    duplicateGroups++;
+                    log.Add($"رفرنس تکراری: {kv.Key.Replace("@" + kv.Value[0].CustomerId, "")} (مشتری {kv.Value[0].CustomerId}): سفارش‌های {string.Join(", ", kv.Value.Select(v => v.OrderId))}");
+                }
+
+                log.Insert(0, $"بررسی سفارش‌ها: {orders.Count} سفارش با ImportRef؛ {duplicateGroups} گروه با رفرنس تکراری برای همان مشتری (برای بررسی دستی).");
+                TempData["MatchOrdersLog"] = string.Join("\n", log);
+                TempData["Info"] = duplicateGroups == 0 ? "هیچ سفارش تکراری (همان رفرنس و مشتری) یافت نشد." : $"{duplicateGroups} گروه تکراری در لاگ نمایش داده شد.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MatchOrders failed");
+                TempData["Error"] = "خطا در تطبیق سفارش‌ها: " + ex.Message;
+                TempData["MatchOrdersLog"] = ex.ToString();
+            }
+            return RedirectToAction(nameof(Index));
         }
     }
 }
