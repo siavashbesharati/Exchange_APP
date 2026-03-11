@@ -1,0 +1,28 @@
+/* نمونه اصلاح شده برای وزن 400 (نرمال) */
+@font-face {
+  font-family: 'Vazirmatn';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  /* آدرس‌دهی نسبت به پوشه wwwroot/css */
+  src: url('vazir-arabic.woff2') format('woff2');
+  unicode-range: U+0600-06FF;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('vazir-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('vazir-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF;
+}

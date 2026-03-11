@@ -111,10 +111,15 @@ try
         });
 
     builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
+#pragma warning disable CA1416 // Validate platform compatibility
+
+    builder.Services.AddSingleton<FinancialSyncProvider>();
+#pragma warning restore CA1416 // Validate platform compatibility
 
     // ------------------------------
     // Core Services
     // ------------------------------
+
     builder.Services.AddHttpClient();
     builder.Services.AddHttpContextAccessor();
 
@@ -215,7 +220,12 @@ try
 
     app.MapHub<ForexExchange.Hubs.NotificationHub>("/notificationHub");
 
+#pragma warning disable CA1416 // Validate platform compatibility
+
+    app.Services.GetService<FinancialSyncProvider>();
+#pragma warning restore CA1416 // Validate platform compatibility
     Log.Information("Application started successfully");
+
     app.Run();
 }
 catch (Exception ex)
