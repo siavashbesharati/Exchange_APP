@@ -222,7 +222,7 @@ try
 
 #pragma warning disable CA1416 // Validate platform compatibility
 
-    app.Services.GetService<FinancialSyncProvider>();
+//    app.Services.GetService<FinancialSyncProvider>();
 #pragma warning restore CA1416 // Validate platform compatibility
     Log.Information("Application started successfully");
 
