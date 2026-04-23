@@ -38,7 +38,9 @@
                 <div class="card-body">
                     @if (Model.Customer != null)
                     {
-                        <div class="mb-2"><strong>نام:</strong> @Model.Customer.FullName</div>
+                        <div class="mb-2">
+                            <strong>@(Model.Customer.Gender ? "Mr." : "Ms.")</strong> @Model.Customer.FullName
+                        </div>
                         <div class="text-muted"><i class="fas fa-phone"></i> @Model.Customer.PhoneNumber</div>
                     }
                     else
@@ -61,56 +63,37 @@
                         {
                             <div class="col-md-6"><strong>آخرین بروزرسانی:</strong>
                                 @Model.UpdatedAt.Value..ToString("yyyy/MM/dd HH:mm:ss")</div>
-                        }
+                            }
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="card mt-3">
-        <div class="card-header">
-            <h5 class="mb-0">جزئیات تبادل ارز</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6"><strong>جفت ارز:</strong> @Model.FromCurrency?.Code / @Model.ToCurrency?.Code
-                </div>
-
-                <div class="col-md-6"><strong>نرخ تبدیل:</strong>
-                    @* Rate calculated in backend for consistency *@
-                    @Model.Rate
-                </div>
-
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">جزئیات تبادل ارز</h5>
             </div>
-            <div class="row mt-2">
-                <div class="col-md-6"><strong> دریافت می کنیم :</strong>
-                    @Model.FromAmount.FormatCurrency(Model.FromCurrency?.Code) @(Model.FromCurrency?.Code == "IRR" ?
-                    "Toman" : Model.FromCurrency?.Code)
-                    <div class="col-md-6"><strong> پرداخت می کنیم :</strong>
-                        @Model.ToAmount.FormatCurrency(Model.ToCurrency?.Code) @(Model.ToCurrency?.Code == "IRR" ?
-                        "Toman" : Model.ToCurrency?.Code)</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6"><strong>جفت ارز:</strong> @Model.FromCurrency?.Code / @Model.ToCurrency?.Code
+                    </div>
+
+                    <div class="col-md-6"><strong>نرخ تبدیل:</strong>
+                        @* Rate calculated in backend for consistency *@
+                        @Model.Rate
+                    </div>
+
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6"><strong> دریافت می کنیم :</strong>
+                        @Model.FromAmount.FormatCurrency(Model.FromCurrency?.Code) @(Model.FromCurrency?.Code == "IRR" ?
+                        "Toman" : Model.FromCurrency?.Code)
+                        <div class="col-md-6"><strong> پرداخت می کنیم :</strong>
+                            @Model.ToAmount.FormatCurrency(Model.ToCurrency?.Code) @(Model.ToCurrency?.Code == "IRR" ?
+                            "Toman" : Model.ToCurrency?.Code)</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-
-
-
-
-
-
-    <!-- Available Orders for Matching (Display Only - No Action Buttons) -->
-
-
-    @* <div class="card mt-3">
-        <div class="card-body d-flex justify-content-between">
-            <a asp-action="Index" class="btn btn-secondary">بازگشت</a>
-            <form asp-action="Delete" asp-route-id="@Model.Id" method="post"
-                onsubmit="return confirm('آیا از لغو این معامله اطمینان دارید؟')">
-                @Html.AntiForgeryToken()
-                <button type="submit" class="btn btn-danger">لغو معامله</button>
-            </form>
-        </div>
-    </div> *@
-</div>
