@@ -2462,7 +2462,9 @@ namespace ForexExchange.Controllers
                             RunningBalance = t.Balance,
                             ReferenceId = t.ReferenceId,
                             CanNavigate = t.CanNavigate,
-                            CustomerName = t.CustomerName ?? string.Empty
+                            CustomerName = t.CustomerName ?? string.Empty,
+                            PairedCurrencyCode = t.PairedCurrencyCode,
+                            PairedAmount = t.PairedAmount
                         });
                     }
                     catch (Exception ex)

@@ -522,8 +522,8 @@
                             <thead>
                                 <tr>
                                     <th style="width: 11%;">تاریخ</th>
-                                    <th style="width: 11%;">نوع</th>
-                                    <th style="width: 11%;">شناسه تراکنش</th>
+                                    <th style="width: 11%;">ارز مخالف</th>
+                                    <th style="width: 11%;"> مبلغ ارز مخالف </th>
                                     <th style="width: 15%;">مشتری</th>
                                     <th style="width: 27%;">یادداشت</th>
                                     <th style="width: 13%;">مبلغ</th>
@@ -536,13 +536,21 @@
                                     <tr>
                                         <td>@transaction.TransactionDate.ToString("yyyy/MM/dd")</td>
                                         <td>
-                                            <span
-                                                class="transaction-type type-@(transaction.TransactionType.ToLower().Replace(" ", "-"))">
-                                                @transaction.TransactionType
-                                            </span>
+                                            @(string.IsNullOrWhiteSpace(transaction.PairedCurrencyCode) ? "-" : transaction.PairedCurrencyCode)
                                         </td>
 
-                                        <td style="text-align: center;">@transaction.TransactionNumber</td>
+                                        <td style="text-align: center;">
+                                            @if (!string.IsNullOrWhiteSpace(transaction.PairedCurrencyCode))
+                                            {
+                                                <span class="@(transaction.PairedAmount >= 0 ? "positive" : "negative")">
+                                                    @transaction.PairedAmount.FormatCurrency(transaction.PairedCurrencyCode)
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span>-</span>
+                                            }
+                                        </td>
 
                                         <td style="text-align: right;">@(string.IsNullOrWhiteSpace(transaction.CustomerName) ? "-" : transaction.CustomerName)</td>
 

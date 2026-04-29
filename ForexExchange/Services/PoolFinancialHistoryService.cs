@@ -91,6 +91,7 @@ namespace ForexExchange.Services
                 // Get customer name and paired currency from order if this is an Order transaction
                 string customerName = string.Empty;
                 string pairedCurrencyCode = string.Empty;
+                decimal pairedAmount = 0m;
                 if (record.TransactionType == CurrencyPoolTransactionType.Order && record.ReferenceId.HasValue)
                 {
                     if (orders.TryGetValue(record.ReferenceId.Value, out var order))
@@ -105,11 +106,13 @@ namespace ForexExchange.Services
                             {
                                 // Pool currency is FromCurrency, so paired is ToCurrency
                                 pairedCurrencyCode = order.ToCurrency.Code ?? string.Empty;
+                                pairedAmount = order.ToAmount;
                             }
                             else if (order.ToCurrency.Code == poolCurrencyCode)
                             {
                                 // Pool currency is ToCurrency, so paired is FromCurrency
                                 pairedCurrencyCode = order.FromCurrency.Code ?? string.Empty;
+                                pairedAmount = order.FromAmount;
                             }
                         }
                     }
@@ -129,7 +132,8 @@ namespace ForexExchange.Services
                     ReferenceId = record.ReferenceId,
                     CanNavigate = record.TransactionType == CurrencyPoolTransactionType.Order && record.ReferenceId.HasValue,
                     CustomerName = customerName,
-                    PairedCurrencyCode = pairedCurrencyCode
+                    PairedCurrencyCode = pairedCurrencyCode,
+                    PairedAmount = pairedAmount
                 };
 
                 timelineItems.Add(item);
@@ -273,6 +277,7 @@ namespace ForexExchange.Services
         public int CurrencyId { get; set; }
         public string CustomerName { get; set; } = string.Empty; // Customer name for Order transactions
         public string PairedCurrencyCode { get; set; } = string.Empty; // The other currency in the exchange (from Order transactions)
+        public decimal PairedAmount { get; set; } = 0m;
     }
 
     /// <summary>
