@@ -263,25 +263,15 @@
     function loadPoolTimelineData(page = 1) {
         const currencySelect = document.getElementById('currencySelect');
         const currencyCode = currencySelect.value;
-        if (!currencyCode) {
-            showTimelineEmptyState();
-            hideTimelineSections();
-            return;
-        }
-
-        // Get CurrencyId from selected option
-        const selectedOption = currencySelect.options[currencySelect.selectedIndex];
-        const currencyId = selectedOption.getAttribute('data-currency-id');
-        
-        if (!currencyId) {
-            console.error('CurrencyId not found for selected currency');
-            showTimelineEmptyState();
-            hideTimelineSections();
-            return;
-        }
-
         const fromDate = document.getElementById('fromDate').value || null;
         const toDate = document.getElementById('toDate').value || null;
+
+        // Get CurrencyId from selected option (may be null/empty if no selection)
+        let currencyId = null;
+        if (currencyCode) {
+            const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+            currencyId = selectedOption.getAttribute('data-currency-id');
+        }
 
         // Show loading state
         showTimelineLoading();
@@ -290,24 +280,25 @@
         // Update current page
         currentPage.timeline = page;
 
-        const params = new URLSearchParams({
-            currencyId: currencyId,
-            fromDate: fromDate || '',
-            toDate: toDate || '',
-            page: page,
-            pageSize: pageSize
-        });
+        const params = new URLSearchParams();
+        if (currencyId) {
+            params.append('currencyId', currencyId);
+        }
+        if (fromDate) params.append('fromDate', fromDate);
+        if (toDate) params.append('toDate', toDate);
+        params.append('page', page);
+        params.append('pageSize', pageSize);
 
         fetch(`@Url.Action("GetPoolTimeline", "Reports")?${params}`)
             .then(response => response.json())
             .then(function (response) {
                 if (response.success) {
                     currentTimeline = response.timeline;
-                    renderPoolStyleTimeline(response.timeline);
+                    renderPoolStyleTimeline(response.timeline, currencyCode || null);
                     updatePoolInfo(response.timeline, currencyCode);
                     
-                    // Enable manual adjustment button after successful data load
-                    document.getElementById('manualAdjustmentBtn').disabled = false;
+                    // Enable manual adjustment button after successful data load (only if currency selected)
+                    document.getElementById('manualAdjustmentBtn').disabled = !currencyCode;
                     
                     // Clear pagination since API doesn't support it yet
                     document.getElementById('timelinePagination').innerHTML = '';
@@ -321,14 +312,13 @@
             });
     }
 
-    function renderPoolStyleTimeline(timeline) {
+    function renderPoolStyleTimeline(timeline, selectedCurrencyCode = null) {
         const tbody = document.getElementById('timelineTableBody');
-
 
         if (!timeline || timeline.length === 0) {
             tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center py-5 text-muted">
+                <td colspan="8" class="text-center py-5 text-muted">
                     <i class="fas fa-info-circle fa-2x mb-2"></i>
                     <br>تراکنشی در بازه زمانی انتخاب شده یافت نشد
                 </td>
@@ -338,41 +328,76 @@
         }
 
         let timelineHtml = '';
-
-        // Render timeline items directly
-        timeline.forEach(item => {
-            let typeText = 'معامله';
-            let transactionId = item.referenceId;
-            let clickHandler = '';
-            let cursorStyle = 'cursor: default;';
-
-            // Determine transaction type based on the transaction type string
-            if (item.transactionType === 'OrderSell' || item.transactionType === 'OrderBuy') {
-                typeText = 'معامله';
-                if (item.canNavigate && transactionId) {
-                    clickHandler = `onclick="goToOrderDetail(${transactionId})"`;
-                    cursorStyle = 'cursor: pointer;';
+        
+        // If no specific currency selected, group by currency and create separate sections
+        if (!selectedCurrencyCode) {
+            const groupedByCurrency = {};
+            timeline.forEach(item => {
+                if (!groupedByCurrency[item.currencyCode]) {
+                    groupedByCurrency[item.currencyCode] = [];
                 }
-            } else if (item.transactionType === 'Document') {
-                typeText = 'سند';
-                if (item.canNavigate && transactionId) {
-                    clickHandler = `onclick="goToDocumentDetail(${transactionId})"`;
-                    cursorStyle = 'cursor: pointer;';
-                }
-            } else if (item.transactionType === 'ManualEdit') {
-                typeText = 'تعدیل دستی';
-            }
-
-            let actionsHtml = '';
-            if (item.transactionType === 'ManualEdit') {
-                actionsHtml = `
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteManualPoolTransaction(${item.id})" title="حذف تعدیل دستی">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                groupedByCurrency[item.currencyCode].push(item);
+            });
+            
+            // Create HTML for each currency group
+            Object.keys(groupedByCurrency).sort().forEach(currencyCode => {
+                const items = groupedByCurrency[currencyCode];
+                timelineHtml += `
+                    <tr class="currency-group-header">
+                        <td colspan="8" class="text-center bg-primary text-white py-2 fw-bold">
+                            <i class="fas fa-coins me-2"></i>داشبورد ${currencyCode}
+                        </td>
+                    </tr>
                 `;
-            }
+                
+                items.forEach(item => {
+                    timelineHtml += renderTimelineRow(item);
+                });
+            });
+        } else {
+            // Render for single selected currency
+            timeline.forEach(item => {
+                timelineHtml += renderTimelineRow(item);
+            });
+        }
 
-            timelineHtml += `
+        tbody.innerHTML = timelineHtml;
+        hideBalanceSummary();
+    }
+    
+    function renderTimelineRow(item) {
+        let typeText = 'معامله';
+        let transactionId = item.referenceId;
+        let clickHandler = '';
+        let cursorStyle = 'cursor: default;';
+
+        // Determine transaction type based on the transaction type string
+        if (item.transactionType === 'OrderSell' || item.transactionType === 'OrderBuy') {
+            typeText = 'معامله';
+            if (item.canNavigate && transactionId) {
+                clickHandler = `onclick="goToOrderDetail(${transactionId})"`;
+                cursorStyle = 'cursor: pointer;';
+            }
+        } else if (item.transactionType === 'Document') {
+            typeText = 'سند';
+            if (item.canNavigate && transactionId) {
+                clickHandler = `onclick="goToDocumentDetail(${transactionId})"`;
+                cursorStyle = 'cursor: pointer;';
+            }
+        } else if (item.transactionType === 'ManualEdit') {
+            typeText = 'تعدیل دستی';
+        }
+
+        let actionsHtml = '';
+        if (item.transactionType === 'ManualEdit') {
+            actionsHtml = `
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteManualPoolTransaction(${item.id})" title="حذف تعدیل دستی">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+        }
+
+        return `
             <tr class="transaction-row" style="${cursorStyle}" ${clickHandler}>
                 <td class="text-center">${item.date}</td>
                 <td class="text-center">
@@ -390,13 +415,7 @@
                 </td>
                 <td class="text-center">${actionsHtml}</td>
             </tr>
-            `;
-        });
-
-        tbody.innerHTML = timelineHtml;
-        
-        // Hide balance summary for now since we don't have that data structure
-        hideBalanceSummary();
+        `;
     }
 
     function hideBalanceSummary() {

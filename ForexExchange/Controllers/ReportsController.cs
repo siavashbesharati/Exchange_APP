@@ -1986,13 +1986,6 @@ namespace ForexExchange.Controllers
             {
                 _logger.LogInformation($"GetPoolTimeline called with currencyId: {currencyId}");
 
-                // Validate CurrencyId is required
-                if (!currencyId.HasValue)
-                {
-                    _logger.LogWarning("GetPoolTimeline called without currencyId");
-                    return Json(new { success = false, error = "CurrencyId الزامی است" });
-                }
-
                 DateTime? fromDateTime = null;
                 DateTime? toDateTime = null;
 
@@ -2014,14 +2007,35 @@ namespace ForexExchange.Controllers
                     toDateTime = formattedToDateTime;
                 }
 
-                // Use CurrencyId directly - NO CurrencyCode fallback!
-                object? currencyFilter = currencyId.Value;
+                // If currencyId is provided, get timeline for that specific currency
+                // If currencyId is null, get timeline for ALL currencies
+                if (currencyId.HasValue)
+                {
+                    var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyId.Value, fromDateTime, toDateTime);
+                    var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyId.Value);
+                    return Json(new { success = true, timeline, summary });
+                }
+                else
+                {
+                    // Get all active currencies
+                    var allCurrencies = await _context.Currencies
+                        .Where(c => c.IsActive)
+                        .OrderBy(c => c.DisplayOrder)
+                        .ToListAsync();
 
-                var timeline = await _poolHistoryService.GetPoolTimelineAsync(currencyFilter, fromDateTime, toDateTime);
-                var summary = await _poolHistoryService.GetPoolSummaryAsync(currencyFilter);
+                    var allTimelines = new List<PoolTimelineItem>();
+                    foreach (var currency in allCurrencies)
+                    {
+                        var timeline = await _poolHistoryService.GetPoolTimelineAsync(currency.Id, fromDateTime, toDateTime);
+                        allTimelines.AddRange(timeline);
+                    }
 
-                // Return timeline as-is (oldest first)
-                return Json(new { success = true, timeline, summary });
+                    // Sort by date descending - Date property is formatted string "YYYY-MM-DD HH:MM:SS"
+                    var sortedTimelines = allTimelines
+                        .OrderByDescending(x => DateTime.TryParse(x.Date, out var parsedDate) ? parsedDate : DateTime.MinValue)
+                        .ToList();
+                    return Json(new { success = true, timeline = sortedTimelines });
+                }
             }
             catch (Exception ex)
             {
