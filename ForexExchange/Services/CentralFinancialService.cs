@@ -795,18 +795,7 @@ namespace ForexExchange.Services
                 currentBalanceEntity: poolBalanceTo
             );
 
-            // Update pool statistics
-            if (order.FromAmount > 0)
-            {
-                poolBalanceFrom.ActiveBuyOrderCount++;
-                poolBalanceFrom.TotalBought += order.FromAmount;
-            }
-
-            if (order.ToAmount > 0)
-            {
-                poolBalanceTo.ActiveSellOrderCount++;
-                poolBalanceTo.TotalSold += order.ToAmount;
-            }
+           
 
             // CRITICAL: Save all changes in one operation within the transaction
             // Multiple SaveChangesAsync calls have been consolidated to reduce SQLite concurrency issues
