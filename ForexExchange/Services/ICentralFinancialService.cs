@@ -121,10 +121,11 @@ namespace ForexExchange.Services
     Task RebuildAllFinancialBalancesAsync(string performedBy = "System");
 
     /// <summary>
-    /// Sets IsFrozen=true for all orders and accounting documents to exclude them from future balance calculations.
-    /// Returns the number of entities that were updated during the operation.
+    /// Sets IsFrozen=true for orders created before the specified time to exclude them from future balance calculations.
+    /// If freezeBefore is null, all orders are frozen.
+    /// Returns the number of orders that were updated during the operation.
     /// </summary>
-    Task<int> FreezeAllOrdersAsync(string performedBy = "System");
+    Task<int> FreezeAllOrdersAsync(string performedBy = "System", DateTime? freezeBefore = null);
 
 
 

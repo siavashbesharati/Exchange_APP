@@ -849,14 +849,14 @@ namespace ForexExchange.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> FreezeAllOrders()
+        public async Task<IActionResult> FreezeAllOrders(DateTime? freezeBefore)
         {
             try
             {
                 var user = await _userManager.GetUserAsync(User);
                 var performedBy = user?.UserName ?? "Admin";
 
-                var ordersFrozen = await _centralFinancialService.FreezeAllOrdersAsync(performedBy);
+                var ordersFrozen = await _centralFinancialService.FreezeAllOrdersAsync(performedBy, freezeBefore);
 
                 var freezeTimestamp = DateTime.UtcNow;
 

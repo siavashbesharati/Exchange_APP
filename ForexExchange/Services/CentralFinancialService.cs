@@ -3918,38 +3918,35 @@ namespace ForexExchange.Services
 
 
 
-        public async Task<int> FreezeAllOrdersAsync(string performedBy = "System")
+        public async Task<int> FreezeAllOrdersAsync(string performedBy = "System", DateTime? freezeBefore = null)
         {
-            _logger.LogInformation("FreezeAllOrdersAsync initiated by {PerformedBy}", performedBy);
+            _logger.LogInformation("FreezeAllOrdersAsync initiated by {PerformedBy} with freezeBefore={FreezeBefore}", performedBy, freezeBefore?.ToString("yyyy-MM-dd HH:mm:ss") ?? "null");
 
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 var timestamp = DateTime.Now;
 
-                var ordersFrozen = await _context.Orders
-                    .Where(o => !o.IsFrozen)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(o => o.IsFrozen, _ => true)
-                        .SetProperty(o => o.UpdatedAt, _ => timestamp));
+                var ordersQuery = _context.Orders.Where(o => !o.IsFrozen);
 
+                if (freezeBefore.HasValue)
+                {
+                    ordersQuery = ordersQuery.Where(o => o.CreatedAt < freezeBefore.Value);
+                }
 
-                //NO longer freezing documents, it is not affect ony banks andd customer , orr vevey where else 
-
-                /*var documentsFrozen = await _context.AccountingDocuments
-                    .Where(d => !d.IsFrozen)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(d => d.IsFrozen, _ => true)); */
+                var ordersFrozen = await ordersQuery.ExecuteUpdateAsync(setters => setters
+                    .SetProperty(o => o.IsFrozen, _ => true)
+                    .SetProperty(o => o.UpdatedAt, _ => timestamp));
 
                 await transaction.CommitAsync();
 
-                _logger.LogInformation("Freeze operation completed. Orders frozen: {Orders}, Documents frozen: {Documents}", ordersFrozen);
-                return (ordersFrozen);
+                _logger.LogInformation("Freeze operation completed. Orders frozen: {Orders}", ordersFrozen);
+                return ordersFrozen;
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, "Failed to freeze orders/documents initiated by {PerformedBy}", performedBy);
+                _logger.LogError(ex, "Failed to freeze orders initiated by {PerformedBy}", performedBy);
                 throw;
             }
         }

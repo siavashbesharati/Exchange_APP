@@ -214,6 +214,16 @@
                                   
                                     <form id="freezeDashboardForm">
                                         @Html.AntiForgeryToken()
+                                        <div class="mb-3">
+                                            <label for="freezeBefore" class="form-label">تاریخ و زمان انجماد</label>
+                                            <input
+                                                type="datetime-local"
+                                                class="form-control"
+                                                id="freezeBefore"
+                                                name="freezeBefore"
+                                                required />
+                                            <div class="form-text">تمام سفارش‌های قبل از این زمان منجمد خواهند شد.</div>
+                                        </div>
                                         <button type="submit" class="btn btn-outline-primary w-100" id="freezeDashboardBtn">
                                             <i class="fas fa-snowflake me-2"></i>
                                                ریست داشبورد
