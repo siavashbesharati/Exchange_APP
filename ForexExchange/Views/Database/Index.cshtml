@@ -483,7 +483,7 @@
 
                 $.ajax({
                     type: 'POST',
-                    url: '@Url.Action("FreezeAllOrdersAndDocuments", "Database")',
+                    url: '@Url.Action("FreezeAllOrders", "Database")',
                     data: $form.serialize(),
                     success: function (response) {
                         if (response.success) {

@@ -3918,9 +3918,9 @@ namespace ForexExchange.Services
 
 
 
-        public async Task<int> FreezeAllOrdersAndDocumentsAsync(string performedBy = "System")
+        public async Task<int> FreezeAllOrdersAsync(string performedBy = "System")
         {
-            _logger.LogInformation("FreezeAllOrdersAndDocumentsAsync initiated by {PerformedBy}", performedBy);
+            _logger.LogInformation("FreezeAllOrdersAsync initiated by {PerformedBy}", performedBy);
 
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
