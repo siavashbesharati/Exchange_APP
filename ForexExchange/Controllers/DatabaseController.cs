@@ -702,11 +702,11 @@ namespace ForexExchange.Controllers
                 var customerBalanceHistory = await _context.CustomerBalanceHistory
                     .Where(h => !h.IsDeleted)
                     .ToListAsync();
-                    
+
                 var bankAccountBalanceHistory = await _context.BankAccountBalanceHistory
                     .Where(h => !h.IsDeleted)
                     .ToListAsync();
-                    
+
                 var poolHistoryRecords = await _context.CurrencyPoolHistory
                     .Where(h => !h.IsDeleted && h.TransactionType == CurrencyPoolTransactionType.Order)
                     .ToListAsync();
@@ -717,24 +717,24 @@ namespace ForexExchange.Controllers
                 foreach (var historyRecord in poolHistoryRecords)
                 {
                     if (!historyRecord.ReferenceId.HasValue) continue;
-                    
+
                     var order = orders.FirstOrDefault(o => o.Id == historyRecord.ReferenceId.Value);
                     if (order != null)
                     {
                         var generatedDescription = HistoryDescriptionHelper.GenerateOrderDescription(order);
                         historyRecord.Description = generatedDescription;
-                        
+
                         // Update CustomerBalanceHistory records for this order
                         var customerHistoryRecords = customerBalanceHistory
                             .Where(h => h.ReferenceId == order.Id && h.TransactionType == CustomerBalanceTransactionType.Order)
                             .ToList();
-                            
+
                         foreach (var customerHistory in customerHistoryRecords)
                         {
                             customerHistory.Description = generatedDescription;
                             customerHistory.Note = generatedDescription; // Note with capital N
                         }
-                        
+
                         poolUpdated++;
                     }
                 }
@@ -748,22 +748,22 @@ namespace ForexExchange.Controllers
                 var customerHistoryRecordsForDocuments = customerBalanceHistory
                     .Where(h => h.TransactionType == CustomerBalanceTransactionType.AccountingDocument && !h.IsDeleted)
                     .ToList();
-                    
+
                 int docUpdated = 0;
                 foreach (var docHistory in customerHistoryRecordsForDocuments)
                 {
                     if (!docHistory.ReferenceId.HasValue) continue;
-                    
+
                     var document = documents.FirstOrDefault(d => d.Id == docHistory.ReferenceId.Value);
                     if (document != null)
                     {
                         var role = docHistory.TransactionAmount > 0 ? "Payer" : "Receiver";
                         var note = HistoryDescriptionHelper.GenerateDocumentNote(document);
                         var description = HistoryDescriptionHelper.GenerateDocumentDescription(document, role);
-                        
+
                         docHistory.Note = note;
                         docHistory.Description = description;
-                        
+
                         // Update BankAccountBalanceHistory (only Description, no Note property)
                         var bankHistoryRecord = bankAccountBalanceHistory
                             .FirstOrDefault(h => h.ReferenceId == docHistory.ReferenceId.Value);
@@ -771,7 +771,7 @@ namespace ForexExchange.Controllers
                         {
                             bankHistoryRecord.Description = description;
                         }
-                        
+
                         docUpdated++;
                     }
                 }
@@ -2007,6 +2007,29 @@ namespace ForexExchange.Controllers
                 TempData["MatchOrdersLog"] = ex.ToString();
             }
             return RedirectToAction(nameof(Index));
+        }
+
+
+
+        public  async Task<IActionResult> UpdateCurrencyIds()
+        {
+            try
+            {
+
+                var bankaccounts = _context.BankAccounts.ToList();
+                foreach (var bankcaccount in bankaccounts)
+                {
+                    var currencyId = _context.Currencies.FirstOrDefault(c => c.Code == bankcaccount.CurrencyCode).Id;
+                    bankcaccount.CurrencyId = currencyId;
+                    _context.Update(bankcaccount);
+                }
+                _context.SaveChanges();
+                return Ok("All CurrencyIds have been updated");
+            }
+            catch (Exception ex)
+            {
+                return Ok(ex.Message);
+            }
         }
     }
 }
