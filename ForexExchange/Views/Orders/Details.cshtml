@@ -41,7 +41,7 @@
                         <div class="mb-2">
                             <strong>@(Model.Customer.Gender ? "Mr." : "Ms.")</strong> @Model.Customer.FullName
                         </div>
-                        <div class="text-muted"><i class="fas fa-phone"></i> @Model.Customer.PhoneNumber?.Replace("00", "+")</div>
+                        <div class="text-muted"><i class="fas fa-phone"></i> @Model.Customer.PhoneNumber</div>
                     }
                     else
                     {
