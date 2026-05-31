@@ -42,10 +42,10 @@ namespace ForexExchange.Controllers
             {
                 // Handle DateTime parsing errors - likely due to empty string DateTime fields in database
                 TempData["ErrorMessage"] = "خطا در بارگذاری اطلاعات حساب‌های بانکی. لطفاً با مدیر سیستم تماس بگیرید.";
-                
+
                 // Log the error for debugging
                 Console.WriteLine($"DateTime parsing error in BankAccount Index: {ex.Message}");
-                
+
                 // Return empty list to avoid crash
                 return View(new List<BankAccount>());
             }
@@ -90,7 +90,7 @@ namespace ForexExchange.Controllers
         /// List system customer bank accounts
         /// نمایش حساب‌های بانکی مشتری سیستم
         /// </summary>
-      
+
         public async Task<IActionResult> SystemAccounts()
         {
             var systemCustomer = await _context.Customers
@@ -115,15 +115,15 @@ namespace ForexExchange.Controllers
         /// Create new bank account
         /// ایجاد حساب بانکی جدید
         /// </summary>
-   
+
         public async Task<IActionResult> Create()
         {
-           
+
             // Only system customers can have bank accounts
             var systemCustomer = await _context.Customers
                 .FirstOrDefaultAsync(c => c.IsActive && c.IsSystem);
 
-           
+
             ViewBag.Currencies = await _context.Currencies
           .Where(c => c.IsActive)
           .OrderBy(c => c.DisplayOrder)
@@ -153,7 +153,7 @@ namespace ForexExchange.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(BankAccount model)
         {
-           
+
 
             // Remove Customer validation error since we handle CustomerId separately
             ModelState.Remove("Customer");
@@ -189,6 +189,8 @@ namespace ForexExchange.Controllers
                         _context.BankAccounts.Update(account);
                     }
                 }
+                var CurrencyId = _context.Currencies.FirstOrDefault(c => c.Code == model.CurrencyCode)?.Id;
+                model.CurrencyId = CurrencyId;
 
                 model.CreatedAt = DateTime.Now;
                 _context.BankAccounts.Add(model);
@@ -294,6 +296,8 @@ namespace ForexExchange.Controllers
                     }
                 }
 
+                var CurrencyId = _context.Currencies.FirstOrDefault(c => c.Code == model.CurrencyCode)?.Id;
+                model.CurrencyId = CurrencyId;
                 model.LastModified = DateTime.Now;
                 _context.BankAccounts.Update(model);
                 await _context.SaveChangesAsync();
