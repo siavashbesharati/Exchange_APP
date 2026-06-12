@@ -200,7 +200,7 @@ try
     {
         app.UseExceptionHandler("/Error");
         app.UseStatusCodePagesWithReExecute("/Error/{0}");
-        // app.UseHsts();
+        app.UseHsts();
     }
     else
     {
@@ -208,7 +208,7 @@ try
         app.UseStatusCodePagesWithReExecute("/Error/{0}");
     }
 
-    // app.UseHttpsRedirection();
+    app.UseHttpsRedirection();
     app.UseStaticFiles();
     app.UseRouting();
     app.UseAuthentication();
