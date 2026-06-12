@@ -868,7 +868,7 @@ namespace ForexExchange.Controllers
                         .SetProperty(h => h.DeletedBy, _ => performedBy));
 
                 await _centralFinancialService.RebuildAllFinancialBalancesAsync(performedBy);
-
+                await _currencyPoolService.UpdateAllOrderCountsAsync();
                 var successMessage = $"داشبورد با موفقیت ریست شد.<br/>";
 
                 return Json(new
