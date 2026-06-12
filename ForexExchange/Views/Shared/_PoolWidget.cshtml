@@ -3,13 +3,16 @@
 @using ForexExchange.Extensions
 
 <div class="card  shadow-sm">
-    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center">
+    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
+        <div class="position-absolute start-0 ps-3">
+            <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+        </div>
         <div class="text-center">
             <i class="fas fa-piggy-bank me-2"></i>
             <strong>داشبورد ارزی</strong>
         </div>
-        <div class="d-flex align-items-center position-absolute" style="right: 15px;">
-            <small id="pool-last-update" class="me-3">
+        <div class="position-absolute end-0 pe-3">
+            <small id="pool-last-update">
                 <i class="fas fa-clock me-1"></i>
                 <span id="current-time">@DateTime.Now.ToString("HH:mm:ss")</span>
             </small>
@@ -40,7 +43,7 @@
                     var balancePercent = (int)Math.Round(balancePercentDec, MidpointRounding.AwayFromZero);
 
                     <div class="col-xl-4 col-lg-4 col-md-6 mb-3">
-                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code">
+                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code" data-balance="@pool.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)">
                             <!-- Currency Header -->
                             <div class="card-header bg-light d-flex justify-content-center align-items-center">
                                 <div class="d-flex align-items-center">
@@ -235,13 +238,122 @@
             timeElement.textContent = timeString;
         }
     }
-    
-    // Update time immediately when page loads
+
+    async function initializePoolWidgetConversion() {
+        const totalElement = document.getElementById('pool-converted-total');
+        const poolCards = document.querySelectorAll('.pool-card[data-currency][data-balance]');
+
+        if (!totalElement || poolCards.length === 0) {
+            return;
+        }
+
+        const rates = await loadOMRExchangeRates();
+        const rateMap = buildRateMap(rates);
+        refreshPoolAggregate(poolCards, rateMap);
+    }
+
+    function refreshPoolAggregate(poolCards, rateMap) {
+        const pools = Array.from(poolCards).map(card => ({
+            currencyCode: (card.dataset.currency || '').toUpperCase(),
+            balance: parseFloat(card.dataset.balance || '0') || 0
+        }));
+
+        const converted = calculateConvertedTotal(pools, rateMap);
+        const totalElement = document.getElementById('pool-converted-total');
+
+        if (converted == null || Number.isNaN(converted)) {
+            totalElement.textContent = '-- OMR';
+            return;
+        }
+
+        totalElement.textContent = `${formatValue(converted, 'OMR')} OMR`;
+    }
+
+    function calculateConvertedTotal(pools, rateMap) {
+        if (!Array.isArray(pools) || pools.length === 0) {
+            return 0;
+        }
+
+        let total = 0;
+
+        pools.forEach(pool => {
+            const code = pool.currencyCode || 'OMR';
+            if (code === 'OMR') {
+                total += pool.balance;
+                return;
+            }
+
+            const rate = rateMap[code];
+            if (!rate) {
+                return;
+            }
+
+            total += pool.balance / rate;
+        });
+
+        return total;
+    }
+
+    async function loadOMRExchangeRates() {
+        try {
+            const response = await fetch('/api/exchangerates/omr');
+            if (!response.ok) {
+                return [];
+            }
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    function buildRateMap(rates) {
+        const rateMap = { OMR: 1 };
+        if (!Array.isArray(rates)) {
+            return rateMap;
+        }
+
+        rates.forEach(item => {
+            const code = (item.toCurrency || '').toUpperCase();
+            const rate = parseFloat(item.rate || 0);
+            if (code && !Number.isNaN(rate)) {
+                rateMap[code] = rate;
+            }
+        });
+
+        return rateMap;
+    }
+
+    function formatValue(value, currencyCode) {
+        const numericValue = Number(value) || 0;
+        const normalizedCode = (currencyCode || '').toUpperCase();
+
+        if (typeof window.formatCurrency === 'function') {
+            return window.formatCurrency(numericValue, normalizedCode);
+        }
+
+        if (normalizedCode === 'IRR') {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.trunc(numericValue));
+        }
+
+        const truncated = Math.trunc(numericValue * 100) / 100;
+        let result = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(truncated);
+        result = result.replace(/\.0+$|\.(\d*?)(0+)$/, '.$1');
+        if (result.endsWith('.')) {
+            result = result.slice(0, -1);
+        }
+        return result;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         updateCurrentTime();
-        
-        // Update time every second
         setInterval(updateCurrentTime, 1000);
+        initializePoolWidgetConversion();
     });
 </script>
 
