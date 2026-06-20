@@ -861,7 +861,8 @@ namespace ForexExchange.Controllers
                 var freezeTimestamp = DateTime.UtcNow;
 
                 var manualPoolSoftDeleted = await _context.CurrencyPoolHistory
-                    .Where(h => h.TransactionType == CurrencyPoolTransactionType.ManualEdit && !h.IsDeleted)
+                    .Where(h => h.TransactionType == CurrencyPoolTransactionType.ManualEdit && !h.IsDeleted &&
+                    h.TransactionDate <= freezeBefore)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(h => h.IsDeleted, _ => true)
                         .SetProperty(h => h.DeletedAt, _ => freezeTimestamp)
@@ -882,6 +883,39 @@ namespace ForexExchange.Controllers
             catch (Exception ex)
             {
                 var errorMessage = $"خطا در ریست داشبورد  : {ex.Message}";
+
+                return Json(new { success = false, error = errorMessage });
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> FixMan()
+        {
+            try
+            {
+                var cutoffDate = new DateTime(2026, 1, 1);
+
+                var manualPoolSoftDeleted = await _context.CurrencyPoolHistory
+                    .Where(h => h.TransactionType == CurrencyPoolTransactionType.ManualEdit && h.IsDeleted &&
+                    h.TransactionDate >= cutoffDate)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(h => h.IsDeleted, _ => false)
+                        .SetProperty(h => h.DeletedAt, _ => null)
+                        .SetProperty(h => h.DeletedBy, _ => null));
+
+                var successMessage = $" manual adjusments restored succesfully   .<br/>";
+
+                return Json(new
+                {
+                    success = true,
+                    message = successMessage,
+                    manualPoolSoftDeleted
+                });
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"  manul adjustment داشبورد  : {ex.Message}";
 
                 return Json(new { success = false, error = errorMessage });
             }
@@ -2011,7 +2045,7 @@ namespace ForexExchange.Controllers
 
 
 
-        public  async Task<IActionResult> UpdateCurrencyIds()
+        public async Task<IActionResult> UpdateCurrencyIds()
         {
             try
             {

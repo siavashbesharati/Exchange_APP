@@ -1,11 +1,13 @@
 // Service Worker for Push Notifications
 // Web Worker برای اعلان‌های فشاری
 
-const CACHE_NAME = 'taban-forex-v1';
+const CACHE_NAME = 'taban-forex-v2';
 const NOTIFICATION_TAG = 'taban-notification';
 
 // Install service worker
 self.addEventListener('install', event => {
+    self.skipWaiting();
+
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
             return cache.addAll([
@@ -23,15 +25,18 @@ self.addEventListener('install', event => {
 // Activate service worker
 self.addEventListener('activate', event => {
     event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cache => {
-                    if (cache !== CACHE_NAME) {
-                        return caches.delete(cache);
-                    }
-                })
-            );
-        })
+        Promise.all([
+            caches.keys().then(cacheNames => {
+                return Promise.all(
+                    cacheNames.map(cache => {
+                        if (cache !== CACHE_NAME) {
+                            return caches.delete(cache);
+                        }
+                    })
+                );
+            }),
+            self.clients.claim()
+        ])
     );
 });
 
