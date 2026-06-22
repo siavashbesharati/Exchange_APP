@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using ForexExchange.Models;
 using ForexExchange.Services;
 using ForexExchange.Hubs;
@@ -31,6 +33,27 @@ try
     var builder = WebApplication.CreateBuilder(args);
 
     builder.Host.UseSerilog();
+
+    var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"]
+        ?? Path.Combine(builder.Environment.ContentRootPath, "Logs", "DataProtectionKeys");
+
+    Directory.CreateDirectory(dataProtectionKeysPath);
+
+    builder.Services.AddDataProtection()
+        .SetApplicationName("ForexExchange")
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders =
+            ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+        // Plesk and other hosting panels often terminate TLS before ASP.NET Core.
+        // Accept forwarded headers from the hosting proxy so cookies and redirects
+        // see the original public HTTPS request.
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
 
     // ------------------------------
     // Controllers
@@ -86,6 +109,10 @@ try
 
     builder.Services.ConfigureApplicationCookie(options =>
     {
+        options.Cookie.Name = ".ForexExchange.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Error/AccessDenied";
         options.LogoutPath = "/Account/Logout";
@@ -195,6 +222,8 @@ try
             throw;
         }
     });
+
+    app.UseForwardedHeaders();
 
     if (!app.Environment.IsDevelopment())
     {
