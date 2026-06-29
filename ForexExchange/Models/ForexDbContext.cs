@@ -31,29 +31,29 @@ namespace ForexExchange.Models
                   }, LogLevel.Information);
             }
 
-            public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-            {
-                  // CRITICAL: Configure SQLite PRAGMA settings once per connection for better concurrency
-                  // These settings improve SQLite's ability to handle concurrent reads and writes
-                  if (!_pragmaConfigured)
-                  {
-                        try
-                        {
-                              await Database.ExecuteSqlRawAsync("PRAGMA journal_mode = WAL;", cancellationToken);
-                              await Database.ExecuteSqlRawAsync("PRAGMA busy_timeout = 5000;", cancellationToken);
-                              // PRAGMA synchronous = NORMAL often fails in WAL mode (logs "Failed executing DbCommand") - skip it
-                              await Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000;", cancellationToken); // 64MB cache
-                              _pragmaConfigured = true;
-                        }
-                        catch
-                        {
-                              // Ignore errors - database might not be ready yet
-                              // Settings will be applied on next SaveChangesAsync
-                        }
-                  }
+            // public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+            // {
+            //       // CRITICAL: Configure SQLite PRAGMA settings once per connection for better concurrency
+            //       // These settings improve SQLite's ability to handle concurrent reads and writes
+            //       if (!_pragmaConfigured)
+            //       {
+            //             try
+            //             {
+            //                   await Database.ExecuteSqlRawAsync("PRAGMA journal_mode = WAL;", cancellationToken);
+            //                   await Database.ExecuteSqlRawAsync("PRAGMA busy_timeout = 5000;", cancellationToken);
+            //                   // PRAGMA synchronous = NORMAL often fails in WAL mode (logs "Failed executing DbCommand") - skip it
+            //                   await Database.ExecuteSqlRawAsync("PRAGMA cache_size = -64000;", cancellationToken); // 64MB cache
+            //                   _pragmaConfigured = true;
+            //             }
+            //             catch
+            //             {
+            //                   // Ignore errors - database might not be ready yet
+            //                   // Settings will be applied on next SaveChangesAsync
+            //             }
+            //       }
 
-                  return await base.SaveChangesAsync(cancellationToken);
-            }
+            //       return await base.SaveChangesAsync(cancellationToken);
+            // }
 
             public DbSet<Customer> Customers { get; set; }
             public DbSet<Order> Orders { get; set; }
