@@ -132,7 +132,7 @@ namespace ForexExchange.Controllers
         // GET: Reports/AllCustomersBalances
         public IActionResult AllCustomersBalances()
         {
-           
+
             return View();
         }
 
@@ -158,7 +158,7 @@ namespace ForexExchange.Controllers
         // GET: Reports/BankAccountSummaryReport
         public IActionResult BankAccountSummaryReport()
         {
-           
+
             return View();
         }
 
@@ -810,7 +810,7 @@ namespace ForexExchange.Controllers
                             if (order != null)
                             {
                                 customer = order.Customer;
-                                
+
                                 if (order.Rate > 0)
                                 {
                                     transactionRate = order.Rate;
@@ -996,7 +996,7 @@ namespace ForexExchange.Controllers
                     // Separate Buy and Sell transactions
                     var buyTransactions = new List<object>();
                     var sellTransactions = new List<object>();
-                    
+
                     decimal totalBuyAmount = 0m;
                     decimal totalSellAmount = 0m;
 
@@ -1009,16 +1009,16 @@ namespace ForexExchange.Controllers
                         .Where(o => orderIds.Contains(o.Id))
                         .ToDictionaryAsync(o => o.Id);
 
-                    _logger.LogInformation("GetPoolSummaryReport - Currency {CurrencyCode}: Found {TransactionCount} transactions for {OrderCount} unique orders", 
+                    _logger.LogInformation("GetPoolSummaryReport - Currency {CurrencyCode}: Found {TransactionCount} transactions for {OrderCount} unique orders",
                         currency.Code, transactionsRaw.Count, orderIds.Count);
 
                     foreach (var h in transactionsRaw)
                     {
                         if (!h.ReferenceId.HasValue) continue;
-                        
+
                         if (!ordersDict.TryGetValue(h.ReferenceId.Value, out var order) || order == null)
                         {
-                            _logger.LogWarning("GetPoolSummaryReport - Order {OrderId} not found for CurrencyPoolHistory {HistoryId} in currency {CurrencyCode}", 
+                            _logger.LogWarning("GetPoolSummaryReport - Order {OrderId} not found for CurrencyPoolHistory {HistoryId} in currency {CurrencyCode}",
                                 h.ReferenceId.Value, h.Id, currency.Code);
                             continue;
                         }
@@ -1110,7 +1110,7 @@ namespace ForexExchange.Controllers
                         var transactionType = t.GetType();
                         var timeProp = transactionType.GetProperty("time");
                         var timeValue = timeProp?.GetValue(t)?.ToString() ?? "";
-                        
+
                         // Add transaction type property
                         var newTransaction = new
                         {
@@ -1130,13 +1130,13 @@ namespace ForexExchange.Controllers
                         };
                         allTransactions.Add(newTransaction);
                     }
-                    
+
                     foreach (var t in sellTransactions)
                     {
                         var transactionType = t.GetType();
                         var timeProp = transactionType.GetProperty("time");
                         var timeValue = timeProp?.GetValue(t)?.ToString() ?? "";
-                        
+
                         // Add transaction type property
                         var newTransaction = new
                         {
@@ -1156,7 +1156,7 @@ namespace ForexExchange.Controllers
                         };
                         allTransactions.Add(newTransaction);
                     }
-                    
+
                     // Sort all transactions by time
                     var sortedTransactions = allTransactions.OrderBy(t =>
                     {
@@ -1183,7 +1183,7 @@ namespace ForexExchange.Controllers
                     }
                 }
 
-                _logger.LogInformation("GetPoolSummaryReport returning - Currency count: {Count}, Date: {Date}", 
+                _logger.LogInformation("GetPoolSummaryReport returning - Currency count: {Count}, Date: {Date}",
                     currencyDetails.Count, date.ToString("yyyy-MM-dd"));
 
                 return Json(new
@@ -1260,7 +1260,7 @@ namespace ForexExchange.Controllers
                     // Separate Buy and Sell transactions
                     var buyTransactions = new List<object>();
                     var sellTransactions = new List<object>();
-                    
+
                     decimal totalBuyAmount = 0m;
                     decimal totalSellAmount = 0m;
 
@@ -1273,16 +1273,16 @@ namespace ForexExchange.Controllers
                         .Where(o => orderIds.Contains(o.Id))
                         .ToDictionaryAsync(o => o.Id);
 
-                    _logger.LogInformation("GetPoolSummaryReport - Currency {CurrencyCode}: Found {TransactionCount} transactions for {OrderCount} unique orders", 
+                    _logger.LogInformation("GetPoolSummaryReport - Currency {CurrencyCode}: Found {TransactionCount} transactions for {OrderCount} unique orders",
                         currency.Code, transactionsRaw.Count, orderIds.Count);
 
                     foreach (var h in transactionsRaw)
                     {
                         if (!h.ReferenceId.HasValue) continue;
-                        
+
                         if (!ordersDict.TryGetValue(h.ReferenceId.Value, out var order) || order == null)
                         {
-                            _logger.LogWarning("GetPoolSummaryReport - Order {OrderId} not found for CurrencyPoolHistory {HistoryId} in currency {CurrencyCode}", 
+                            _logger.LogWarning("GetPoolSummaryReport - Order {OrderId} not found for CurrencyPoolHistory {HistoryId} in currency {CurrencyCode}",
                                 h.ReferenceId.Value, h.Id, currency.Code);
                             continue;
                         }
@@ -1374,7 +1374,7 @@ namespace ForexExchange.Controllers
                         var transactionType = t.GetType();
                         var timeProp = transactionType.GetProperty("time");
                         var timeValue = timeProp?.GetValue(t)?.ToString() ?? "";
-                        
+
                         // Add transaction type property
                         var newTransaction = new
                         {
@@ -1394,13 +1394,13 @@ namespace ForexExchange.Controllers
                         };
                         allTransactions.Add(newTransaction);
                     }
-                    
+
                     foreach (var t in sellTransactions)
                     {
                         var transactionType = t.GetType();
                         var timeProp = transactionType.GetProperty("time");
                         var timeValue = timeProp?.GetValue(t)?.ToString() ?? "";
-                        
+
                         // Add transaction type property
                         var newTransaction = new
                         {
@@ -1420,7 +1420,7 @@ namespace ForexExchange.Controllers
                         };
                         allTransactions.Add(newTransaction);
                     }
-                    
+
                     // Sort all transactions by time
                     var sortedTransactions = allTransactions.OrderBy(t =>
                     {
@@ -2490,7 +2490,7 @@ namespace ForexExchange.Controllers
 
                 // Get final balances - if single currency, get summary; otherwise calculate from transactions
                 var finalBalances = new Dictionary<string, decimal>();
-                
+
                 if (currencyId.HasValue && currencyFilter != null)
                 {
                     // Single currency - get summary
@@ -2917,6 +2917,7 @@ namespace ForexExchange.Controllers
 
         public IActionResult CustomerBankDailyReport()
         {
+            
             return View();
         }
 
@@ -2925,9 +2926,10 @@ namespace ForexExchange.Controllers
         {
             // Set default date range: from last year to today
             var today = DateTime.Today;
-            var lastYear = today.AddYears(-1);
+            var fromdate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+    .ToString("yyyy-MM-dd");
 
-            ViewBag.DefaultDateFrom = lastYear.ToString("yyyy-MM-dd");
+            ViewBag.DefaultDateFrom = fromdate;
             ViewBag.DefaultDateTo = today.ToString("yyyy-MM-dd");
 
             return View();
@@ -3106,7 +3108,7 @@ namespace ForexExchange.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetCustomerBankHistoryReport(DateTime dateFrom, DateTime dateTo, string? currencyCode = null)
+        public async Task<IActionResult> GetCustomerBankHistoryReport(DateTime dateFrom, DateTime dateTo, string? currencyCode = "OMR")
         {
             try
             {
@@ -3761,8 +3763,8 @@ namespace ForexExchange.Controllers
 
             // Get bank account transactions within the date range for shareholders
             var bankTransactionsInRange = await _context.BankAccountBalanceHistory
-                .Where(h => !h.IsDeleted 
-                    && h.TransactionDate >= startDateTime 
+                .Where(h => !h.IsDeleted
+                    && h.TransactionDate >= startDateTime
                     && h.TransactionDate <= endDateTime)
                 .Include(h => h.BankAccount)
                     .ThenInclude(ba => ba.Customer)
@@ -3774,8 +3776,8 @@ namespace ForexExchange.Controllers
 
             // Get customer transactions within the date range for shareholders
             var customerTransactionsInRange = await _context.CustomerBalanceHistory
-                .Where(h => !h.IsDeleted 
-                    && h.TransactionDate >= startDateTime 
+                .Where(h => !h.IsDeleted
+                    && h.TransactionDate >= startDateTime
                     && h.TransactionDate <= endDateTime)
                 .Include(h => h.Customer)
                 .Where(h => h.Customer != null
@@ -4561,7 +4563,7 @@ namespace ForexExchange.Controllers
                     formattedFromDate,
                     formattedToDate);
 
-                var fileName = string.IsNullOrEmpty(currencyCode) 
+                var fileName = string.IsNullOrEmpty(currencyCode)
                     ? $"گزارش_داشبورد_همه_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx"
                     : $"گزارش_داشبورد_{currencyCode}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
                 return File(excelData, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
