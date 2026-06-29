@@ -82,24 +82,32 @@ namespace ForexExchange.Controllers
         // GET: Reports/CustomerReports
         public IActionResult CustomerReports()
         {
+            ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+    .ToString("yyyy-MM-dd");
             return View();
         }
 
         // GET: Reports/OrderReports
         public IActionResult OrderReports()
         {
+            ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+    .ToString("yyyy-MM-dd");
             return View();
         }
 
         // GET: Reports/DocumentReports
         public IActionResult DocumentReports()
         {
+            ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+    .ToString("yyyy-MM-dd");
             return View();
         }
 
         // GET: Reports/PoolReports
         public IActionResult PoolReports()
         {
+            ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+    .ToString("yyyy-MM-dd");
             return View();
         }
 
@@ -108,18 +116,23 @@ namespace ForexExchange.Controllers
         // GET: Reports/BankAccountReports
         public IActionResult BankAccountReports()
         {
+            ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+    .ToString("yyyy-MM-dd");
             return View();
         }
 
         // GET: Reports/AdminReports
         public IActionResult AdminReports()
         {
+            ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+    .ToString("yyyy-MM-dd");
             return View();
         }
 
         // GET: Reports/AllCustomersBalances
         public IActionResult AllCustomersBalances()
         {
+           
             return View();
         }
 
@@ -145,6 +158,7 @@ namespace ForexExchange.Controllers
         // GET: Reports/BankAccountSummaryReport
         public IActionResult BankAccountSummaryReport()
         {
+           
             return View();
         }
 
@@ -2972,9 +2986,9 @@ namespace ForexExchange.Controllers
         {
             // Set default date range: from last year to today
             var today = DateTime.Today;
-            var lastYear = today.AddYears(-1);
+            var firstDayOfCurrentMonth = new DateTime(today.Year, today.Month, 1);
 
-            ViewBag.DefaultDateFrom = lastYear.ToString("yyyy-MM-dd");
+            ViewBag.DefaultDateFrom = firstDayOfCurrentMonth;
             ViewBag.DefaultDateTo = today.ToString("yyyy-MM-dd");
 
             return View();
