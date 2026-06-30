@@ -40,7 +40,7 @@ namespace ForexExchange.Services.Notifications.Providers
                     eventType = context.EventType.ToString(),
                     data = new Dictionary<string, object>(context.Data)
                     {
-                        //["excludeUserIds"] = context.ExcludeUserIds
+                        ["excludeUserIds"] = context.ExcludeUserIds
                     },
                     url = context.NavigationUrl,
                     priority = context.Priority.ToString(),
