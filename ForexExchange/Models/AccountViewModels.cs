@@ -79,6 +79,9 @@ namespace ForexExchange.Models
         [Display(Name = "شماره تلفن")]
         public string PhoneNumber { get; set; } = string.Empty;
 
+        [StringLength(20)]
+        public string SecondaryPhoneNumber { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "رمز عبور الزامی است")]
         [DataType(DataType.Password)]
         [Display(Name = "رمز عبور")]
@@ -124,6 +127,9 @@ namespace ForexExchange.Models
 
         [Display(Name = "شماره تلفن")]
         public string PhoneNumber { get; set; } = string.Empty;
+
+        [StringLength(20)]
+        public string SecondaryPhoneNumber { get; set; } = string.Empty;
 
         [DataType(DataType.Password)]
         [Display(Name = "رمز عبور جدید (اختیاری)")]

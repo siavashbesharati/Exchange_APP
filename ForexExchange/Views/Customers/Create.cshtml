@@ -14,118 +14,127 @@
                 <div class="card-body">
                     <form id="customer-create-form" asp-action="Create" method="post">
                         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-                        
+
                         <div class="row mb-3">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label asp-for="FullName" class="form-label">نام و نام خانوادگی *</label>
                                 <input asp-for="FullName" type="text" class="form-control" required />
                                 <span asp-validation-for="FullName" class="text-danger"></span>
                             </div>
-                            
-                            <div class="col-md-6">
-                                <label asp-for="PhoneNumber" class="form-label">شماره تلفن</label>
-                                <input asp-for="PhoneNumber" type="text" class="form-control" placeholder="هر فرمت شماره تلفن قابل قبول است
-                                " />
-                                <small class="form-text text-muted">مثال: 0096871746098 یا +98912xxxxxxx یا 0912xxxxxxx</small>
-                                <span asp-validation-for="PhoneNumber" class="text-danger"></span>
-                            </div>
-                            </div>
 
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label asp-for="Gender" class="form-label">جنسیت *</label>
-                                    <select asp-for="Gender" class="form-select" required>
-                                        <option value="">انتخاب جنسیت</option>
-                                        <option value="true">مرد</option>
-                                        <option value="false">زن</option>
-                                    </select>
-                                    <span asp-validation-for="Gender" class="text-danger"></span>
+                            <div class="col-md-4">
+                                <label asp-for="PhoneNumber" class="form-label">شماره تلفن</label>
+                                <input asp-for="PhoneNumber" type="text" class="form-control" placeholder="شماره موبایل " />
+                                
+                                    <span asp-validation-for="PhoneNumber" class="text-danger"></span>
                                 </div>
-                            </div>
+                                <div class="col-md-4">
+                                    <label asp-for="SecondaryPhoneNumber" class="form-label">شماره تلفن دوم</label>
+                                    <input asp-for="SecondaryPhoneNumber" type="text" class="form-control" placeholder="شماره موبایل دوم" />
+                                        <span asp-validation-for="SecondaryPhoneNumber" class="text-danger"></span>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label asp-for="Gender" class="form-label">جنسیت *</label>
+                                        <select asp-for="Gender" class="form-select" required>
+                                            <option value="">انتخاب جنسیت</option>
+                                            <option value="true">مرد</option>
+                                            <option value="false">زن</option>
+                                        </select>
+                                        <span asp-validation-for="Gender" class="text-danger"></span>
+                                    </div>
+                                </div>
+
                     
 
                       
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label asp-for="Password" class="form-label">رمز عبور *</label>
+                                        <input asp-for="Password" type="password" class="form-control" required />
+                                        <span asp-validation-for="Password" class="text-danger"></span>
+                                    </div>
 
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label asp-for="Password" class="form-label">رمز عبور *</label>
-                                <input asp-for="Password" type="password" class="form-control" required />
-                                <span asp-validation-for="Password" class="text-danger"></span>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <label asp-for="ConfirmPassword" class="form-label">تکرار رمز عبور *</label>
-                                <input asp-for="ConfirmPassword" type="password" class="form-control" required />
-                                <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
-                            </div>
-                        </div>
+                                    <div class="col-md-6">
+                                        <label asp-for="ConfirmPassword" class="form-label">تکرار رمز عبور *</label>
+                                        <input asp-for="ConfirmPassword" type="password" class="form-control" required />
+                                        <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                                    </div>
+                                </div>
 
-                        <div class="mb-3">
-                            <label asp-for="Address" class="form-label">آدرس</label>
-                            <textarea asp-for="Address" class="form-control" rows="3" placeholder="آدرس کامل..."></textarea>
-                            <span asp-validation-for="Address" class="text-danger"></span>
-                        </div>
+                                <div class="mb-3">
+                                    <label asp-for="Address" class="form-label">آدرس</label>
+                                    <textarea asp-for="Address" class="form-control" rows="3"
+                                              placeholder="آدرس کامل..."></textarea>
+                                    <span asp-validation-for="Address" class="text-danger"></span>
+                                </div>
 
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input asp-for="IsActive" class="form-check-input" type="checkbox" checked />
-                                <label asp-for="IsActive" class="form-check-label">
-                                    مشتری فعال است
-                                </label>
-                            </div>
-                        </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input asp-for="IsActive" class="form-check-input" type="checkbox" checked />
+                                        <label asp-for="IsActive" class="form-check-label">
+                                            مشتری فعال است
+                                        </label>
+                                    </div>
+                                </div>
 
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input asp-for="IsShareHolder" class="form-check-input" type="checkbox" id="isShareHolderCheck" />
-                                <label asp-for="IsShareHolder" class="form-check-label" for="isShareHolderCheck">
-                                    <strong class="text-warning">سهامدار</strong>
-                                </label>
-                                <small class="form-text text-muted d-block mt-1">
-                                    <i class="fas fa-info-circle"></i> 
-                                    سهامداران در گزارش "تراز کلی" نمایش داده نمی‌شوند و در گزارش "هزینه‌ها" نمایش داده می‌شوند.
-                                </small>
-                            </div>
-                        </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input asp-for="IsShareHolder" class="form-check-input" type="checkbox"
+                                               id="isShareHolderCheck" />
+                                        <label asp-for="IsShareHolder" class="form-check-label" for="isShareHolderCheck">
+                                            <strong class="text-warning">سهامدار</strong>
+                                        </label>
+                                        <small class="form-text text-muted d-block mt-1">
+                                            <i class="fas fa-info-circle"></i>
+                                            سهامداران در گزارش "تراز کلی" نمایش داده نمی‌شوند و در گزارش "هزینه‌ها" نمایش داده
+                                            می‌شوند.
+                                        </small>
+                                    </div>
+                                </div>
 
                        
 
-                        <div class="d-flex justify-content-between">
-                            <a asp-action="Index" class="btn btn-secondary">بازگشت به لیست</a>
-                            <button type="submit" class="btn btn-primary">ثبت مشتری و حساب کاربری</button>
+                                <div class="d-flex justify-content-between">
+                                    <a asp-action="Index" class="btn btn-secondary">بازگشت به لیست</a>
+                                    <button type="submit" class="btn btn-primary">ثبت مشتری و حساب کاربری</button>
+                                </div>
+                            </form>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-@section Scripts {
-    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
-    
-    <script>
-        // Disable Select2 on this page specifically
-        window.disableSelect2 = true;
-    </script>
-    
-    <script>
-        // Password confirmation validation
-        var confirmPasswordInput = document.querySelector('input[name="ConfirmPassword"]');
-        var passwordInput = document.querySelector('input[name="Password"]');
-        
-        if (confirmPasswordInput && passwordInput) {
-            confirmPasswordInput.addEventListener('input', function(e) {
-                var password = passwordInput.value;
-                var confirmPassword = e.target.value;
-                
-                if (password !== confirmPassword) {
-                    e.target.setCustomValidity('رمز عبور و تکرار آن باید یکسان باشند');
-                } else {
-                    e.target.setCustomValidity('');
+        @section Scripts {
+            @{
+                await Html.RenderPartialAsync("_ValidationScriptsPartial");
+            }
+
+            <script>
+                // Disable Select2 on this page specifically
+                window.disableSelect2 = true;
+            </script>
+
+            <script>
+                // Password confirmation validation
+                var confirmPasswordInput = document.querySelector('input[name="ConfirmPassword"]');
+                var passwordInput = document.querySelector('input[name="Password"]');
+
+                if (confirmPasswordInput && passwordInput) {
+                    confirmPasswordInput.addEventListener('input', function (e) {
+                        var password = passwordInput.value;
+                        var confirmPassword = e.target.value;
+
+                        if (password !== confirmPassword) {
+                            e.target.setCustomValidity('رمز عبور و تکرار آن باید یکسان باشند');
+                        } else {
+                            e.target.setCustomValidity('');
+                        }
+                    });
                 }
-            });
-        }
 
-    </script>
-}
+            </script>
+        }

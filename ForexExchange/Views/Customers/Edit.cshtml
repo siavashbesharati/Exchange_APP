@@ -16,173 +16,189 @@
                     <form asp-action="Edit" method="post" id="customer-edit-form">
                         <input asp-for="Id" type="hidden" />
                         <input asp-for="CreatedAt" type="hidden" />
-                        
+
                         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-                        
+
                         <div class="row mb-3">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label asp-for="FullName" class="form-label">نام و نام خانوادگی *</label>
                                 <input asp-for="FullName" type="text" class="form-control" required />
                                 <span asp-validation-for="FullName" class="text-danger"></span>
                             </div>
-                            
-                            <div class="col-md-6">
-                                <label asp-for="PhoneNumber" class="form-label">شماره تلفن</label>
-                                <input asp-for="PhoneNumber" type="text" class="form-control" placeholder="هر فرمت شماره تلفن قابل قبول است" />
-                                <small class="form-text text-muted">شماره تلفن با کد کشور (+98، 0098) یا بدون کد کشور (برای ایران)</small>
-                                <span asp-validation-for="PhoneNumber" class="text-danger"></span>
-                            </div>
-                            </div>
 
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label asp-for="Gender" class="form-label">جنسیت *</label>
-                                    <select asp-for="Gender" class="form-select" required>
-                                        <option value="">انتخاب جنسیت</option>
-                                        <option value="true">مرد</option>
-                                        <option value="false">زن</option>
-                                    </select>
-                                    <span asp-validation-for="Gender" class="text-danger"></span>
+                            <div class="col-md-4">
+                                <label asp-for="PhoneNumber" class="form-label">شماره تلفن</label>
+                                <input asp-for="PhoneNumber" type="text" class="form-control"
+                                       placeholder="شماره موبایل" />
+                                <
+                                    <span asp-validation-for="PhoneNumber" class="text-danger"></span>
                                 </div>
-                            </div>
+
+                                <div class="col-md-4">
+                                    <label asp-for="SecondaryPhoneNumber" class="form-label">شماره تلفن دوم</label>
+                                    <input asp-for="SecondaryPhoneNumber" type="text" class="form-control" placeholder="شماره موبایل دوم" />
+                                    
+                                        <span asp-validation-for="SecondaryPhoneNumber" class="text-danger"></span>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label asp-for="Gender" class="form-label">جنسیت *</label>
+                                        <select asp-for="Gender" class="form-select" required>
+                                            <option value="">انتخاب جنسیت</option>
+                                            <option value="true">مرد</option>
+                                            <option value="false">زن</option>
+                                        </select>
+                                        <span asp-validation-for="Gender" class="text-danger"></span>
+                                    </div>
+                                </div>
+
                        
 
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label asp-for="NewPassword" class="form-label">رمز عبور جدید (اختیاری)</label>
-                                <input asp-for="NewPassword" type="password" class="form-control" />
-                                <small class="form-text text-muted">در صورت عدم تغییر، خالی بگذارید</small>
-                                <span asp-validation-for="NewPassword" class="text-danger"></span>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <label asp-for="ConfirmNewPassword" class="form-label">تکرار رمز عبور جدید</label>
-                                <input asp-for="ConfirmNewPassword" type="password" class="form-control" />
-                                <span asp-validation-for="ConfirmNewPassword" class="text-danger"></span>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label asp-for="Address" class="form-label">آدرس</label>
-                            <textarea asp-for="Address" class="form-control" rows="3" placeholder="آدرس کامل..."></textarea>
-                            <span asp-validation-for="Address" class="text-danger"></span>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input asp-for="IsActive" class="form-check-input" type="checkbox" />
-                                <label asp-for="IsActive" class="form-check-label">
-                                    مشتری فعال است
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input asp-for="IsSystem" class="form-check-input" type="checkbox" id="isSystemCheck" />
-                                <label asp-for="IsSystem" class="form-check-label" for="isSystemCheck">
-                                    <strong class="text-primary">مشتری سیستمی
-</strong>
-                                </label>
-                                <small class="form-text text-muted d-block mt-1">
-                                    <i class="fas fa-info-circle"></i> 
-                                    مشتریان سیستمی برای عملیات داخلی سیستم استفاده می‌شوند.
-                                </small>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input asp-for="IsShareHolder" class="form-check-input" type="checkbox" id="isShareHolderCheck" />
-                                <label asp-for="IsShareHolder" class="form-check-label" for="isShareHolderCheck">
-                                    <strong class="text-warning">سهامدار</strong>
-                                </label>
-                                <small class="form-text text-muted d-block mt-1">
-                                    <i class="fas fa-info-circle"></i> 
-                                    سهامداران در گزارش "تراز کلی" نمایش داده نمی‌شوند و در گزارش "هزینه‌ها" نمایش داده می‌شوند.
-                                </small>
-                            </div>
-                        </div>
-
-                        <hr />
-                        <div class="mb-3">
-                            <label class="form-label">موجودی‌های اولیه مشتری (اختیاری)</label>
-                            <div id="initial-balances">
-                                <div class="row g-2 align-items-center mb-2 balance-row d-none" id="balance-row-template">
-                                    <div class="col-4">
-                                        <select class="form-select currency-code" name="ib_code">
-                                            <option value="" selected disabled>انتخاب ارز</option>
-                                        </select>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label asp-for="NewPassword" class="form-label">رمز عبور جدید (اختیاری)</label>
+                                        <input asp-for="NewPassword" type="password" class="form-control" />
+                                        <small class="form-text text-muted">در صورت عدم تغییر، خالی بگذارید</small>
+                                        <span asp-validation-for="NewPassword" class="text-danger"></span>
                                     </div>
-                                    <div class="col-6">
-                                        <input type="number" step="0.01" class="form-control currency-amount" name="ib_amount" placeholder="مقدار  (منفی یا مثبت)" />
-                                    </div>
-                                    <div class="col-2 text-start">
-                                        <button type="button" class="btn btn-outline-danger btn-sm remove-row">حذف</button>
+
+                                    <div class="col-md-6">
+                                        <label asp-for="ConfirmNewPassword" class="form-label">تکرار رمز عبور جدید</label>
+                                        <input asp-for="ConfirmNewPassword" type="password" class="form-control" />
+                                        <span asp-validation-for="ConfirmNewPassword" class="text-danger"></span>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
 
-                        <div class="mb-3">
-                            <small class="text-muted">
-                                <i class="fas fa-calendar"></i> تاریخ عضویت: @Model.CreatedAt.ToString("yyyy/MM/dd HH:mm")
-                            </small>
-                        </div>
+                                <div class="mb-3">
+                                    <label asp-for="Address" class="form-label">آدرس</label>
+                                    <textarea asp-for="Address" class="form-control" rows="3"
+                                              placeholder="آدرس کامل..."></textarea>
+                                    <span asp-validation-for="Address" class="text-danger"></span>
+                                </div>
 
-                        <div class="d-flex justify-content-between">
-                            <div>
-                                <a asp-action="Index" class="btn btn-secondary">بازگشت به لیست</a>
-                                <a asp-action="Profile" asp-route-id="@Model.Id" class="btn btn-info">مشاهده جزئیات</a>
-                            </div>
-                            <div>
-                                <button type="submit" class="btn btn-success">
-                                    <i class="fas fa-save"></i> ذخیره تغییرات
-                                </button>
-                            </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input asp-for="IsActive" class="form-check-input" type="checkbox" />
+                                        <label asp-for="IsActive" class="form-check-label">
+                                            مشتری فعال است
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input asp-for="IsSystem" class="form-check-input" type="checkbox" id="isSystemCheck" />
+                                        <label asp-for="IsSystem" class="form-check-label" for="isSystemCheck">
+                                            <strong class="text-primary">مشتری سیستمی
+                                            </strong>
+                                        </label>
+                                        <small class="form-text text-muted d-block mt-1">
+                                            <i class="fas fa-info-circle"></i>
+                                            مشتریان سیستمی برای عملیات داخلی سیستم استفاده می‌شوند.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input asp-for="IsShareHolder" class="form-check-input" type="checkbox"
+                                               id="isShareHolderCheck" />
+                                        <label asp-for="IsShareHolder" class="form-check-label" for="isShareHolderCheck">
+                                            <strong class="text-warning">سهامدار</strong>
+                                        </label>
+                                        <small class="form-text text-muted d-block mt-1">
+                                            <i class="fas fa-info-circle"></i>
+                                            سهامداران در گزارش "تراز کلی" نمایش داده نمی‌شوند و در گزارش "هزینه‌ها" نمایش داده
+                                            می‌شوند.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <hr />
+                                <div class="mb-3">
+                                    <label class="form-label">موجودی‌های اولیه مشتری (اختیاری)</label>
+                                    <div id="initial-balances">
+                                        <div class="row g-2 align-items-center mb-2 balance-row d-none"
+                                             id="balance-row-template">
+                                            <div class="col-4">
+                                                <select class="form-select currency-code" name="ib_code">
+                                                    <option value="" selected disabled>انتخاب ارز</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-6">
+                                                <input type="number" step="0.01" class="form-control currency-amount"
+                                                       name="ib_amount" placeholder="مقدار  (منفی یا مثبت)" />
+                                            </div>
+                                            <div class="col-2 text-start">
+                                                <button type="button"
+                                                        class="btn btn-outline-danger btn-sm remove-row">حذف</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar"></i> تاریخ عضویت: @Model.CreatedAt.ToString("yyyy/MM/dd HH:mm")
+                                    </small>
+                                </div>
+
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <a asp-action="Index" class="btn btn-secondary">بازگشت به لیست</a>
+                                        <a asp-action="Profile" asp-route-id="@Model.Id" class="btn btn-info">مشاهده جزئیات</a>
+                                    </div>
+                                    <div>
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="fas fa-save"></i> ذخیره تغییرات
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-@section Scripts {
-    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
-    <script>
-        // Disable Select2 on this page specifically
-        window.disableSelect2 = true;
-    </script>
-    
-    <script>
-        // Show confirmation before saving
-        document.querySelector('form').addEventListener('submit', function(e) {
-            if (!confirm('آیا از ذخیره تغییرات اطمینان دارید؟')) {
-                e.preventDefault();
+        @section Scripts {
+            @{
+                await Html.RenderPartialAsync("_ValidationScriptsPartial");
             }
-        });
-        
-        // Password confirmation validation
-        var newPasswordInput = document.querySelector('input[name="NewPassword"]');
-        var confirmNewPasswordInput = document.querySelector('input[name="ConfirmNewPassword"]');
-        
-        if (newPasswordInput && confirmNewPasswordInput) {
-            confirmNewPasswordInput.addEventListener('input', function(e) {
+
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+            <script>
+                // Disable Select2 on this page specifically
+                window.disableSelect2 = true;
+            </script>
+
+            <script>
+                // Show confirmation before saving
+                document.querySelector('form').addEventListener('submit', function (e) {
+                if (!confirm('آیا از ذخیره تغییرات اطمینان دارید؟')) {
+                e.preventDefault();
+                }
+                });
+
+                // Password confirmation validation
+                var newPasswordInput = document.querySelector('input[name="NewPassword"]');
+                var confirmNewPasswordInput = document.querySelector('input[name="ConfirmNewPassword"]');
+
+                if (newPasswordInput && confirmNewPasswordInput) {
+                confirmNewPasswordInput.addEventListener('input', function (e) {
                 var password = newPasswordInput.value;
                 var confirmPassword = e.target.value;
-                
+
                 if (password !== confirmPassword) {
-                    e.target.setCustomValidity('رمز عبور و تکرار آن باید یکسان باشند');
+                e.target.setCustomValidity('رمز عبور و تکرار آن باید یکسان باشند');
                 } else {
-                    e.target.setCustomValidity('');
+                e.target.setCustomValidity('');
                 }
-            });
-        }
+                });
+                }
 
         
-    </script>
-}
+            </script>
+        }

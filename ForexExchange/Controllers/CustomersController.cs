@@ -65,7 +65,7 @@ namespace ForexExchange.Controllers
                     // Check if phone number already exists before attempting to save
                     var existingCustomer = await _context.Customers
                         .FirstOrDefaultAsync(c => c.PhoneNumber == model.PhoneNumber);
-                    
+
                     if (existingCustomer != null)
                     {
                         ModelState.AddModelError("PhoneNumber", "شماره تلفن وارد شده قبلاً در سیستم ثبت شده است.");
@@ -76,6 +76,7 @@ namespace ForexExchange.Controllers
                     {
                         FullName = model.FullName,
                         PhoneNumber = model.PhoneNumber,
+                        SecondaryPhoneNumber = model.SecondaryPhoneNumber,
                         Gender = model.Gender,
                         Address = model.Address ?? string.Empty,
                         IsActive = model.IsActive,
@@ -93,7 +94,7 @@ namespace ForexExchange.Controllers
                     if (innerException != null)
                     {
                         var errorMessage = innerException.Message;
-                        
+
                         // Check if it's a unique constraint violation on PhoneNumber
                         if (errorMessage.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) ||
                             errorMessage.Contains("PhoneNumber", StringComparison.OrdinalIgnoreCase) ||
@@ -113,7 +114,7 @@ namespace ForexExchange.Controllers
                         ModelState.AddModelError("", "خطا در ذخیره اطلاعات. لطفاً دوباره تلاش کنید.");
                         _logger.LogError(ex, "Database error while creating customer");
                     }
-                    
+
                     return View(model);
                 }
                 catch (Exception ex)
@@ -140,6 +141,7 @@ namespace ForexExchange.Controllers
                 Id = customer.Id,
                 FullName = customer.FullName,
                 PhoneNumber = customer.PhoneNumber,
+                SecondaryPhoneNumber = customer.SecondaryPhoneNumber,
                 Gender = customer.Gender,
                 Address = customer.Address,
                 IsActive = customer.IsActive,
@@ -164,22 +166,23 @@ namespace ForexExchange.Controllers
                     var customer = await _context.Customers.FindAsync(id);
                     if (customer == null)
                         return NotFound();
-                    
+
                     // Check if phone number already exists for another customer
                     if (customer.PhoneNumber != model.PhoneNumber)
                     {
                         var existingCustomer = await _context.Customers
                             .FirstOrDefaultAsync(c => c.PhoneNumber == model.PhoneNumber && c.Id != id);
-                        
+
                         if (existingCustomer != null)
                         {
                             ModelState.AddModelError("PhoneNumber", "شماره تلفن وارد شده قبلاً در سیستم ثبت شده است.");
                             return View(model);
                         }
                     }
-                    
+
                     customer.FullName = model.FullName;
                     customer.PhoneNumber = model.PhoneNumber;
+                    customer.SecondaryPhoneNumber = model.SecondaryPhoneNumber;
                     customer.Gender = model.Gender;
                     customer.Address = model.Address ?? string.Empty;
                     customer.IsActive = model.IsActive;
@@ -195,7 +198,7 @@ namespace ForexExchange.Controllers
                     if (innerException != null)
                     {
                         var errorMessage = innerException.Message;
-                        
+
                         // Check if it's a unique constraint violation on PhoneNumber
                         if (errorMessage.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) ||
                             errorMessage.Contains("PhoneNumber", StringComparison.OrdinalIgnoreCase) ||
@@ -215,7 +218,7 @@ namespace ForexExchange.Controllers
                         ModelState.AddModelError("", "خطا در ذخیره اطلاعات. لطفاً دوباره تلاش کنید.");
                         _logger.LogError(ex, "Database error while editing customer {CustomerId}", id);
                     }
-                    
+
                     return View(model);
                 }
                 catch (Exception ex)

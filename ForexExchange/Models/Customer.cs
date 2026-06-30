@@ -9,12 +9,15 @@ namespace ForexExchange.Models
         [Required]
         [StringLength(100)]
         public string FullName { get; set; } = string.Empty;
-        
+
         [Required]
         [StringLength(20)]
         public string PhoneNumber { get; set; } = string.Empty;
 
-         [Required]
+        [StringLength(20)]
+        public string SecondaryPhoneNumber { get; set; } = string.Empty;
+
+        [Required]
         public bool Gender { get; set; } = true;
 
         [StringLength(200)]

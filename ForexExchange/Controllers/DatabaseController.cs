@@ -78,7 +78,7 @@ namespace ForexExchange.Controllers
             return View(model);
         }
 
-        [HttpPost]
+        [HttpGet]
         public async Task<IActionResult> ApplyPendingMigrations()
         {
             try
