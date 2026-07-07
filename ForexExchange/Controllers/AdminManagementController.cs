@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using ForexExchange.Authorization; // Add for custom permissions
 using ForexExchange.Models.ViewModels;
+using ForexExchange.Migrations;
 
 namespace ForexExchange.Controllers
 {
@@ -16,7 +17,7 @@ namespace ForexExchange.Controllers
     /// Admin Management Controller
     /// کنترلر مدیریت ادمین
     /// </summary>
-    [HasPermission(Permissions.Advance_Management)] 
+    [HasPermission(Permissions.Advance_Management)]
     public class AdminManagementController : Controller
     {
         private readonly AdminActivityService _adminActivityService;
@@ -47,7 +48,7 @@ namespace ForexExchange.Controllers
         /// مدیریت دسترسی‌های نقش‌ها
         /// </summary>
         [HttpGet]
-        [HasPermission(Permissions.Manage_Admins)] 
+        [HasPermission(Permissions.Manage_Admins)]
         public async Task<IActionResult> ManageRolePermissions(string? roleName = null)
         {
             var currentUser = await _userManager.GetUserAsync(User);
@@ -85,7 +86,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Manage_Admins)] 
+        [HasPermission(Permissions.Manage_Admins)]
         public async Task<IActionResult> UpdateRolePermissions(string selectedRoleName, List<string> permissionNames)
         {
             var currentUser = await _userManager.GetUserAsync(User);
@@ -330,50 +331,22 @@ namespace ForexExchange.Controllers
         /// </summary>
         public async Task<IActionResult> ManageAdmins()
         {
-            // Get current user to check their role
+
+            var users = await _userManager.Users.Where(c=>c.CustomerId==null).ToListAsync();
+
+            // Dynamically fetch roles from DB instead of Enum.GetValues
+            var roles = _context.Roles
+                .OrderBy(r => r.Name)
+                .ToList();
+
+            ViewBag.Roles = roles;
+
             var currentUser = await _userManager.GetUserAsync(User);
-            if (currentUser == null)
-            {
-                return RedirectToAction("Login", "Account");
-            }
+            ViewBag.CurrentUserRole = currentUser?.Role;
 
-            // Get all administrative roles (Admin, Programmer, Operator)
-            var adminRole = await _roleManager.FindByNameAsync("Admin");
-            var programmerRole = await _roleManager.FindByNameAsync("Programmer");
-            var operatorRole = await _roleManager.FindByNameAsync("Operator");
-
-            if (adminRole == null)
-            {
-                TempData["Error"] = "نقش ادمین یافت نشد.";
-                return RedirectToAction("Dashboard");
-            }
-
-            // Get user IDs for administrative roles
-            var roleIds = new List<string> { adminRole.Id };
-            if (programmerRole != null) roleIds.Add(programmerRole.Id);
-            if (operatorRole != null) roleIds.Add(operatorRole.Id);
-
-            var adminUserIds = _context.UserRoles
-                .Where(ur => roleIds.Contains(ur.RoleId))
-                .Select(ur => ur.UserId)
-                .Distinct();
-
-            var adminUsers = await _context.Users
-                .Where(u => adminUserIds.Contains(u.Id))
-                .OrderBy(u => u.UserName)
-                .ToListAsync();
-
-            // If current user is not a Programmer, filter out Programmer users
-            if (currentUser.Role != UserRole.Programmer)
-            {
-                adminUsers = adminUsers.Where(u => u.Role != UserRole.Programmer).ToList();
-            }
-
-            // Pass current user role to view for additional filtering logic
-            ViewBag.CurrentUserRole = currentUser.Role;
-
-            return View(adminUsers);
+            return View(users);
         }
+
 
         [HttpPost]
         [ValidateAntiForgeryToken]
