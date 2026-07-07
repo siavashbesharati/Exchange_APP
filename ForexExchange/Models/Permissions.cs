@@ -4,6 +4,7 @@ namespace ForexExchange.Models
     {
         // Order Management
         public const string Order_View = "مشاهده معاملات";
+        public const string Order_Detail = "مشاهده جزئیات معامله";
         public const string Order_Create = "ثبت معامله";
         public const string Order_Edit = "ویرایش معامله";
         public const string Order_Delete = "حذف معامله";

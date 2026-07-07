@@ -1,19 +1,20 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using ForexExchange.Services;
-using ForexExchange.Models;
-using Microsoft.AspNetCore.Identity;
-using ForexExchange.Services.Notifications;
+using ForexExchange.Authorization;
 using ForexExchange.Extensions;
+using ForexExchange.Models;
+using ForexExchange.Services;
+using ForexExchange.Services.Notifications;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ForexExchange.Controllers
 {
-    [Authorize(Roles = "Admin,Operator,Programmer")]
+    [HasPermission(Permissions.Order_View)]
     public class OrdersController : Controller
     {
         private readonly ForexDbContext _context;
@@ -35,8 +36,8 @@ namespace ForexExchange.Controllers
             ICustomerBalanceService customerBalanceService,
             INotificationHub notificationHub,
             ICentralFinancialService centralFinancialService,
-
-            IOrderDataService orderDataService)
+            IOrderDataService orderDataService
+        )
         {
             _context = context;
             _logger = logger;
@@ -52,6 +53,7 @@ namespace ForexExchange.Controllers
         // POST: Orders/PreviewOrderEffects
         [HttpPost]
         [Authorize(Roles = "Admin,Operator,Programmer")]
+        [HasPermission(Permissions.Order_Create)]
         public async Task<IActionResult> PreviewOrderEffects([FromBody] OrderFormDataDto dto)
         {
             // Use shared order data service for consistent validation and preparation
@@ -61,7 +63,9 @@ namespace ForexExchange.Controllers
                 return BadRequest(orderResult.ErrorMessage);
 
             // Use the prepared order for preview (same logic as Create method)
-            var effects = await _centralFinancialService.PreviewOrderEffectsAsync(orderResult.Order!);
+            var effects = await _centralFinancialService.PreviewOrderEffectsAsync(
+                orderResult.Order!
+            );
 
             // Add currency IDs and codes for client display
             var result = new
@@ -81,18 +85,29 @@ namespace ForexExchange.Controllers
                 effects.OldPoolBalanceTo,
                 effects.NewPoolBalanceFrom,
                 effects.NewPoolBalanceTo,
-               
             };
             return Json(result);
         }
 
-
         // GET: Orders
-        public async Task<IActionResult> Index(string sortOrder, string currentFilter, string searchString,
-            string currencyFilter, string statusFilter, string customerFilter, int? customerIdFilter,
-            string orderIdFilter, string fromCurrencyFilter, string toCurrencyFilter,
-            decimal? minAmountFilter, decimal? maxAmountFilter, 
-            DateTime? fromDateFilter, DateTime? toDateFilter, int? page)
+        [HasPermission(Permissions.Order_View)]
+        public async Task<IActionResult> Index(
+            string sortOrder,
+            string currentFilter,
+            string searchString,
+            string currencyFilter,
+            string statusFilter,
+            string customerFilter,
+            int? customerIdFilter,
+            string orderIdFilter,
+            string fromCurrencyFilter,
+            string toCurrencyFilter,
+            decimal? minAmountFilter,
+            decimal? maxAmountFilter,
+            DateTime? fromDateFilter,
+            DateTime? toDateFilter,
+            int? page
+        )
         {
             ViewData["CurrentSort"] = sortOrder;
             ViewData["IdSortParm"] = String.IsNullOrEmpty(sortOrder) ? "id_desc" : "";
@@ -129,23 +144,19 @@ namespace ForexExchange.Controllers
 
             // Load currencies for dropdown filters
             ViewBag.Currencies = await _context.Currencies.OrderBy(c => c.Code).ToListAsync();
-            
+
             // Load customers for dropdown filters ordered by FullName (exclude system customers)
-            ViewBag.Customers = await _context.Customers
-                .Where(c => !c.IsSystem)
+            ViewBag.Customers = await _context
+                .Customers.Where(c => !c.IsSystem)
                 .OrderBy(c => c.FullName)
                 .ToListAsync();
 
-
             IQueryable<Order> ordersQuery;
 
-
-            ordersQuery = _context.Orders
-                .Include(o => o.Customer)
+            ordersQuery = _context
+                .Orders.Include(o => o.Customer)
                 .Include(o => o.FromCurrency)
                 .Include(o => o.ToCurrency);
-
-
 
             // Apply filtering only - no sorting at database level for decimal fields
             if (!String.IsNullOrEmpty(currentFilter))
@@ -171,16 +182,22 @@ namespace ForexExchange.Controllers
                 // Try to parse currency filter as currency ID
                 if (int.TryParse(currencyFilter, out var currencyId))
                 {
-                    ordersQuery = ordersQuery.Where(o => o.FromCurrencyId == currencyId || o.ToCurrencyId == currencyId);
+                    ordersQuery = ordersQuery.Where(o =>
+                        o.FromCurrencyId == currencyId || o.ToCurrencyId == currencyId
+                    );
                 }
                 else
                 {
                     // Fallback: try to find currency by code (for backward compatibility)
-                    var currencyByCode = await _context.Currencies
-                        .FirstOrDefaultAsync(c => c.Code == currencyFilter);
+                    var currencyByCode = await _context.Currencies.FirstOrDefaultAsync(c =>
+                        c.Code == currencyFilter
+                    );
                     if (currencyByCode != null)
                     {
-                        ordersQuery = ordersQuery.Where(o => o.FromCurrencyId == currencyByCode.Id || o.ToCurrencyId == currencyByCode.Id);
+                        ordersQuery = ordersQuery.Where(o =>
+                            o.FromCurrencyId == currencyByCode.Id
+                            || o.ToCurrencyId == currencyByCode.Id
+                        );
                     }
                 }
             }
@@ -204,8 +221,9 @@ namespace ForexExchange.Controllers
                 else
                 {
                     // Fallback: try to find currency by code
-                    var currencyByCode = await _context.Currencies
-                        .FirstOrDefaultAsync(c => c.Code == fromCurrencyFilter);
+                    var currencyByCode = await _context.Currencies.FirstOrDefaultAsync(c =>
+                        c.Code == fromCurrencyFilter
+                    );
                     if (currencyByCode != null)
                     {
                         ordersQuery = ordersQuery.Where(o => o.FromCurrencyId == currencyByCode.Id);
@@ -223,8 +241,9 @@ namespace ForexExchange.Controllers
                 else
                 {
                     // Fallback: try to find currency by code
-                    var currencyByCode = await _context.Currencies
-                        .FirstOrDefaultAsync(c => c.Code == toCurrencyFilter);
+                    var currencyByCode = await _context.Currencies.FirstOrDefaultAsync(c =>
+                        c.Code == toCurrencyFilter
+                    );
                     if (currencyByCode != null)
                     {
                         ordersQuery = ordersQuery.Where(o => o.ToCurrencyId == currencyByCode.Id);
@@ -282,10 +301,14 @@ namespace ForexExchange.Controllers
                         break;
                     // Removed OrderType sorting
                     case "Currency":
-                        ordersQuery = ordersQuery.OrderBy(o => o.FromCurrency.Code).ThenBy(o => o.ToCurrency.Code);
+                        ordersQuery = ordersQuery
+                            .OrderBy(o => o.FromCurrency.Code)
+                            .ThenBy(o => o.ToCurrency.Code);
                         break;
                     case "currency_desc":
-                        ordersQuery = ordersQuery.OrderByDescending(o => o.FromCurrency.Code).ThenByDescending(o => o.ToCurrency.Code);
+                        ordersQuery = ordersQuery
+                            .OrderByDescending(o => o.FromCurrency.Code)
+                            .ThenByDescending(o => o.ToCurrency.Code);
                         break;
                     case "Date":
                         ordersQuery = ordersQuery.OrderBy(o => o.CreatedAt);
@@ -325,10 +348,7 @@ namespace ForexExchange.Controllers
             int totalItems = orders.Count;
 
             // Apply pagination
-            var pagedOrders = orders
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
+            var pagedOrders = orders.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
 
             // Pass pagination info to view
             ViewBag.CurrentPage = pageNumber;
@@ -342,6 +362,7 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Orders/Details/5
+        [HasPermission(Permissions.Order_Detail)] 
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -349,8 +370,8 @@ namespace ForexExchange.Controllers
                 return NotFound();
             }
 
-            var order = await _context.Orders
-                .Include(o => o.Customer)
+            var order = await _context
+                .Orders.Include(o => o.Customer)
                 .Include(o => o.FromCurrency)
                 .Include(o => o.ToCurrency)
                 .FirstOrDefaultAsync(m => m.Id == id);
@@ -363,11 +384,15 @@ namespace ForexExchange.Controllers
             // Debug: Log if currencies are missing
             if (order.FromCurrency == null)
             {
-                _logger.LogWarning($"Order {id} has missing FromCurrency (FromCurrencyId: {order.FromCurrencyId})");
+                _logger.LogWarning(
+                    $"Order {id} has missing FromCurrency (FromCurrencyId: {order.FromCurrencyId})"
+                );
             }
             if (order.ToCurrency == null)
             {
-                _logger.LogWarning($"Order {id} has missing ToCurrency (ToCurrencyId: {order.ToCurrencyId})");
+                _logger.LogWarning(
+                    $"Order {id} has missing ToCurrency (ToCurrencyId: {order.ToCurrencyId})"
+                );
             }
 
             return View(order);
@@ -375,12 +400,13 @@ namespace ForexExchange.Controllers
 
         // GET: Orders/GetOrderDetails/5 (for AJAX popup)
         [HttpGet]
+        [HasPermission(Permissions.Order_Detail)] 
         public async Task<IActionResult> GetOrderDetails(int id)
         {
             try
             {
-                var order = await _context.Orders
-                    .Include(o => o.Customer)
+                var order = await _context
+                    .Orders.Include(o => o.Customer)
                     .Include(o => o.FromCurrency)
                     .Include(o => o.ToCurrency)
                     .Where(o => o.Id == id)
@@ -402,7 +428,7 @@ namespace ForexExchange.Controllers
                     toAmount = order.ToAmount,
                     exchangeRate = order.Rate,
                     createdAt = order.CreatedAt,
-                    updatedAt = order.UpdatedAt
+                    updatedAt = order.UpdatedAt,
                 };
 
                 return Json(result);
@@ -415,6 +441,7 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Orders/Create
+        [HasPermission(Permissions.Order_Create)] 
         public async Task<IActionResult> Create(int? customerId = null)
         {
             // Load only essential data with minimal queries
@@ -423,10 +450,7 @@ namespace ForexExchange.Controllers
             // If customerId is provided, create an Order model with that customer pre-selected
             if (customerId.HasValue)
             {
-                var order = new Order
-                {
-                    CustomerId = customerId.Value
-                };
+                var order = new Order { CustomerId = customerId.Value };
                 return View(order);
             }
 
@@ -436,10 +460,13 @@ namespace ForexExchange.Controllers
         // POST: Orders/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([FromBody]Order order)
+        [HasPermission(Permissions.Order_Create)] 
+        public async Task<IActionResult> Create([FromBody] Order order)
         {
             // Debug: Log received order data first
-            _logger.LogInformation($"Order data received - CustomerId: {order.CustomerId}, FromCurrencyId: {order.FromCurrencyId}, ToCurrencyId: {order.ToCurrencyId}, FromAmount: {order.FromAmount}, ToAmount: {order.ToAmount}, Rate: {order.Rate}");
+            _logger.LogInformation(
+                $"Order data received - CustomerId: {order.CustomerId}, FromCurrencyId: {order.FromCurrencyId}, ToCurrencyId: {order.ToCurrencyId}, FromAmount: {order.FromAmount}, ToAmount: {order.ToAmount}, Rate: {order.Rate}"
+            );
 
             // Use shared order data service for consistent validation and preparation
             var dto = new OrderFormDataDto
@@ -451,7 +478,7 @@ namespace ForexExchange.Controllers
                 ToAmount = order.ToAmount,
                 Rate = order.Rate,
                 CreatedAt = order.CreatedAt,
-                Notes = order.Notes
+                Notes = order.Notes,
             };
 
             var orderResult = await _orderDataService.PrepareOrderFromFormDataAsync(dto);
@@ -474,8 +501,6 @@ namespace ForexExchange.Controllers
             ModelState.Remove("ToCurrency");
             ModelState.Remove("TotalAmount"); // TotalAmount is calculated server-side
 
-
-
             if (ModelState.IsValid)
             {
                 try
@@ -488,40 +513,59 @@ namespace ForexExchange.Controllers
                     await _context.Entry(order).Reference(o => o.FromCurrency).LoadAsync();
                     await _context.Entry(order).Reference(o => o.ToCurrency).LoadAsync();
 
-                    _logger.LogInformation("Completed ProcessOrderCreationAsync for Order {OrderId}", order.Id);
+                    _logger.LogInformation(
+                        "Completed ProcessOrderCreationAsync for Order {OrderId}",
+                        order.Id
+                    );
                     _logger.LogInformation($"Order currency : {order.FromCurrency.PersianName}");
-                    
+
                     // Log admin activity and send notifications
                     var currentUser = await _userManager.GetUserAsync(User);
                     if (currentUser != null)
                     {
-                        await _adminActivityService.LogOrderCreatedAsync(order, currentUser.Id, currentUser.UserName ?? "Unknown");
-                        
+                        await _adminActivityService.LogOrderCreatedAsync(
+                            order,
+                            currentUser.Id,
+                            currentUser.UserName ?? "Unknown"
+                        );
+
                         // Send notifications through central hub (replaces individual notification calls)
-                        await _notificationHub.SendOrderNotificationAsync(order, NotificationEventType.OrderCreated, currentUser.Id);
+                        await _notificationHub.SendOrderNotificationAsync(
+                            order,
+                            NotificationEventType.OrderCreated,
+                            currentUser.Id
+                        );
                     }
 
-                    _logger.LogInformation($"Order created successfully - Id: {order.Id}, Rate: {order.Rate} , Total: {order.ToAmount}");
+                    _logger.LogInformation(
+                        $"Order created successfully - Id: {order.Id}, Rate: {order.Rate} , Total: {order.ToAmount}"
+                    );
 
-                    return Json(new { success = true, message = "سفارش با موفقیت ثبت شد و موجودی‌ها بازمحاسبه شدند", redirectUrl = Url.Action(nameof(Details), new { id = order.Id }) });
+                    return Json(
+                        new
+                        {
+                            success = true,
+                            message = "سفارش با موفقیت ثبت شد و موجودی‌ها بازمحاسبه شدند",
+                            redirectUrl = Url.Action(nameof(Details), new { id = order.Id }),
+                        }
+                    );
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, $"Error creating order: {ex.Message}");
-                    return Json(new { success = false, message = $"خطا در ثبت سفارش: {ex.Message}" });
+                    return Json(
+                        new { success = false, message = $"خطا در ثبت سفارش: {ex.Message}" }
+                    );
                 }
             }
             else
             {
-                return Json(new { success = false, message =  "خطایی در ثبت معمامله بوجود آمد" });
+                return Json(new { success = false, message = "خطایی در ثبت معمامله بوجود آمد" });
             }
-
         }
 
-
-
-
         // GET: Orders/Delete/5
+        [HasPermission(Permissions.Order_Delete)] 
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -529,8 +573,8 @@ namespace ForexExchange.Controllers
                 return NotFound();
             }
 
-            var order = await _context.Orders
-                .Include(o => o.Customer)
+            var order = await _context
+                .Orders.Include(o => o.Customer)
                 .Include(o => o.FromCurrency)
                 .Include(o => o.ToCurrency)
                 .FirstOrDefaultAsync(m => m.Id == id);
@@ -542,8 +586,6 @@ namespace ForexExchange.Controllers
             return View(order);
         }
 
-
-
         private bool OrderExists(int id)
         {
             return _context.Orders.Any(e => e.Id == id);
@@ -552,38 +594,59 @@ namespace ForexExchange.Controllers
         private async Task LoadCreateViewDataOptimized()
         {
             // Load minimal currency data for dropdowns (just ID, Code, Name)
-            var currencies = await _context.Currencies
-                .Where(c => c.IsActive)
-                .Select(c => new { c.Id, c.Code, c.Name, c.DisplayOrder, c.RatePriority })
+            var currencies = await _context
+                .Currencies.Where(c => c.IsActive)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.Code,
+                    c.Name,
+                    c.DisplayOrder,
+                    c.RatePriority,
+                })
                 .OrderBy(c => c.DisplayOrder)
                 .ToListAsync();
 
             // Create SelectListItem for proper binding
-            ViewBag.FromCurrencies = currencies.Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
-            {
-                Value = c.Id.ToString(),
-                Text = $"{c.Code} - {c.Name}"
-            }).ToList();
+            ViewBag.FromCurrencies = currencies
+                .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = $"{c.Code} - {c.Name}",
+                })
+                .ToList();
 
-            ViewBag.ToCurrencies = currencies.Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
-            {
-                Value = c.Id.ToString(),
-                Text = $"{c.Code} - {c.Name}"
-            }).ToList();
+            ViewBag.ToCurrencies = currencies
+                .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = $"{c.Code} - {c.Name}",
+                })
+                .ToList();
 
             // Pass currency data with RatePriority to JavaScript
-            ViewBag.CurrenciesData = currencies.ToDictionary(c => c.Id, c => new { c.Code, c.Name, c.RatePriority });
+            ViewBag.CurrenciesData = currencies.ToDictionary(
+                c => c.Id,
+                c => new
+                {
+                    c.Code,
+                    c.Name,
+                    c.RatePriority,
+                }
+            );
 
             // Load minimal customer data for dropdown (just ID and FullName) - exclude system customers
-            var customers = _context.Customers
-                .Where(c => c.IsActive && !c.IsSystem)
+            var customers = _context
+                .Customers.Where(c => c.IsActive && !c.IsSystem)
                 .OrderBy(c => c.FullName);
 
-            ViewBag.Customers = customers.Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
-            {
-                Value = c.Id.ToString(),
-                Text = c.FullName
-            }).ToList();
+            ViewBag.Customers = customers
+                .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = c.FullName,
+                })
+                .ToList();
 
             ViewBag.IsAdminOrStaff = true;
 
@@ -593,12 +656,12 @@ namespace ForexExchange.Controllers
             var poolDict = pools
                 .Where(p => p.CurrencyId > 0)
                 .GroupBy(p => p.CurrencyId)
-                .ToDictionary(g => g.First().Currency?.Code ?? g.First().CurrencyCode ?? "UNKNOWN", g => g.Sum(p => p.Balance));
+                .ToDictionary(
+                    g => g.First().Currency?.Code ?? g.First().CurrencyCode ?? "UNKNOWN",
+                    g => g.Sum(p => p.Balance)
+                );
             ViewBag.PoolData = poolDict;
-
-
         }
-
 
         // AJAX endpoint to get customers list
         [HttpGet]
@@ -628,18 +691,16 @@ namespace ForexExchange.Controllers
             }
         }
 
-
-
         // POST: Orders/Delete/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,Programmer")] // Only admins can delete orders
+        [HasPermission(Permissions.Order_Delete)] 
         public async Task<IActionResult> Delete(int id)
         {
             try
             {
-                var order = await _context.Orders
-                    .Include(o => o.Customer)
+                var order = await _context
+                    .Orders.Include(o => o.Customer)
                     .Include(o => o.FromCurrency)
                     .Include(o => o.ToCurrency)
                     .FirstOrDefaultAsync(o => o.Id == id);
@@ -652,16 +713,20 @@ namespace ForexExchange.Controllers
 
                 // Use centralized service to delete with proper financial impact reversal
                 var currentUser = await _userManager.GetUserAsync(User);
-                await _centralFinancialService.DeleteOrderAsync(order, currentUser?.UserName ?? "Admin");
+                await _centralFinancialService.DeleteOrderAsync(
+                    order,
+                    currentUser?.UserName ?? "Admin"
+                );
 
                 // Log admin activity
                 var adminActivity = new AdminActivity
                 {
                     AdminUserId = currentUser?.Id ?? "Unknown",
                     ActivityType = AdminActivityType.OrderCancelled, // Using cancellation as closest to deletion
-                    Description = $"Deleted Order #{order.Id} - {order.FromCurrency.Code} to {order.ToCurrency.Code}",
+                    Description =
+                        $"Deleted Order #{order.Id} - {order.FromCurrency.Code} to {order.ToCurrency.Code}",
                     Timestamp = DateTime.UtcNow,
-                    IpAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString()
+                    IpAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString(),
                 };
                 _context.AdminActivities.Add(adminActivity);
                 await _context.SaveChangesAsync();
@@ -669,15 +734,22 @@ namespace ForexExchange.Controllers
                 // Log admin activity and send notifications
                 if (currentUser != null)
                 {
-                    await _adminActivityService.LogOrderCancelledAsync(order, currentUser.Id, currentUser.UserName ?? "Unknown");
+                    await _adminActivityService.LogOrderCancelledAsync(
+                        order,
+                        currentUser.Id,
+                        currentUser.UserName ?? "Unknown"
+                    );
 
                     // Send notifications through central hub (replaces individual notification calls)
-                    await _notificationHub.SendOrderNotificationAsync(order, NotificationEventType.OrderDeleted, currentUser.Id);
+                    await _notificationHub.SendOrderNotificationAsync(
+                        order,
+                        NotificationEventType.OrderDeleted,
+                        currentUser.Id
+                    );
                 }
 
-
-
-                TempData["SuccessMessage"] = $"معامله #{order.Id} با موفقیت حذف شد و تأثیرات مالی آن برگردانده شد.";
+                TempData["SuccessMessage"] =
+                    $"معامله #{order.Id} با موفقیت حذف شد و تأثیرات مالی آن برگردانده شد.";
             }
             catch (Exception ex)
             {
@@ -694,10 +766,14 @@ namespace ForexExchange.Controllers
         [HttpGet]
         public async Task<IActionResult> UploadOrdersCsv()
         {
-            var customers = await _context.Customers
-                .Where(c => c.IsActive && !c.IsSystem)
+            var customers = await _context
+                .Customers.Where(c => c.IsActive && !c.IsSystem)
                 .OrderBy(c => c.FullName)
-                .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem { Value = c.Id.ToString(), Text = c.FullName ?? c.Id.ToString() })
+                .Select(c => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+                {
+                    Value = c.Id.ToString(),
+                    Text = c.FullName ?? c.Id.ToString(),
+                })
                 .ToListAsync();
             ViewBag.Customers = customers;
             return View();
@@ -717,13 +793,33 @@ namespace ForexExchange.Controllers
 
             if (csvFile == null || csvFile.Length == 0)
             {
-                return Json(new { success = false, message = "فایلی انتخاب نشده است.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+                return Json(
+                    new
+                    {
+                        success = false,
+                        message = "فایلی انتخاب نشده است.",
+                        importedCount = 0,
+                        skippedCount = 0,
+                        duplicateRefs,
+                        errors,
+                    }
+                );
             }
 
             var customer = await _context.Customers.FindAsync(customerId);
             if (customer == null)
             {
-                return Json(new { success = false, message = "مشتری یافت نشد.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+                return Json(
+                    new
+                    {
+                        success = false,
+                        message = "مشتری یافت نشد.",
+                        importedCount = 0,
+                        skippedCount = 0,
+                        duplicateRefs,
+                        errors,
+                    }
+                );
             }
 
             List<OrderCsvRow> rows;
@@ -735,32 +831,62 @@ namespace ForexExchange.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error parsing orders CSV");
-                return Json(new { success = false, message = $"خطا در خواندن فایل: {ex.Message}", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+                return Json(
+                    new
+                    {
+                        success = false,
+                        message = $"خطا در خواندن فایل: {ex.Message}",
+                        importedCount = 0,
+                        skippedCount = 0,
+                        duplicateRefs,
+                        errors,
+                    }
+                );
             }
 
             if (rows.Count == 0)
             {
-                return Json(new { success = true, message = "هیچ ردیف معتبری در فایل یافت نشد.", importedCount = 0, skippedCount = 0, duplicateRefs, errors });
+                return Json(
+                    new
+                    {
+                        success = true,
+                        message = "هیچ ردیف معتبری در فایل یافت نشد.",
+                        importedCount = 0,
+                        skippedCount = 0,
+                        duplicateRefs,
+                        errors,
+                    }
+                );
             }
 
             var existingRefsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var ordersWithImportRef = await _context.Orders
-                .Where(o => o.CustomerId == customerId && o.Notes != null && o.Notes.Contains("ImportRef:"))
+            var ordersWithImportRef = await _context
+                .Orders.Where(o =>
+                    o.CustomerId == customerId && o.Notes != null && o.Notes.Contains("ImportRef:")
+                )
                 .Select(o => o.Notes)
                 .ToListAsync();
             foreach (var notes in ordersWithImportRef)
             {
-                if (notes == null) continue;
+                if (notes == null)
+                    continue;
                 var idx = notes.IndexOf("ImportRef:", StringComparison.OrdinalIgnoreCase);
-                if (idx < 0) continue;
+                if (idx < 0)
+                    continue;
                 var start = idx + "ImportRef:".Length;
                 var end = notes.IndexOf(' ', start);
-                if (end < 0) end = notes.Length;
-                var refId = notes.Substring(start, Math.Min(end - start, notes.Length - start)).Trim();
-                if (!string.IsNullOrEmpty(refId)) existingRefsSet.Add(refId);
+                if (end < 0)
+                    end = notes.Length;
+                var refId = notes
+                    .Substring(start, Math.Min(end - start, notes.Length - start))
+                    .Trim();
+                if (!string.IsNullOrEmpty(refId))
+                    existingRefsSet.Add(refId);
             }
 
-            var orderGroups = rows.GroupBy(r => r.ReferenceId ?? "").Where(g => !string.IsNullOrWhiteSpace(g.Key)).ToList();
+            var orderGroups = rows.GroupBy(r => r.ReferenceId ?? "")
+                .Where(g => !string.IsNullOrWhiteSpace(g.Key))
+                .ToList();
 
             foreach (var group in orderGroups)
             {
@@ -773,12 +899,22 @@ namespace ForexExchange.Controllers
                 }
 
                 var list = group.OrderBy(r => r.Type == "Buy" ? 0 : 1).ToList();
-                var buyRow = list.FirstOrDefault(r => r.Type?.Equals("Buy", StringComparison.OrdinalIgnoreCase) == true);
-                var sellRow = list.FirstOrDefault(r => r.Type?.Equals("Sell", StringComparison.OrdinalIgnoreCase) == true);
+                var buyRow = list.FirstOrDefault(r =>
+                    r.Type?.Equals("Buy", StringComparison.OrdinalIgnoreCase) == true
+                );
+                var sellRow = list.FirstOrDefault(r =>
+                    r.Type?.Equals("Sell", StringComparison.OrdinalIgnoreCase) == true
+                );
 
                 if (buyRow == null || sellRow == null)
                 {
-                    errors.Add(new { refId, message = "برای هر سفارش باید یک ردیف Buy و یک ردیف Sell با همان TransactionID وجود داشته باشد." });
+                    errors.Add(
+                        new
+                        {
+                            refId,
+                            message = "برای هر سفارش باید یک ردیف Buy و یک ردیف Sell با همان TransactionID وجود داشته باشد.",
+                        }
+                    );
                     continue;
                 }
 
@@ -788,13 +924,27 @@ namespace ForexExchange.Controllers
                 var toCode = sellRow.CurrencyCode;
                 if (fromCurrencyId <= 0 && !string.IsNullOrWhiteSpace(fromCode))
                 {
-                    var c = await _context.Currencies.FirstOrDefaultAsync(cu => cu.Code != null && cu.Code.Trim().ToUpperInvariant() == fromCode!.Trim().ToUpperInvariant());
-                    if (c != null) { fromCurrencyId = c.Id; fromCode = c.Code; }
+                    var c = await _context.Currencies.FirstOrDefaultAsync(cu =>
+                        cu.Code != null
+                        && cu.Code.Trim().ToUpperInvariant() == fromCode!.Trim().ToUpperInvariant()
+                    );
+                    if (c != null)
+                    {
+                        fromCurrencyId = c.Id;
+                        fromCode = c.Code;
+                    }
                 }
                 if (toCurrencyId <= 0 && !string.IsNullOrWhiteSpace(toCode))
                 {
-                    var c = await _context.Currencies.FirstOrDefaultAsync(cu => cu.Code != null && cu.Code.Trim().ToUpperInvariant() == toCode!.Trim().ToUpperInvariant());
-                    if (c != null) { toCurrencyId = c.Id; toCode = c.Code; }
+                    var c = await _context.Currencies.FirstOrDefaultAsync(cu =>
+                        cu.Code != null
+                        && cu.Code.Trim().ToUpperInvariant() == toCode!.Trim().ToUpperInvariant()
+                    );
+                    if (c != null)
+                    {
+                        toCurrencyId = c.Id;
+                        toCode = c.Code;
+                    }
                 }
                 if (fromCurrencyId <= 0 || toCurrencyId <= 0)
                 {
@@ -812,7 +962,8 @@ namespace ForexExchange.Controllers
 
                 decimal rate = buyRow.Rate ?? (fromAmount / toAmount);
                 var createdAt = buyRow.Date ?? DateTime.Today;
-                var notes = (buyRow.Description ?? sellRow.Description ?? "") + " ImportRef:" + refId;
+                var notes =
+                    (buyRow.Description ?? sellRow.Description ?? "") + " ImportRef:" + refId;
 
                 var dto = new OrderFormDataDto
                 {
@@ -823,7 +974,7 @@ namespace ForexExchange.Controllers
                     ToAmount = toAmount,
                     Rate = rate,
                     CreatedAt = createdAt,
-                    Notes = notes
+                    Notes = notes,
                 };
 
                 try
@@ -831,7 +982,13 @@ namespace ForexExchange.Controllers
                     var orderResult = await _orderDataService.PrepareOrderFromFormDataAsync(dto);
                     if (!orderResult.IsSuccess)
                     {
-                        errors.Add(new { refId, message = orderResult.ErrorMessage ?? "خطا در آماده‌سازی سفارش." });
+                        errors.Add(
+                            new
+                            {
+                                refId,
+                                message = orderResult.ErrorMessage ?? "خطا در آماده‌سازی سفارش.",
+                            }
+                        );
                         continue;
                     }
                     var order = orderResult.Order!;
@@ -846,15 +1003,17 @@ namespace ForexExchange.Controllers
                 }
             }
 
-            return Json(new
-            {
-                success = true,
-                message = $"واردات انجام شد. تعداد: {importedCount}، رد شده: {skippedCount}",
-                importedCount,
-                skippedCount,
-                duplicateRefs,
-                errors
-            });
+            return Json(
+                new
+                {
+                    success = true,
+                    message = $"واردات انجام شد. تعداد: {importedCount}، رد شده: {skippedCount}",
+                    importedCount,
+                    skippedCount,
+                    duplicateRefs,
+                    errors,
+                }
+            );
         }
 
         private static List<OrderCsvRow> ParseOrdersCsv(StreamReader reader, List<object> errors)
@@ -862,7 +1021,8 @@ namespace ForexExchange.Controllers
             var rows = new List<OrderCsvRow>();
             var lineNum = 0;
             string? headerLine = reader.ReadLine();
-            if (string.IsNullOrWhiteSpace(headerLine)) return rows;
+            if (string.IsNullOrWhiteSpace(headerLine))
+                return rows;
             lineNum++;
             var headers = headerLine!.Split(',').Select(h => h.Trim().ToLowerInvariant()).ToArray();
             int idxDate = Array.FindIndex(headers, h => h == "date");
@@ -873,41 +1033,120 @@ namespace ForexExchange.Controllers
             int idxTransactionId = Array.FindIndex(headers, h => h == "transactionid");
             int idxId = Array.FindIndex(headers, h => h == "id");
             int idxAmount = Array.FindIndex(headers, h => h == "amount");
-            int idxAmountIrr = Array.FindIndex(headers, h => h.Contains("amount") && h.Contains("irr"));
+            int idxAmountIrr = Array.FindIndex(
+                headers,
+                h => h.Contains("amount") && h.Contains("irr")
+            );
             int idxDesc = Array.FindIndex(headers, h => h == "description");
             int idxNote = Array.FindIndex(headers, h => h == "note");
 
             int refCol = idxTransactionId >= 0 ? idxTransactionId : idxId;
             int amountCol = idxAmount >= 0 ? idxAmount : idxAmountIrr;
-            if (idxDate < 0 || idxType < 0 || refCol < 0 || amountCol < 0) { errors.Add(new { line = lineNum, message = "ستون‌های ضروری (Date, Type, Reference, Amount) یافت نشد." }); return rows; }
+            if (idxDate < 0 || idxType < 0 || refCol < 0 || amountCol < 0)
+            {
+                errors.Add(
+                    new
+                    {
+                        line = lineNum,
+                        message = "ستون‌های ضروری (Date, Type, Reference, Amount) یافت نشد.",
+                    }
+                );
+                return rows;
+            }
 
             while (reader.ReadLine() is { } line)
             {
                 lineNum++;
-                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
                 var parts = SplitCsvLine(line);
-                if (parts.Count <= Math.Max(refCol, amountCol)) continue;
+                if (parts.Count <= Math.Max(refCol, amountCol))
+                    continue;
                 var refId = refCol < parts.Count ? NormalizeRefId(parts[refCol]) : "";
-                if (string.IsNullOrWhiteSpace(refId)) continue;
+                if (string.IsNullOrWhiteSpace(refId))
+                    continue;
                 DateTime? date = null;
-                if (idxDate >= 0 && idxDate < parts.Count && DateTime.TryParse(parts[idxDate], CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                if (
+                    idxDate >= 0
+                    && idxDate < parts.Count
+                    && DateTime.TryParse(
+                        parts[idxDate],
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out var d
+                    )
+                )
                     date = d;
                 var type = (idxType >= 0 && idxType < parts.Count) ? parts[idxType] : null;
                 int? currencyId = null;
-                if (idxCurrencyId >= 0 && idxCurrencyId < parts.Count && int.TryParse(parts[idxCurrencyId], NumberStyles.Integer, CultureInfo.InvariantCulture, out var cid))
+                if (
+                    idxCurrencyId >= 0
+                    && idxCurrencyId < parts.Count
+                    && int.TryParse(
+                        parts[idxCurrencyId],
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out var cid
+                    )
+                )
                     currencyId = cid;
-                var currencyCode = (idxCurrencyCode >= 0 && idxCurrencyCode < parts.Count) ? parts[idxCurrencyCode] : ((idxCurrency >= 0 && idxCurrency < parts.Count) ? parts[idxCurrency] : null);
-                var amountStr = (amountCol >= 0 && amountCol < parts.Count) ? parts[amountCol].Replace(",", "", StringComparison.Ordinal) : "0";
-                if (!decimal.TryParse(amountStr, NumberStyles.Number, CultureInfo.InvariantCulture, out var amt)) continue;
-                var desc = (idxDesc >= 0 && idxDesc < parts.Count) ? parts[idxDesc] : ((idxNote >= 0 && idxNote < parts.Count) ? parts[idxNote] : null);
+                var currencyCode =
+                    (idxCurrencyCode >= 0 && idxCurrencyCode < parts.Count)
+                        ? parts[idxCurrencyCode]
+                        : (
+                            (idxCurrency >= 0 && idxCurrency < parts.Count)
+                                ? parts[idxCurrency]
+                                : null
+                        );
+                var amountStr =
+                    (amountCol >= 0 && amountCol < parts.Count)
+                        ? parts[amountCol].Replace(",", "", StringComparison.Ordinal)
+                        : "0";
+                if (
+                    !decimal.TryParse(
+                        amountStr,
+                        NumberStyles.Number,
+                        CultureInfo.InvariantCulture,
+                        out var amt
+                    )
+                )
+                    continue;
+                var desc =
+                    (idxDesc >= 0 && idxDesc < parts.Count)
+                        ? parts[idxDesc]
+                        : ((idxNote >= 0 && idxNote < parts.Count) ? parts[idxNote] : null);
                 decimal? rate = null;
                 if (desc != null)
                 {
-                    var rateMatch = Regex.Match(desc, @"Rate:\s*([\d,\.]+)", RegexOptions.IgnoreCase);
-                    if (rateMatch.Success && decimal.TryParse(rateMatch.Groups[1].Value.Replace(",", "", StringComparison.Ordinal), NumberStyles.Number, CultureInfo.InvariantCulture, out var r))
+                    var rateMatch = Regex.Match(
+                        desc,
+                        @"Rate:\s*([\d,\.]+)",
+                        RegexOptions.IgnoreCase
+                    );
+                    if (
+                        rateMatch.Success
+                        && decimal.TryParse(
+                            rateMatch.Groups[1].Value.Replace(",", "", StringComparison.Ordinal),
+                            NumberStyles.Number,
+                            CultureInfo.InvariantCulture,
+                            out var r
+                        )
+                    )
                         rate = r;
                 }
-                rows.Add(new OrderCsvRow { ReferenceId = refId, Date = date, Type = type, CurrencyId = currencyId, CurrencyCode = currencyCode?.Trim(), Amount = Math.Abs(amt), Description = desc, Rate = rate });
+                rows.Add(
+                    new OrderCsvRow
+                    {
+                        ReferenceId = refId,
+                        Date = date,
+                        Type = type,
+                        CurrencyId = currencyId,
+                        CurrencyCode = currencyCode?.Trim(),
+                        Amount = Math.Abs(amt),
+                        Description = desc,
+                        Rate = rate,
+                    }
+                );
             }
             return rows;
         }
@@ -939,7 +1178,8 @@ namespace ForexExchange.Controllers
 
         private static string NormalizeRefId(string value)
         {
-            if (string.IsNullOrWhiteSpace(value)) return "";
+            if (string.IsNullOrWhiteSpace(value))
+                return "";
             return value.Trim();
         }
 
