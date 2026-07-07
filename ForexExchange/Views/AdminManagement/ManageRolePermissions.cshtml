@@ -3,24 +3,54 @@
 @using ForexExchange.Models
 
 @{
-    ViewData["Title"] = "Manage Role Permissions";
+    ViewData["Title"] = "ویرایش دسترسی نقش ها";
 }
 
 <h1>@ViewData["Title"]</h1>
+@if (TempData["Success"] != null)
 
+
+
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["Error"] is string errorMessage)
+
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @errorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
 <div class="row">
     <div class="col-md-8">
         <form asp-action="UpdateRolePermissions" method="post">
             <div asp-validation-summary="All" class="text-danger"></div>
 
             <div class="form-group mb-3">
-                <label for="selectedRole" class="form-label">Select Role:</label>
+                <label for="selectedRole" class="form-label"> انتخاب نقش:</label>
 
                 <select id="selectedRole" name="selectedRoleName" class="form-control"
                     onchange="window.location.href = '/AdminManagement/ManageRolePermissions?roleName=' + this.value;">
                     @foreach (var role in Model.Roles)
 
+
+
+
+
+
+
                     {
+
+
+
+
+
+
 
                         var isSelected = Model.SelectedRole?.ToString() == role.Name;
                         <option value="@role.Name" selected="@(isSelected ? "selected" : null)">
@@ -30,7 +60,7 @@
                 </select>
             </div>
 
-            <h3>Permissions for @Model.SelectedRole?.ToString()</h3>
+            <h3> دسترسی ها برای : @Model.SelectedRole?.ToString()</h3>
             <div class="row">
                 @foreach (var permission in Model.AllPermissions)
 
@@ -54,7 +84,7 @@
                 }
             </div>
 
-            <button type="submit" class="btn btn-primary mt-3">Save Permissions</button>
+            <button type="submit" class="btn btn-primary mt-3"> ذخیره دسترسی ها</button>
         </form>
     </div>
 </div>
