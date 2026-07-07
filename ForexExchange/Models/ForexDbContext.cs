@@ -81,6 +81,9 @@ namespace ForexExchange.Models
             // Task Management - Simplified
             public DbSet<TaskItem> TaskItems { get; set; }
 
+            // Permissions Management
+            public DbSet<RolePermission> RolePermissions { get; set; }
+
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -586,6 +589,14 @@ namespace ForexExchange.Models
                         .WithMany()
                         .HasForeignKey(e => e.AssignedToUserId)
                         .OnDelete(DeleteBehavior.SetNull);
+                  });
+
+                  // RolePermission configurations
+                  modelBuilder.Entity<RolePermission>(entity =>
+                  {
+                        entity.HasKey(e => e.Id);
+                        entity.HasIndex(e => new { e.UserRole, e.PermissionName }).IsUnique();
+                        entity.Property(e => e.PermissionName).IsRequired().HasMaxLength(100);
                   });
             }
       }

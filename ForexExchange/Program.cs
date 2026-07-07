@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using ForexExchange.Models;
 using ForexExchange.Services;
+using ForexExchange.Authorization; // Add for custom authorization
+using Microsoft.AspNetCore.Authorization; // Add for IAuthorizationHandler
 using ForexExchange.Hubs;
 using ForexExchange.Services.Notifications;
 using ForexExchange.Services.Notifications.Providers;
@@ -129,6 +131,25 @@ try
     builder.Services.AddScoped<RoleManager<IdentityRole>>();
 
     // ------------------------------
+    // Authorization - Granular Permissions
+    // ------------------------------
+    builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
+    builder.Services.AddAuthorization(options =>
+    {
+        // Dynamically add policies for each permission
+        var allPermissions = typeof(ForexExchange.Models.Permissions)
+            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy)
+            .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string))
+            .Select(fi => fi.GetRawConstantValue()?.ToString() ?? string.Empty)
+            .ToList();
+
+        foreach (var permission in allPermissions)
+        {
+            options.AddPolicy(permission, policy => policy.Requirements.Add(new ForexExchange.Authorization.PermissionRequirement(permission)));
+        }
+    });
+
+    // ------------------------------
     // SignalR
     // ------------------------------
     builder.Services.AddSignalR()
@@ -152,6 +173,7 @@ try
 
     builder.Services.AddScoped<IOcrService, OpenRouterOcrService>();
     builder.Services.AddScoped<IEmailService, EmailService>();
+    builder.Services.AddScoped<IPermissionService, PermissionService>(); // Register Permission Service
     builder.Services.AddScoped<IBankStatementService, BankStatementService>();
     builder.Services.AddScoped<ICurrencyPoolService, CurrencyPoolService>();
     builder.Services.AddScoped<IDataSeedService, DataSeedService>();

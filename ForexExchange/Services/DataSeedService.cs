@@ -45,6 +45,9 @@ namespace ForexExchange.Services
                 // Create admin user
                 await CreateAdminUserAsync();
 
+                // Seed Role Permissions
+                await SeedRolePermissionsAsync();
+
                 await CreatCurencies(); // usd ,toman , AED,OMR,EURO,LiRA
 
                 // Initialize currency pools first (required for financial operations)
@@ -626,6 +629,100 @@ namespace ForexExchange.Services
             }
         }
 
+        /// <summary>
+        /// Seeds default permissions for different user roles.
+        /// </summary>
+        private async Task SeedRolePermissionsAsync()
+        {
+            _logger.LogInformation("Seeding role permissions...");
+
+            var allPermissions = new List<string>
+            {
+                // Document Management
+                Permissions.Documents_View,
+                Permissions.Documents_Create,
+                Permissions.Documents_Edit,
+                Permissions.Documents_Delete,
+
+                // User Management
+                Permissions.Users_View,
+                Permissions.Users_Create,
+                Permissions.Users_Edit,
+                Permissions.Users_ChangeRole,
+                Permissions.Users_Delete,
+                Permissions.Users_RegenerateTotpSecret,
+                Permissions.Users_ResetAllSessions,
+            };
+
+            var rolePermissionsMap = new Dictionary<UserRole, List<string>>
+            {
+                { UserRole.Programmer, allPermissions }, // Programmer has all permissions
+                {
+                    UserRole.Admin, new List<string>
+                    {
+                        Permissions.Documents_View,
+                        Permissions.Documents_Create,
+                        Permissions.Documents_Edit,
+                        Permissions.Documents_Delete,
+
+                        Permissions.Users_View,
+                        Permissions.Users_Create,
+                        Permissions.Users_Edit,
+                        Permissions.Users_ChangeRole,
+                        // Admins should not be able to delete other admins or reset sessions/TOTP for security reasons
+                        // Permissions.Users_Delete,
+                        // Permissions.Users_RegenerateTotpSecret,
+                        // Permissions.Users_ResetAllSessions,
+                    }
+                },
+                {
+                    UserRole.Operator, new List<string>
+                    {
+                        Permissions.Documents_View,
+                        Permissions.Documents_Create,
+                        // Operators can create documents but not edit or delete them initially
+
+                        Permissions.Users_View,
+                        // Operators can view users but not create, edit, change roles, or delete them
+                    }
+                },
+                { UserRole.Customer, new List<string>() } // Customers have no admin permissions
+            };
+
+            var permissionsToAdd = new List<RolePermission>();
+
+            foreach (var entry in rolePermissionsMap)
+            {
+                var role = entry.Key;
+                var permissionsForRole = entry.Value;
+
+                foreach (var permissionName in permissionsForRole)
+                {
+                    var exists = await _context.RolePermissions
+                        .AnyAsync(rp => rp.UserRole == role && rp.PermissionName == permissionName);
+
+                    if (!exists)
+                    {
+                        permissionsToAdd.Add(new RolePermission
+                        {
+                            UserRole = role,
+                            PermissionName = permissionName
+                        });
+                    }
+                }
+            }
+
+            if (permissionsToAdd.Any())
+            {
+                _context.RolePermissions.AddRange(permissionsToAdd);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation($"Successfully seeded {permissionsToAdd.Count} new role permissions.");
+            }
+            else
+            {
+                _logger.LogInformation("All role permissions already exist, skipping seeding.");
+            }
+        }
     }
 }
 

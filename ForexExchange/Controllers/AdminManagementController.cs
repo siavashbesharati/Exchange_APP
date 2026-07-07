@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using ForexExchange.Authorization; // Add for custom permissions
 
 namespace ForexExchange.Controllers
 {
@@ -22,19 +23,22 @@ namespace ForexExchange.Controllers
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ForexDbContext _context;
         private readonly ITotpService _totpService;
+        private readonly IPermissionService _permissionService;
 
         public AdminManagementController(
             AdminActivityService adminActivityService,
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
             ForexDbContext context,
-            ITotpService totpService)
+            ITotpService totpService,
+            IPermissionService permissionService)
         {
             _adminActivityService = adminActivityService;
             _userManager = userManager;
             _roleManager = roleManager;
             _context = context;
             _totpService = totpService;
+            _permissionService = permissionService;
         }
 
         /// <summary>
@@ -232,6 +236,7 @@ namespace ForexExchange.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Users_RegenerateTotpSecret)]
         public async Task<IActionResult> RegenerateTotpSecret(string userId)
         {
             if (string.IsNullOrWhiteSpace(userId))
@@ -283,6 +288,7 @@ namespace ForexExchange.Controllers
         [HttpPost]
         [Authorize(Roles = "Programmer")]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Users_ResetAllSessions)]
         public async Task<IActionResult> ResetAllSessions()
         {
             var currentAdmin = await _userManager.GetUserAsync(User);
@@ -317,6 +323,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Users_Create)]
         public async Task<IActionResult> CreateAdmin(string userName, string email, string password, UserRole role, string fullName)
         {
             if (string.IsNullOrEmpty(userName) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
@@ -360,8 +367,8 @@ namespace ForexExchange.Controllers
             var result = await _userManager.CreateAsync(user, password);
             if (result.Succeeded)
             {
-                // Add to Admin role for Identity (only Admin role exists)
-                await _userManager.AddToRoleAsync(user, "Admin");
+                // Add to the appropriate Identity role based on the provided UserRole
+                await _userManager.AddToRoleAsync(user, role.ToString());
 
                 // Log activity
                 var currentUser = await _userManager.GetUserAsync(User);
@@ -396,6 +403,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Users_ChangeRole)]
         public async Task<IActionResult> ChangeAdminRole(string userId, UserRole newRole)
         {
             var user = await _userManager.FindByIdAsync(userId);
@@ -433,6 +441,18 @@ namespace ForexExchange.Controllers
 
             if (updateResult.Succeeded)
             {
+                // Update ASP.NET Identity roles
+                var oldRoleName = oldRole.ToString();
+                var newRoleName = newRole.ToString();
+
+                if (await _userManager.IsInRoleAsync(user, oldRoleName))
+                {
+                    await _userManager.RemoveFromRoleAsync(user, oldRoleName);
+                }
+                if (!await _userManager.IsInRoleAsync(user, newRoleName))
+                {
+                    await _userManager.AddToRoleAsync(user, newRoleName);
+                }
                 // Log activity
                 var currentUser = await _userManager.GetUserAsync(User);
                 if (currentUser != null)
@@ -478,6 +498,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Users_Delete)]
         public async Task<IActionResult> DeleteAdmin(string userId)
         {
             var user = await _userManager.FindByIdAsync(userId);
@@ -613,6 +634,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Users_Edit)]
         public async Task<IActionResult> EditAdmin(string userId, string email, string fullName)
         {
             try

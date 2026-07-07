@@ -135,7 +135,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("Type");
 
-                    b.ToTable("AccountingDocuments", (string)null);
+                    b.ToTable("AccountingDocuments");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.AdminActivity", b =>
@@ -205,7 +205,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("AdminUserId", "Timestamp");
 
-                    b.ToTable("AdminActivities", (string)null);
+                    b.ToTable("AdminActivities");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.ApplicationUser", b =>
@@ -384,7 +384,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CustomerId", "IsActive");
 
-                    b.ToTable("BankAccounts", (string)null);
+                    b.ToTable("BankAccounts");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.BankAccountBalance", b =>
@@ -425,7 +425,7 @@ namespace ForexExchange.Migrations
                         .IsUnique()
                         .HasFilter("[CurrencyId] IS NOT NULL");
 
-                    b.ToTable("BankAccountBalances", (string)null);
+                    b.ToTable("BankAccountBalances");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.BankAccountBalanceHistory", b =>
@@ -495,7 +495,7 @@ namespace ForexExchange.Migrations
                     b.HasIndex("BankAccountId", "TransactionDate", "Id")
                         .HasDatabaseName("IX_BankAccountBalanceHistory_Account_Latest");
 
-                    b.ToTable("BankAccountBalanceHistory", (string)null);
+                    b.ToTable("BankAccountBalanceHistory");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.Currency", b =>
@@ -543,7 +543,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("IsActive", "DisplayOrder");
 
-                    b.ToTable("Currencies", (string)null);
+                    b.ToTable("Currencies");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CurrencyPool", b =>
@@ -599,7 +599,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CurrencyId", "IsActive");
 
-                    b.ToTable("CurrencyPools", (string)null);
+                    b.ToTable("CurrencyPools");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CurrencyPoolHistory", b =>
@@ -682,7 +682,7 @@ namespace ForexExchange.Migrations
                         .HasDatabaseName("IX_CurrencyPoolHistory_CurrencyId_Latest")
                         .HasFilter("[CurrencyId] IS NOT NULL");
 
-                    b.ToTable("CurrencyPoolHistory", (string)null);
+                    b.ToTable("CurrencyPoolHistory");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.Customer", b =>
@@ -741,7 +741,7 @@ namespace ForexExchange.Migrations
                     b.HasIndex("PhoneNumber")
                         .IsUnique();
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CustomerBalance", b =>
@@ -782,7 +782,7 @@ namespace ForexExchange.Migrations
                         .IsUnique()
                         .HasFilter("[CurrencyId] IS NOT NULL");
 
-                    b.ToTable("CustomerBalances", (string)null);
+                    b.ToTable("CustomerBalances");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.CustomerBalanceHistory", b =>
@@ -870,7 +870,7 @@ namespace ForexExchange.Migrations
                         .HasDatabaseName("IX_CustomerBalanceHistory_Customer_CurrencyId_Latest")
                         .HasFilter("[CurrencyId] IS NOT NULL");
 
-                    b.ToTable("CustomerBalanceHistory", (string)null);
+                    b.ToTable("CustomerBalanceHistory");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.ExchangeRate", b =>
@@ -918,7 +918,7 @@ namespace ForexExchange.Migrations
                     b.HasIndex("FromCurrencyId", "ToCurrencyId", "IsActive")
                         .IsUnique();
 
-                    b.ToTable("ExchangeRates", (string)null);
+                    b.ToTable("ExchangeRates");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.Notification", b =>
@@ -964,7 +964,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("CustomerId", "IsRead");
 
-                    b.ToTable("Notifications", (string)null);
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.Order", b =>
@@ -1032,7 +1032,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("FromCurrencyId", "ToCurrencyId");
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.PushNotificationLog", b =>
@@ -1088,7 +1088,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("WasSuccessful");
 
-                    b.ToTable("PushNotificationLogs", (string)null);
+                    b.ToTable("PushNotificationLogs");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.PushSubscription", b =>
@@ -1158,7 +1158,29 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("IsActive", "UserId");
 
-                    b.ToTable("PushSubscriptions", (string)null);
+                    b.ToTable("PushSubscriptions");
+                });
+
+            modelBuilder.Entity("ForexExchange.Models.RolePermission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PermissionName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserRole")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserRole", "PermissionName")
+                        .IsUnique();
+
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.ShareableLink", b =>
@@ -1210,7 +1232,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("IsActive", "ExpiresAt");
 
-                    b.ToTable("ShareableLinks", (string)null);
+                    b.ToTable("ShareableLinks");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.SystemSettings", b =>
@@ -1257,7 +1279,7 @@ namespace ForexExchange.Migrations
                     b.HasIndex("SettingKey")
                         .IsUnique();
 
-                    b.ToTable("SystemSettings", (string)null);
+                    b.ToTable("SystemSettings");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.TaskItem", b =>
@@ -1292,7 +1314,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("AssignedToUserId");
 
-                    b.ToTable("TaskItems", (string)null);
+                    b.ToTable("TaskItems");
                 });
 
             modelBuilder.Entity("ForexExchange.Models.VapidConfiguration", b =>
@@ -1350,7 +1372,7 @@ namespace ForexExchange.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.ToTable("VapidConfigurations", (string)null);
+                    b.ToTable("VapidConfigurations");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
