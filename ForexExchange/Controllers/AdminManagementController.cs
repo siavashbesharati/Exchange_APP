@@ -48,7 +48,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpGet]
         [HasPermission(Permissions.Users_ChangeRole)] // Or a new specific permission for managing role permissions
-        public async Task<IActionResult> ManageRolePermissions(UserRole? role = null)
+        public async Task<IActionResult> ManageRolePermissions(string? roleName = null)
         {
             var currentUser = await _userManager.GetUserAsync(User);
             if (currentUser == null)
@@ -56,23 +56,38 @@ namespace ForexExchange.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            var roles = Enum.GetValues(typeof(UserRole)).Cast<UserRole>().ToList();
+            var roles = _roleManager.Roles.ToList();
             var allPermissions = typeof(Permissions)
                 .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy)
                 .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string))
                 .Select(fi => fi.GetRawConstantValue()?.ToString() ?? string.Empty)
                 .ToList();
 
-            var selectedRole = role ?? UserRole.Admin; // Default to Admin role
+            IdentityRole? selectedIdentityRole = null;
+            UserRole selectedUserRole = UserRole.Admin; // Default to Admin enum value
 
-            // Get current permissions for the selected role
-            var currentRolePermissions = await _permissionService.GetPermissionsForRoleAsync(selectedRole);
+            if (!string.IsNullOrEmpty(roleName))
+            {
+                selectedIdentityRole = await _roleManager.FindByNameAsync(roleName);
+                if (selectedIdentityRole != null && Enum.TryParse(selectedIdentityRole.Name, out UserRole parsedUserRole))
+                {
+                    selectedUserRole = parsedUserRole;
+                }
+            }
+            else
+            {
+                // If no roleName is provided, try to find the IdentityRole for UserRole.Admin
+                selectedIdentityRole = await _roleManager.FindByNameAsync(UserRole.Admin.ToString());
+            }
+
+            // Get current permissions for the selected role based on UserRole enum
+            var currentRolePermissions = await _permissionService.GetPermissionsForRoleAsync(selectedUserRole);
 
             var viewModel = new RolePermissionViewModel
             {
                 Roles = roles,
                 AllPermissions = allPermissions,
-                SelectedRole = selectedRole,
+                SelectedRole = selectedUserRole, // Use the enum value for the ViewModel property
                 CurrentRolePermissions = currentRolePermissions
             };
 
@@ -105,7 +120,7 @@ namespace ForexExchange.Controllers
                     AdminActivityType.RolePermissionsUpdated,
                     $"دسترسی‌های نقش {selectedRole} بروزرسانی شد.",
                     entityType: "UserRole",
-                    entityId: ((int)selectedRole),
+                    entityId: null,
                     oldValue: null, // Could fetch old permissions if needed for detailed logging
                     newValue: string.Join(", ", permissionNames ?? new List<string>())
                 );
@@ -118,7 +133,7 @@ namespace ForexExchange.Controllers
                 TempData["Error"] = $"خطا در بروزرسانی دسترسی‌های نقش {selectedRole}: {ex.Message}";
             }
 
-            return RedirectToAction("ManageRolePermissions", new { role = selectedRole });
+            return RedirectToAction("ManageRolePermissions", new { roleName = selectedRole.ToString() });
         }
 
         /// <summary>

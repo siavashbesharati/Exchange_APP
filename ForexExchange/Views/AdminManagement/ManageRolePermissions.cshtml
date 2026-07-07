@@ -17,24 +17,12 @@
                 <label for="selectedRole" class="form-label">Select Role:</label>
                 <select id="selectedRole" name="role" class="form-control"
                     onchange="window.location.href = '/AdminManagement/ManageRolePermissions?role=' + this.value;">
-                    @foreach (var roleEnum in Model.Roles)
+                    @foreach (var role in Model.Roles)
 
                     {
-                        @if (Model.SelectedRole == roleEnum)
-
-                        {
-                            <option value="@roleEnum" selected="selected">
-                                @roleEnum
-                            </option>
-                        }
-
-                        else
-
-                        {
-                            <option value="@roleEnum">
-                                @roleEnum
-                            </option>
-                        }
+                        <option value="@role.Name" selected="@(Model.SelectedRole.ToString() == role.Name)">
+                            @role.Name
+                        </option>
                     }
                 </select>
             </div>
@@ -42,6 +30,8 @@
             <h3>Permissions for @Model.SelectedRole.ToString()</h3>
             <div class="row">
                 @foreach (var permission in Model.AllPermissions)
+
+
 
                 {
                     <div class="col-md-4">
