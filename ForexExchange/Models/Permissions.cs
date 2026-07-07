@@ -8,7 +8,6 @@ namespace ForexExchange.Models
         public const string Order_Edit = "ویرایش معامله";
         public const string Order_Delete = "حذف معامله";
 
-
         // Document Management
         public const string Documents_View = "مشاهده اسناد";
         public const string Documents_Create = "ثبت سند";
@@ -28,7 +27,6 @@ namespace ForexExchange.Models
         public const string Customer_BankHistory_Report = " تراز کلی ";
         public const string Expenses_Report = "گزارش هزینه‌ها";
 
-
         //Tasks
         public const string Tasks_View = "مشاهده تسک‌ها";
         public const string Tasks_Detail = "مشاهده جزئیات تسک";
@@ -36,32 +34,35 @@ namespace ForexExchange.Models
         public const string Tasks_Edit = "ویرایش تسک";
         public const string Tasks_Delete = "حذف تسک";
 
-
         //Advance management
         public const string Advance_Management = "مدیریت پیشرفته";
-
 
         //bankAccounts
         public const string Bank_Accounts_View = "مشاهده حساب‌های بانکی";
         public const string Bank_Accounts_Create = "افزودن حساب‌های بانکی";
+        public const string Bank_Accounts_Detail = "مشاهده جزئیات حساب‌های بانکی";
         public const string Bank_Accounts_Edit = "ویرایش حساب‌های بانکی";
         public const string Bank_Accounts_Delete = "حذف حساب‌های بانکی";
-        
-        
 
+        //Customers
+        public const string Customers_View = "مشاهده مشتریان";
+        public const string Customers_Create = "افزودن مشتریان";
+        public const string Customers_Detail = "مشاهده جزئیات مشتریان";
+        public const string Customers_Edit = "ویرایش مشتریان";
+        public const string Customers_Delete = "حذف مشتریان";
 
+        //ExchangeRates
+        public const string Exchange_Rates_View = "مشاهده نرخ‌های ارز";
+        public const string Exchange_Rates_Edit = "ویرایش نرخ‌های ارز";
 
+        //Profile
+        public const string Profile_View = "مشاهده پروفایل";
 
+        //AdminManagement
+        public const string Manage_Admins = "مدیریت ادمین ها";
 
-        // User Management
-        public const string Users_View = "Permissions.Users.View";
-        public const string Users_Create = "Permissions.Users.Create";
-        public const string Users_Edit = "Permissions.Users.Edit";
-        public const string Users_ChangeRole = "Permissions.Users.ChangeRole";
-        public const string Users_Delete = "Permissions.Users.Delete";
-        public const string Users_RegenerateTotpSecret = "Permissions.Users.RegenerateTotpSecret";
-        public const string Users_ResetAllSessions = "Permissions.Users.ResetAllSessions";
+        //DatabaseManaggment
+        public const string Database_Management = "مدیریت پایگاه داده";
 
-        // Add more permissions as needed
     }
 }
