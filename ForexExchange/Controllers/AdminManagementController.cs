@@ -47,7 +47,7 @@ namespace ForexExchange.Controllers
         /// مدیریت دسترسی‌های نقش‌ها
         /// </summary>
         [HttpGet]
-        [HasPermission(Permissions.Users_ChangeRole)] // Or a new specific permission for managing role permissions
+        [HasPermission(Permissions.Users_ChangeRole)] 
         public async Task<IActionResult> ManageRolePermissions(string? roleName = null)
         {
             var currentUser = await _userManager.GetUserAsync(User);
@@ -85,7 +85,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_ChangeRole)] // Or a new specific permission for managing role permissions
+        [HasPermission(Permissions.Users_ChangeRole)] 
         public async Task<IActionResult> UpdateRolePermissions(string selectedRoleName, List<string> permissionNames)
         {
             var currentUser = await _userManager.GetUserAsync(User);

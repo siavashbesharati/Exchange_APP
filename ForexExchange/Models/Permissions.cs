@@ -22,6 +22,7 @@ namespace ForexExchange.Models
         public const string Customer_Reports = "گزارش مشتریان";
         public const string All_Customers_Balances = "موجودی همه مشتریان";
         public const string Bank_Account_Reports = "گزارشات حساب‌های بانکی ";
+        public const string Admin_Reports = "گزارشات ادمین  ";
         public const string Pool_Reports = "گزارش داشبورد";
         public const string Order_Reports = "گزارش معاملات";
         public const string Document_Reports = "گزارش اسناد";

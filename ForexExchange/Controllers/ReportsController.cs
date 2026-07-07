@@ -4,11 +4,15 @@ using Microsoft.EntityFrameworkCore;
 using ForexExchange.Models;
 using ForexExchange.Services;
 using Microsoft.AspNetCore.Identity;
+using ForexExchange.Authorization; // Add for custom permissions
+
 using ForexExchange.Extensions;
 
 namespace ForexExchange.Controllers
 {
     [Authorize(Roles = "Admin,Operator,Programmer")]
+    [HasPermission(Permissions.Reports)] 
+
     public class ReportsController : Controller
     {
         private readonly ForexDbContext _context;
@@ -80,6 +84,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Reports/CustomerReports
+        [HasPermission(Permissions.Customer_Reports)] 
+
         public IActionResult CustomerReports()
         {
             ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
@@ -88,6 +94,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Reports/OrderReports
+        [HasPermission(Permissions.Order_Reports)] 
+
         public IActionResult OrderReports()
         {
             ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
@@ -96,6 +104,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Reports/DocumentReports
+        [HasPermission(Permissions.Document_Reports)] 
+
         public IActionResult DocumentReports()
         {
             ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
@@ -104,6 +114,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Reports/PoolReports
+        [HasPermission(Permissions.Pool_Reports)] 
+
         public IActionResult PoolReports()
         {
             ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
@@ -114,6 +126,8 @@ namespace ForexExchange.Controllers
 
 
         // GET: Reports/BankAccountReports
+        [HasPermission(Permissions.Bank_Account_Reports)] 
+
         public IActionResult BankAccountReports()
         {
             ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
@@ -122,6 +136,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Reports/AdminReports
+        [HasPermission(Permissions.Admin_Reports)] 
+
         public IActionResult AdminReports()
         {
             ViewData["FromDate"] = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
@@ -130,6 +146,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Reports/AllCustomersBalances
+        [HasPermission(Permissions.All_Customers_Balances)] 
+
         public IActionResult AllCustomersBalances()
         {
 
@@ -138,6 +156,8 @@ namespace ForexExchange.Controllers
 
         // GET: Reports/AllCustomersBalancesPrint
         [HttpGet]
+        [HasPermission(Permissions.All_Customers_Balances)] 
+        
         public async Task<IActionResult> AllCustomersBalancesPrint(string? currencyFilter = null, string? customerFilter = null)
         {
             var reportData = await BuildAllCustomersBalanceReportAsync(currencyFilter, customerFilter);
@@ -146,16 +166,20 @@ namespace ForexExchange.Controllers
 
         // GET: Reports/ExportAllCustomersBalancesToExcel
         [HttpGet]
+        [HasPermission(Permissions.All_Customers_Balances)] 
+
         public Task<IActionResult> ExportAllCustomersBalancesToExcel(string? currencyFilter = null, string? customerFilter = null)
             => ExportAllCustomersBalances(currencyFilter, customerFilter);
 
         // GET: Reports/PoolSummaryReport
+         [HasPermission(Permissions.Pool_Summary_Reports)] 
         public IActionResult PoolSummaryReport()
         {
             return View();
         }
 
         // GET: Reports/BankAccountSummaryReport
+        
         public IActionResult BankAccountSummaryReport()
         {
 
@@ -2921,6 +2945,8 @@ namespace ForexExchange.Controllers
             return View();
         }
 
+        [HasPermission(Permissions.Customer_BankHistory_Report)] 
+        
         // GET: Reports/CustomerBankHistoryReport
         public IActionResult CustomerBankHistoryReport()
         {
@@ -2984,6 +3010,9 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Reports/ExpensesReport
+        [HasPermission(Permissions.Expenses_Report)] 
+
+
         public IActionResult ExpensesReport()
         {
             // Set default date range: from last year to today
