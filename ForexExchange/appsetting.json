@@ -9,5 +9,16 @@
   "ConnectionStrings": {
     "DefaultConnection": "Data Source=ForexExchange.db"
   },
-  "AllowedHosts": "*"
+  "AllowedHosts": "*",
+  "VAPID": {
+    "Subject": "mailto:admin@tabanexchange.com"
+  },
+  "Notifications": {
+    "Telegram": {
+      "Enabled": true,
+      "ProxyBaseUrl": "https://reverse.darkgpt.workers.dev",
+      "BotToken": "8377558116:AAEt1-NpbciCLJSecxmmF0zvqHmHUaYrsaQ",
+      "TargetChatId": "7556753514"
+    }
+  }
 }

@@ -13,25 +13,46 @@ namespace ForexExchange.Services.Notifications
         /// Send notification for order events
         /// ارسال اعلان برای رویدادهای معامله
         /// </summary>
-        Task SendOrderNotificationAsync(Order order, NotificationEventType eventType, string? userId = null, string? oldStatus = null, string? newStatus = null);
+        Task SendOrderNotificationAsync(
+            Order order,
+            NotificationEventType eventType,
+            string? userId = null,
+            string? oldStatus = null,
+            string? newStatus = null
+        );
 
         /// <summary>
         /// Send notification for accounting document events
         /// ارسال اعلان برای رویدادهای سند حسابداری
         /// </summary>
-        Task SendAccountingDocumentNotificationAsync(AccountingDocument document, NotificationEventType eventType, string? userId = null);
+        Task SendAccountingDocumentNotificationAsync(
+            AccountingDocument document,
+            NotificationEventType eventType,
+            string? userId = null
+        );
 
         /// <summary>
         /// Send notification for customer events
         /// ارسال اعلان برای رویدادهای مشتری
         /// </summary>
-        Task SendCustomerNotificationAsync(Customer customer, NotificationEventType eventType, string? userId = null);
+        Task SendCustomerNotificationAsync(
+            Customer customer,
+            NotificationEventType eventType,
+            string? userId = null
+        );
 
         /// <summary>
         /// Send custom notification
         /// ارسال اعلان معاملهی
         /// </summary>
-        Task SendManualAdjustmentNotificationAsync(string title, string message, NotificationEventType eventType = NotificationEventType.ManualAdjustment, string? userId = null, string? navigationUrl = null, NotificationPriority priority = NotificationPriority.Normal);
+        Task SendManualAdjustmentNotificationAsync(
+            string title,
+            string message,
+            NotificationEventType eventType = NotificationEventType.ManualAdjustment,
+            string? userId = null,
+            string? navigationUrl = null,
+            NotificationPriority priority = NotificationPriority.Normal
+        );
 
         /// <summary>
         /// Register a notification provider
@@ -68,7 +89,8 @@ namespace ForexExchange.Services.Notifications
             ForexDbContext context,
             ILogger<NotificationHub> logger,
             IConfiguration configuration,
-            IWebHostEnvironment environment)
+            IWebHostEnvironment environment
+        )
         {
             _context = context;
             _logger = logger;
@@ -82,7 +104,10 @@ namespace ForexExchange.Services.Notifications
             if (!_providers.Any(p => p.ProviderName == provider.ProviderName))
             {
                 _providers.Add(provider);
-                _logger.LogInformation("Registered notification provider: {ProviderName}", provider.ProviderName);
+                _logger.LogInformation(
+                    "Registered notification provider: {ProviderName}",
+                    provider.ProviderName
+                );
             }
         }
 
@@ -94,7 +119,10 @@ namespace ForexExchange.Services.Notifications
         /// </summary>
         private bool ShouldSkipNotification()
         {
-            var disableInDevelopment = _configuration.GetValue("Notifications:DisableInDevelopment", false);
+            var disableInDevelopment = _configuration.GetValue(
+                "Notifications:DisableInDevelopment",
+                false
+            );
             return disableInDevelopment && _environment.IsDevelopment();
         }
 
@@ -102,95 +130,186 @@ namespace ForexExchange.Services.Notifications
         {
             // This could be stored in database settings
             var settingKey = $"Notifications:{providerName}:Enabled";
-            
+
             // For now, we'll just log it. In the future, implement database settings
-            _logger.LogInformation("Provider {ProviderName} enabled status changed to: {Enabled}", providerName, enabled);
-            
+            _logger.LogInformation(
+                "Provider {ProviderName} enabled status changed to: {Enabled}",
+                providerName,
+                enabled
+            );
+
             // TODO: Store in SystemSettings table
             // await _settingsService.UpdateSettingAsync(settingKey, enabled.ToString());
-            
+
             return Task.CompletedTask;
         }
 
-        public async Task SendOrderNotificationAsync(Order order, NotificationEventType eventType, string? userId = null, string? oldStatus = null, string? newStatus = null)
+        public async Task SendOrderNotificationAsync(
+            Order order,
+            NotificationEventType eventType,
+            string? userId = null,
+            string? oldStatus = null,
+            string? newStatus = null
+        )
         {
             if (ShouldSkipNotification())
             {
-                _logger.LogDebug("Skipping order notification in development mode for order {OrderId}, event {EventType}", order.Id, eventType);
+                _logger.LogDebug(
+                    "Skipping order notification in development mode for order {OrderId}, event {EventType}",
+                    order.Id,
+                    eventType
+                );
                 return;
             }
 
             try
             {
-                var context = await BuildOrderNotificationContextAsync(order, eventType, userId, oldStatus, newStatus);
-                await SendNotificationToProvidersAsync(context, provider => provider.SendOrderNotificationAsync(context));
+                var context = await BuildOrderNotificationContextAsync(
+                    order,
+                    eventType,
+                    userId,
+                    oldStatus,
+                    newStatus
+                );
+                await SendNotificationToProvidersAsync(
+                    context,
+                    provider => provider.SendOrderNotificationAsync(context)
+                );
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending order notification for order {OrderId}, event {EventType}", order.Id, eventType);
+                _logger.LogError(
+                    ex,
+                    "Error sending order notification for order {OrderId}, event {EventType}",
+                    order.Id,
+                    eventType
+                );
             }
         }
 
-        public async Task SendAccountingDocumentNotificationAsync(AccountingDocument document, NotificationEventType eventType, string? userId = null)
+        public async Task SendAccountingDocumentNotificationAsync(
+            AccountingDocument document,
+            NotificationEventType eventType,
+            string? userId = null
+        )
         {
             if (ShouldSkipNotification())
             {
-                _logger.LogDebug("Skipping document notification in development mode for document {DocumentId}, event {EventType}", document.Id, eventType);
+                _logger.LogDebug(
+                    "Skipping document notification in development mode for document {DocumentId}, event {EventType}",
+                    document.Id,
+                    eventType
+                );
                 return;
             }
 
             try
             {
-                var context = await BuildAccountingDocumentNotificationContextAsync(document, eventType, userId);
-                await SendNotificationToProvidersAsync(context, provider => provider.SendAccountingDocumentNotificationAsync(context));
+                var context = await BuildAccountingDocumentNotificationContextAsync(
+                    document,
+                    eventType,
+                    userId
+                );
+                await SendNotificationToProvidersAsync(
+                    context,
+                    provider => provider.SendAccountingDocumentNotificationAsync(context)
+                );
             }
             catch (Exception ex)
             {
                 // Idempotent: Log error but don't throw - notification failures should not affect main operations
-                _logger.LogError(ex, "Error sending accounting document notification for document {DocumentId}, event {EventType}. Notification failed but document operation succeeded. ExceptionType: {ExceptionType}", 
-                    document.Id, eventType, ex.GetType().Name);
-                
+                _logger.LogError(
+                    ex,
+                    "Error sending accounting document notification for document {DocumentId}, event {EventType}. Notification failed but document operation succeeded. ExceptionType: {ExceptionType}",
+                    document.Id,
+                    eventType,
+                    ex.GetType().Name
+                );
+
                 if (ex.InnerException != null)
                 {
-                    _logger.LogError("Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}", 
-                        ex.InnerException.GetType().Name, ex.InnerException.Message);
+                    _logger.LogError(
+                        "Inner Exception: {InnerExceptionType} - {InnerExceptionMessage}",
+                        ex.InnerException.GetType().Name,
+                        ex.InnerException.Message
+                    );
                 }
-                
+
                 // Don't throw - this is idempotent
             }
         }
 
-        public async Task SendCustomerNotificationAsync(Customer customer, NotificationEventType eventType, string? userId = null)
+        public async Task SendCustomerNotificationAsync(
+            Customer customer,
+            NotificationEventType eventType,
+            string? userId = null
+        )
         {
             if (ShouldSkipNotification())
             {
-                _logger.LogDebug("Skipping customer notification in development mode for customer {CustomerId}, event {EventType}", customer.Id, eventType);
+                _logger.LogDebug(
+                    "Skipping customer notification in development mode for customer {CustomerId}, event {EventType}",
+                    customer.Id,
+                    eventType
+                );
                 return;
             }
 
             try
             {
-                var context = await BuildCustomerNotificationContextAsync(customer, eventType, userId);
-                await SendNotificationToProvidersAsync(context, provider => provider.SendCustomerNotificationAsync(context));
+                var context = await BuildCustomerNotificationContextAsync(
+                    customer,
+                    eventType,
+                    userId
+                );
+                await SendNotificationToProvidersAsync(
+                    context,
+                    provider => provider.SendCustomerNotificationAsync(context)
+                );
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending customer notification for customer {CustomerId}, event {EventType}", customer.Id, eventType);
+                _logger.LogError(
+                    ex,
+                    "Error sending customer notification for customer {CustomerId}, event {EventType}",
+                    customer.Id,
+                    eventType
+                );
             }
         }
 
-        public async Task SendManualAdjustmentNotificationAsync(string title, string message, NotificationEventType eventType = NotificationEventType.ManualAdjustment, string? userId = null, string? navigationUrl = null, NotificationPriority priority = NotificationPriority.Normal)
+        public async Task SendManualAdjustmentNotificationAsync(
+            string title,
+            string message,
+            NotificationEventType eventType = NotificationEventType.ManualAdjustment,
+            string? userId = null,
+            string? navigationUrl = null,
+            NotificationPriority priority = NotificationPriority.Normal
+        )
         {
             if (ShouldSkipNotification())
             {
-                _logger.LogDebug("Skipping custom notification in development mode: {Title}", title);
+                _logger.LogDebug(
+                    "Skipping custom notification in development mode: {Title}",
+                    title
+                );
                 return;
             }
 
             try
             {
-                var context = await BuildManualAdjustmentNotificationContextAsync(title, message, eventType, userId, navigationUrl, priority);
-                await SendNotificationToProvidersAsync(context, provider => provider.SendManualAdjustmentNotificationAsync(context));
+                var context = await BuildManualAdjustmentNotificationContextAsync(
+                    title,
+                    message,
+                    eventType,
+                    userId,
+                    navigationUrl,
+                    priority
+                );
+                await SendNotificationToProvidersAsync(
+                    context,
+                    provider => provider.SendManualAdjustmentNotificationAsync(context)
+                );
             }
             catch (Exception ex)
             {
@@ -198,13 +317,28 @@ namespace ForexExchange.Services.Notifications
             }
         }
 
-        private async Task SendNotificationToProvidersAsync(NotificationContext context, Func<INotificationProvider, Task> sendAction)
+        private async Task SendNotificationToProvidersAsync(
+            NotificationContext context,
+            Func<INotificationProvider, Task> sendAction
+        )
         {
             var enabledProviders = _providers.Where(p => p.IsEnabled).ToList();
-            
+            _logger.LogInformation(
+                "All enabled notification providers: {Providers}",
+                string.Join(",", enabledProviders)
+            );
+
+            _logger.LogInformation(
+                "All  notification providers: {Providers}",
+                string.Join(",", _providers)
+            );
+
             if (!enabledProviders.Any())
             {
-                _logger.LogWarning("No enabled notification providers found for event {EventType}", context.EventType);
+                _logger.LogWarning(
+                    "No enabled notification providers found for event {EventType}",
+                    context.EventType
+                );
                 return;
             }
 
@@ -213,18 +347,33 @@ namespace ForexExchange.Services.Notifications
                 try
                 {
                     await sendAction(provider);
-                    _logger.LogDebug("Notification sent via {ProviderName} for event {EventType}", provider.ProviderName, context.EventType);
+                    _logger.LogDebug(
+                        "Notification sent via {ProviderName} for event {EventType}",
+                        provider.ProviderName,
+                        context.EventType
+                    );
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error sending notification via {ProviderName} for event {EventType}", provider.ProviderName, context.EventType);
+                    _logger.LogError(
+                        ex,
+                        "Error sending notification via {ProviderName} for event {EventType}",
+                        provider.ProviderName,
+                        context.EventType
+                    );
                 }
             });
 
             await Task.WhenAll(tasks);
         }
 
-        private async Task<NotificationContext> BuildOrderNotificationContextAsync(Order order, NotificationEventType eventType, string? userId, string? oldStatus, string? newStatus)
+        private async Task<NotificationContext> BuildOrderNotificationContextAsync(
+            Order order,
+            NotificationEventType eventType,
+            string? userId,
+            string? oldStatus,
+            string? newStatus
+        )
         {
             var customer = await _context.Customers.FindAsync(order.CustomerId);
             var fromCurrency = await _context.Currencies.FindAsync(order.FromCurrencyId);
@@ -234,18 +383,24 @@ namespace ForexExchange.Services.Notifications
             {
                 NotificationEventType.OrderCreated => "🔔 معامله جدید ثبت شد",
                 NotificationEventType.OrderDeleted => "❌ معامله حذف شد",
-                _ => "📋 رویداد معامله"
+                _ => "📋 رویداد معامله",
             };
 
             var message = eventType switch
             {
-                NotificationEventType.OrderCreated => $"معامله #{order.Id} برای {customer?.FullName ?? "نامعلوم"}: {order.FromAmount:N0} {fromCurrency?.PersianName} → {order.ToAmount:N0} {toCurrency?.PersianName}",
-                NotificationEventType.OrderDeleted => $"معامله #{order.Id} برای {customer?.FullName ?? "نامعلوم"} لغو شد",
-                _ => $"رویداد معامله #{order.Id}"
+                NotificationEventType.OrderCreated =>
+                    $"معامله #{order.Id} برای {customer?.FullName ?? "نامعلوم"}: {order.FromAmount:N0} {fromCurrency?.PersianName} → {order.ToAmount:N0} {toCurrency?.PersianName}",
+                NotificationEventType.OrderDeleted =>
+                    $"معامله #{order.Id} برای {customer?.FullName ?? "نامعلوم"} لغو شد",
+                _ => $"رویداد معامله #{order.Id}",
             };
 
             var navigationUrl = $"/Orders/Details/{order.Id}";
-            _logger.LogInformation("Order notification URL generated: {NavigationUrl} for order {OrderId}", navigationUrl, order.Id);
+            _logger.LogInformation(
+                "Order notification URL generated: {NavigationUrl} for order {OrderId}",
+                navigationUrl,
+                order.Id
+            );
 
             return new NotificationContext
             {
@@ -256,7 +411,9 @@ namespace ForexExchange.Services.Notifications
                 NavigationUrl = navigationUrl,
                 Priority = NotificationPriority.Normal,
                 SendToAllAdmins = true, // Always send to all admins
-                ExcludeUserIds = !string.IsNullOrEmpty(userId) ? new List<string> { userId } : new List<string>(),
+                ExcludeUserIds = !string.IsNullOrEmpty(userId)
+                    ? new List<string> { userId }
+                    : new List<string>(),
                 RelatedEntity = new RelatedEntity
                 {
                     EntityType = "Order",
@@ -269,8 +426,8 @@ namespace ForexExchange.Services.Notifications
                         ["toCurrencyId"] = order.ToCurrencyId,
                         ["amount"] = order.FromAmount,
                         ["totalAmount"] = order.ToAmount,
-                        ["rate"] = order.Rate
-                    }
+                        ["rate"] = order.Rate,
+                    },
                 },
                 Data = new Dictionary<string, object>
                 {
@@ -281,21 +438,25 @@ namespace ForexExchange.Services.Notifications
                     ["fromCurrency"] = fromCurrency?.PersianName ?? "",
                     ["toCurrency"] = toCurrency?.PersianName ?? "",
                     ["oldStatus"] = oldStatus ?? "",
-                    ["newStatus"] = newStatus ?? ""
-                }
+                    ["newStatus"] = newStatus ?? "",
+                },
             };
         }
 
-        private async Task<NotificationContext> BuildAccountingDocumentNotificationContextAsync(AccountingDocument document, NotificationEventType eventType, string? userId)
+        private async Task<NotificationContext> BuildAccountingDocumentNotificationContextAsync(
+            AccountingDocument document,
+            NotificationEventType eventType,
+            string? userId
+        )
         {
             // Use FindAsync for nullable int IDs
-            var payerCustomer = document.PayerCustomerId.HasValue 
-                ? await _context.Customers.FindAsync(document.PayerCustomerId.Value) 
+            var payerCustomer = document.PayerCustomerId.HasValue
+                ? await _context.Customers.FindAsync(document.PayerCustomerId.Value)
                 : null;
-            var receiverCustomer = document.ReceiverCustomerId.HasValue 
-                ? await _context.Customers.FindAsync(document.ReceiverCustomerId.Value) 
+            var receiverCustomer = document.ReceiverCustomerId.HasValue
+                ? await _context.Customers.FindAsync(document.ReceiverCustomerId.Value)
                 : null;
-            
+
             // Use CurrencyId directly - this is why we did the refactoring!
             Currency? currency = null;
             if (document.CurrencyId.HasValue)
@@ -308,15 +469,18 @@ namespace ForexExchange.Services.Notifications
                 NotificationEventType.AccountingDocumentCreated => "📄 سند حسابداری جدید",
                 NotificationEventType.AccountingDocumentVerified => "✅ تأیید سند حسابداری",
                 NotificationEventType.AccountingDocumentDeleted => "❌ حذف سند حسابداری",
-                _ => "📋 رویداد سند حسابداری"
+                _ => "📋 رویداد سند حسابداری",
             };
 
             var message = eventType switch
             {
-                NotificationEventType.AccountingDocumentCreated => $"{document.Title}: {document.Amount:N0} {currency?.PersianName ?? document.CurrencyCode}",
-                NotificationEventType.AccountingDocumentVerified => $"{document.Title}: {document.Amount:N0} {currency?.PersianName ?? document.CurrencyCode} تأیید شد",
-                NotificationEventType.AccountingDocumentDeleted => $"{document.Title}: {document.Amount:N0} {currency?.PersianName ?? document.CurrencyCode} حذف شد",
-                _ => $"رویداد سند #{document.Id}"
+                NotificationEventType.AccountingDocumentCreated =>
+                    $"{document.Title}: {document.Amount:N0} {currency?.PersianName ?? document.CurrencyCode}",
+                NotificationEventType.AccountingDocumentVerified =>
+                    $"{document.Title}: {document.Amount:N0} {currency?.PersianName ?? document.CurrencyCode} تأیید شد",
+                NotificationEventType.AccountingDocumentDeleted =>
+                    $"{document.Title}: {document.Amount:N0} {currency?.PersianName ?? document.CurrencyCode} حذف شد",
+                _ => $"رویداد سند #{document.Id}",
             };
 
             if (payerCustomer != null)
@@ -329,7 +493,11 @@ namespace ForexExchange.Services.Notifications
             }
 
             var navigationUrl = $"/AccountingDocuments/Details/{document.Id}";
-            _logger.LogInformation("Document notification URL generated: {NavigationUrl} for document {DocumentId}", navigationUrl, document.Id);
+            _logger.LogInformation(
+                "Document notification URL generated: {NavigationUrl} for document {DocumentId}",
+                navigationUrl,
+                document.Id
+            );
 
             return new NotificationContext
             {
@@ -338,7 +506,10 @@ namespace ForexExchange.Services.Notifications
                 Title = title,
                 Message = message,
                 NavigationUrl = navigationUrl,
-                Priority = eventType == NotificationEventType.AccountingDocumentVerified ? NotificationPriority.High : NotificationPriority.Normal,
+                Priority =
+                    eventType == NotificationEventType.AccountingDocumentVerified
+                        ? NotificationPriority.High
+                        : NotificationPriority.Normal,
                 RelatedEntity = new RelatedEntity
                 {
                     EntityType = "AccountingDocument",
@@ -350,8 +521,8 @@ namespace ForexExchange.Services.Notifications
                         ["amount"] = document.Amount,
                         ["currencyId"] = document.CurrencyId ?? 0,
                         ["currencyCode"] = currency != null ? currency.Code : document.CurrencyCode, // Display from navigation
-                        ["title"] = document.Title
-                    }
+                        ["title"] = document.Title,
+                    },
                 },
                 Data = new Dictionary<string, object>
                 {
@@ -361,97 +532,127 @@ namespace ForexExchange.Services.Notifications
                     ["amount"] = document.Amount,
                     ["currencyCode"] = document.CurrencyCode,
                     ["title"] = document.Title,
-                    ["isVerified"] = document.IsVerified
+                    ["isVerified"] = document.IsVerified,
                 },
                 SendToAllAdmins = true, // Always send to all admins
-                ExcludeUserIds = !string.IsNullOrEmpty(userId) ? new List<string> { userId } : new List<string>()
+                ExcludeUserIds = !string.IsNullOrEmpty(userId)
+                    ? new List<string> { userId }
+                    : new List<string>(),
             };
         }
 
-        private Task<NotificationContext> BuildCustomerNotificationContextAsync(Customer customer, NotificationEventType eventType, string? userId)
+        private Task<NotificationContext> BuildCustomerNotificationContextAsync(
+            Customer customer,
+            NotificationEventType eventType,
+            string? userId
+        )
         {
             var title = eventType switch
             {
                 NotificationEventType.CustomerRegistered => "👤 مشتری جدید ثبت شد",
-                _ => "👤 رویداد مشتری"
+                _ => "👤 رویداد مشتری",
             };
 
             var message = eventType switch
             {
-                NotificationEventType.CustomerRegistered => $"مشتری جدید: {customer.FullName} ({customer.PhoneNumber})",
-                _ => $"رویداد مشتری {customer.FullName}"
+                NotificationEventType.CustomerRegistered =>
+                    $"مشتری جدید: {customer.FullName} ({customer.PhoneNumber})",
+                _ => $"رویداد مشتری {customer.FullName}",
             };
 
             var navigationUrl = $"/Customers/Details/{customer.Id}";
-            _logger.LogInformation("Customer notification URL generated: {NavigationUrl} for customer {CustomerId}", navigationUrl, customer.Id);
+            _logger.LogInformation(
+                "Customer notification URL generated: {NavigationUrl} for customer {CustomerId}",
+                navigationUrl,
+                customer.Id
+            );
 
-            return Task.FromResult(new NotificationContext
-            {
-                EventType = eventType,
-                UserId = userId,
-                Title = title,
-                Message = message,
-                NavigationUrl = navigationUrl,
-                Priority = NotificationPriority.Normal,
-                SendToAllAdmins = true, // Always send to all admins
-                ExcludeUserIds = !string.IsNullOrEmpty(userId) ? new List<string> { userId } : new List<string>(),
-                RelatedEntity = new RelatedEntity
+            return Task.FromResult(
+                new NotificationContext
                 {
-                    EntityType = "Customer",
-                    EntityId = customer.Id,
-                    EntityData = new Dictionary<string, object>
+                    EventType = eventType,
+                    UserId = userId,
+                    Title = title,
+                    Message = message,
+                    NavigationUrl = navigationUrl,
+                    Priority = NotificationPriority.Normal,
+                    SendToAllAdmins = true, // Always send to all admins
+                    ExcludeUserIds = !string.IsNullOrEmpty(userId)
+                        ? new List<string> { userId }
+                        : new List<string>(),
+                    RelatedEntity = new RelatedEntity
                     {
+                        EntityType = "Customer",
+                        EntityId = customer.Id,
+                        EntityData = new Dictionary<string, object>
+                        {
+                            ["fullName"] = customer.FullName,
+                            ["phoneNumber"] = customer.PhoneNumber,
+                            ["isActive"] = customer.IsActive,
+                        },
+                    },
+                    Data = new Dictionary<string, object>
+                    {
+                        ["customerId"] = customer.Id,
                         ["fullName"] = customer.FullName,
                         ["phoneNumber"] = customer.PhoneNumber,
-                        ["isActive"] = customer.IsActive
-                    }
-                },
-                Data = new Dictionary<string, object>
-                {
-                    ["customerId"] = customer.Id,
-                    ["fullName"] = customer.FullName,
-                    ["phoneNumber"] = customer.PhoneNumber,
-                    ["isActive"] = customer.IsActive
+                        ["isActive"] = customer.IsActive,
+                    },
                 }
-            });
+            );
         }
 
-        private Task<NotificationContext> BuildManualAdjustmentNotificationContextAsync(string title, string message, NotificationEventType eventType, string? userId, string? navigationUrl, NotificationPriority priority)
+        private Task<NotificationContext> BuildManualAdjustmentNotificationContextAsync(
+            string title,
+            string message,
+            NotificationEventType eventType,
+            string? userId,
+            string? navigationUrl,
+            NotificationPriority priority
+        )
         {
             // Use explicit URL or default to /admin
             var finalUrl = !string.IsNullOrEmpty(navigationUrl) ? navigationUrl : "/admin";
-            _logger.LogInformation("Manual adjustment notification URL: {NavigationUrl} -> {FinalUrl}", navigationUrl, finalUrl);
+            _logger.LogInformation(
+                "Manual adjustment notification URL: {NavigationUrl} -> {FinalUrl}",
+                navigationUrl,
+                finalUrl
+            );
 
-            return Task.FromResult(new NotificationContext
-            {
-                EventType = eventType,
-                UserId = userId,
-                Title = title,
-                Message = message,
-                NavigationUrl = finalUrl,
-                Priority = priority,
-                SendToAllAdmins = true, // Always send to all admins
-                ExcludeUserIds = !string.IsNullOrEmpty(userId) ? new List<string> { userId } : new List<string>(),
-                RelatedEntity = new RelatedEntity
+            return Task.FromResult(
+                new NotificationContext
                 {
-                    EntityType = "ManualAdjustment",
-                    EntityId = 0, // No specific entity for manual adjustment notifications
-                    EntityData = new Dictionary<string, object>
+                    EventType = eventType,
+                    UserId = userId,
+                    Title = title,
+                    Message = message,
+                    NavigationUrl = finalUrl,
+                    Priority = priority,
+                    SendToAllAdmins = true, // Always send to all admins
+                    ExcludeUserIds = !string.IsNullOrEmpty(userId)
+                        ? new List<string> { userId }
+                        : new List<string>(),
+                    RelatedEntity = new RelatedEntity
+                    {
+                        EntityType = "ManualAdjustment",
+                        EntityId = 0, // No specific entity for manual adjustment notifications
+                        EntityData = new Dictionary<string, object>
+                        {
+                            ["title"] = title,
+                            ["message"] = message,
+                            ["eventType"] = eventType.ToString(),
+                        },
+                    },
+                    Data = new Dictionary<string, object>
                     {
                         ["title"] = title,
                         ["message"] = message,
-                        ["eventType"] = eventType.ToString()
-                    }
-                },
-                Data = new Dictionary<string, object>
-                {
-                    ["title"] = title,
-                    ["message"] = message,
-                    ["eventType"] = eventType.ToString(),
-                    ["priority"] = priority.ToString(),
-                    ["navigationUrl"] = finalUrl
+                        ["eventType"] = eventType.ToString(),
+                        ["priority"] = priority.ToString(),
+                        ["navigationUrl"] = finalUrl,
+                    },
                 }
-            });
+            );
         }
     }
 }

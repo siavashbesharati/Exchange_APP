@@ -183,9 +183,6 @@ try
     // Notification Providers
     // ------------------------------
     builder.Services.AddScoped<SignalRNotificationProvider>();
-    builder.Services.AddScoped<PushNotificationProvider>();
-    builder.Services.AddScoped<SmsNotificationProvider>();
-    builder.Services.AddScoped<EmailNotificationProvider>();
     builder.Services.AddScoped<TelegramNotificationProvider>();
 
     builder.Services.AddScoped<INotificationHub>(sp =>
@@ -197,9 +194,6 @@ try
             sp.GetRequiredService<IWebHostEnvironment>());
 
         hub.RegisterProvider(sp.GetRequiredService<SignalRNotificationProvider>());
-        hub.RegisterProvider(sp.GetRequiredService<PushNotificationProvider>());
-        hub.RegisterProvider(sp.GetRequiredService<SmsNotificationProvider>());
-        hub.RegisterProvider(sp.GetRequiredService<EmailNotificationProvider>());
         hub.RegisterProvider(sp.GetRequiredService<TelegramNotificationProvider>());
 
         return hub;
