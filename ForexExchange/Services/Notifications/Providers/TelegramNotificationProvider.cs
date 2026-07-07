@@ -37,8 +37,8 @@ namespace ForexExchange.Services.Notifications.Providers
                 _configuration["Telegram:ProxyBaseUrl"] ?? "https://reverse.darkgpt.workers.dev";
             _botToken =
                 _configuration["Telegram:BotToken"]
-                ?? "8505299642:AAHtKoI12ykna0VI2F7q-29gsjjyKvUCzAI";
-            _targetChatId = _configuration["Telegram:TargetChatId"] ?? "7556753514";
+                ?? "8377558116:AAEt1-NpbciCLJSecxmmF0zvqHmHUaYrsaQ";
+            _targetChatId = _configuration["Telegram:TargetChatId"] ?? "631037221";
             _logger.LogInformation(
                 "Telegram Notification Provider initialized. ProxyBaseUrl: {ProxyBaseUrl}, BotToken: {BotToken}, TargetChatId: {TargetChatId}",
                 _proxyBaseUrl,
