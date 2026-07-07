@@ -6,9 +6,12 @@ using ForexExchange.Services;
 using Microsoft.AspNetCore.Identity;
 using System.Text.Json;
 using ForexExchange.Extensions;
+using ForexExchange.Authorization;
 
 namespace ForexExchange.Controllers
 {
+    [HasPermission(Permissions.Exchange_Rates_Management)] 
+
     public class ExchangeRatesController : Controller
     {
         private readonly ForexDbContext _context;

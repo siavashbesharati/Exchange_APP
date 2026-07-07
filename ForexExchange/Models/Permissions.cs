@@ -55,8 +55,7 @@ namespace ForexExchange.Models
         public const string Customers_Delete = "حذف مشتریان";
 
         //ExchangeRates
-        public const string Exchange_Rates_View = "مشاهده نرخ‌های ارز";
-        public const string Exchange_Rates_Edit = "ویرایش نرخ‌های ارز";
+        public const string Exchange_Rates_Management = "مدیریت نرخ‌های ارز";
 
         //Profile
         public const string Profile_View = "مشاهده پروفایل";

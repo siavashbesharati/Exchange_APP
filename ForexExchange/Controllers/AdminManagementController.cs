@@ -16,7 +16,7 @@ namespace ForexExchange.Controllers
     /// Admin Management Controller
     /// کنترلر مدیریت ادمین
     /// </summary>
-    [Authorize(Roles = "Admin,Programmer")]
+    [HasPermission(Permissions.Advance_Management)] 
     public class AdminManagementController : Controller
     {
         private readonly AdminActivityService _adminActivityService;
@@ -47,7 +47,7 @@ namespace ForexExchange.Controllers
         /// مدیریت دسترسی‌های نقش‌ها
         /// </summary>
         [HttpGet]
-        [HasPermission(Permissions.Users_ChangeRole)] 
+        [HasPermission(Permissions.Manage_Admins)] 
         public async Task<IActionResult> ManageRolePermissions(string? roleName = null)
         {
             var currentUser = await _userManager.GetUserAsync(User);
@@ -85,7 +85,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_ChangeRole)] 
+        [HasPermission(Permissions.Manage_Admins)] 
         public async Task<IActionResult> UpdateRolePermissions(string selectedRoleName, List<string> permissionNames)
         {
             var currentUser = await _userManager.GetUserAsync(User);
@@ -126,7 +126,7 @@ namespace ForexExchange.Controllers
         /// مدیریت نقش‌ها
         /// </summary>
         [HttpGet]
-        [HasPermission(Permissions.Users_ChangeRole)] // Assuming this permission covers role management
+        [HasPermission(Permissions.Manage_Admins)] // Assuming this permission covers role management
         public IActionResult ManageRoles()
         {
             var roles = _roleManager.Roles.ToList();
@@ -139,7 +139,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_ChangeRole)] // Assuming this permission covers role creation
+        [HasPermission(Permissions.Manage_Admins)] // Assuming this permission covers role creation
         public async Task<IActionResult> CreateRole(string roleName)
         {
             if (string.IsNullOrWhiteSpace(roleName))
