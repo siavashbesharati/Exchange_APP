@@ -11,6 +11,7 @@ namespace ForexExchange.Models
 
         // Document Management
         public const string Documents_View = "مشاهده اسناد";
+        public const string Documents_Detail = "مشاهده جزئیات سند";
         public const string Documents_Create = "ثبت سند";
         public const string Documents_Edit = "ویرایش سند";
         public const string Documents_Delete = "حذف سند";
