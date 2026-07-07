@@ -63,31 +63,16 @@ namespace ForexExchange.Controllers
                 .Select(fi => fi.GetRawConstantValue()?.ToString() ?? string.Empty)
                 .ToList();
 
-            IdentityRole? selectedIdentityRole = null;
-            UserRole selectedUserRole = UserRole.Admin; // Default to Admin enum value
+            string effectiveRoleName = roleName ?? UserRole.Admin.ToString(); // Default to "Admin" if not specified
 
-            if (!string.IsNullOrEmpty(roleName))
-            {
-                selectedIdentityRole = await _roleManager.FindByNameAsync(roleName);
-                if (selectedIdentityRole != null && Enum.TryParse(selectedIdentityRole.Name, out UserRole parsedUserRole))
-                {
-                    selectedUserRole = parsedUserRole;
-                }
-            }
-            else
-            {
-                // If no roleName is provided, try to find the IdentityRole for UserRole.Admin
-                selectedIdentityRole = await _roleManager.FindByNameAsync(UserRole.Admin.ToString());
-            }
-
-            // Get current permissions for the selected role based on UserRole enum
-            var currentRolePermissions = await _permissionService.GetPermissionsForRoleAsync(selectedUserRole);
+            // Get current permissions for the effective role name
+            var currentRolePermissions = await _permissionService.GetPermissionsForRoleAsync(effectiveRoleName);
 
             var viewModel = new RolePermissionViewModel
             {
                 Roles = roles,
                 AllPermissions = allPermissions,
-                SelectedRole = selectedUserRole, // Use the enum value for the ViewModel property
+                SelectedRole = effectiveRoleName, // Set the selected role name as a string
                 CurrentRolePermissions = currentRolePermissions
             };
 
@@ -101,7 +86,7 @@ namespace ForexExchange.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [HasPermission(Permissions.Users_ChangeRole)] // Or a new specific permission for managing role permissions
-        public async Task<IActionResult> UpdateRolePermissions(UserRole selectedRole, List<string> permissionNames)
+        public async Task<IActionResult> UpdateRolePermissions(string selectedRoleName, List<string> permissionNames)
         {
             var currentUser = await _userManager.GetUserAsync(User);
             if (currentUser == null)
@@ -112,28 +97,28 @@ namespace ForexExchange.Controllers
 
             try
             {
-                await _permissionService.SetPermissionsForRoleAsync(selectedRole, permissionNames ?? new List<string>());
+                await _permissionService.SetPermissionsForRoleAsync(selectedRoleName, permissionNames ?? new List<string>());
 
                 await _adminActivityService.LogActivityAsync(
                     currentUser.Id,
                     currentUser.UserName ?? "Unknown",
                     AdminActivityType.RolePermissionsUpdated,
-                    $"دسترسی‌های نقش {selectedRole} بروزرسانی شد.",
-                    entityType: "UserRole",
-                    entityId: null,
+                    $"دسترسی‌های نقش {selectedRoleName} بروزرسانی شد.",
+                    entityType: "IdentityRole", // Changed from UserRole to IdentityRole
+                    entityId: null, // Use the role name string
                     oldValue: null, // Could fetch old permissions if needed for detailed logging
                     newValue: string.Join(", ", permissionNames ?? new List<string>())
                 );
 
-                TempData["Success"] = $"دسترسی‌های نقش {selectedRole} با موفقیت بروزرسانی شد.";
+                TempData["Success"] = $"دسترسی‌های نقش {selectedRoleName} با موفقیت بروزرسانی شد.";
             }
             catch (Exception ex)
             {
-                // Log.Error(ex, "Error updating permissions for role {Role}", selectedRole);
-                TempData["Error"] = $"خطا در بروزرسانی دسترسی‌های نقش {selectedRole}: {ex.Message}";
+                // Log.Error(ex, "Error updating permissions for role {Role}", selectedRoleName);
+                TempData["Error"] = $"خطا در بروزرسانی دسترسی‌های نقش {selectedRoleName}: {ex.Message}";
             }
 
-            return RedirectToAction("ManageRolePermissions", new { roleName = selectedRole.ToString() });
+            return RedirectToAction("ManageRolePermissions", new { roleName = selectedRoleName });
         }
 
         /// <summary>

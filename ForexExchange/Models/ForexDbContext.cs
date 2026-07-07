@@ -595,7 +595,8 @@ namespace ForexExchange.Models
                   modelBuilder.Entity<RolePermission>(entity =>
                   {
                         entity.HasKey(e => e.Id);
-                        entity.HasIndex(e => new { e.UserRole, e.PermissionName }).IsUnique();
+                        entity.Property(e => e.RoleName).IsRequired().HasMaxLength(256); // Match IdentityRole.Name length
+                        entity.HasIndex(e => new { e.RoleName, e.PermissionName }).IsUnique();
                         entity.Property(e => e.PermissionName).IsRequired().HasMaxLength(100);
                   });
             }

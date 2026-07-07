@@ -18,14 +18,14 @@ namespace ForexExchange.Services
         /// </summary>
         /// <param name="role">The UserRole to get permissions for.</param>
         /// <returns>A list of permission names.</returns>
-        Task<List<string>> GetPermissionsForRoleAsync(UserRole role);
+        Task<List<string>> GetPermissionsForRoleAsync(string roleName);
 
         /// <summary>
-        /// Sets the permissions for a specific UserRole.
+        /// Sets the permissions for a specific role.
         /// This will overwrite existing permissions for the role.
         /// </summary>
-        /// <param name="role">The UserRole to set permissions for.</param>
+        /// <param name="roleName">The name of the role to set permissions for.</param>
         /// <param name="permissionNames">The list of permission names to assign to the role.</param>
-        Task SetPermissionsForRoleAsync(UserRole role, List<string> permissionNames);
+        Task SetPermissionsForRoleAsync(string roleName, List<string> permissionNames);
     }
 }

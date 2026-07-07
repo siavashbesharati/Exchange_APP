@@ -28,16 +28,16 @@ namespace ForexExchange.Services
             }
 
             var rolePermissions = await _context.RolePermissions
-                .Where(rp => rp.UserRole == user.Role && rp.PermissionName == permissionName)
+                .Where(rp => rp.RoleName == user.Role.ToString() && rp.PermissionName == permissionName)
                 .AnyAsync();
 
             return rolePermissions;
         }
 
-        public async Task<List<string>> GetPermissionsForRoleAsync(UserRole role)
+        public async Task<List<string>> GetPermissionsForRoleAsync(string roleName)
         {
             // Programmers implicitly have all permissions, but we might want to list them for UI purposes
-            if (role == UserRole.Programmer)
+            if (roleName == UserRole.Programmer.ToString())
             {
                 // Return all defined permissions from the static class
                 var allPermissions = typeof(Permissions)
@@ -49,25 +49,25 @@ namespace ForexExchange.Services
             }
 
             var permissions = await _context.RolePermissions
-                .Where(rp => rp.UserRole == role)
+                .Where(rp => rp.RoleName == roleName)
                 .Select(rp => rp.PermissionName)
                 .ToListAsync();
 
             return permissions;
         }
 
-        public async Task SetPermissionsForRoleAsync(UserRole role, List<string> permissionNames)
+        public async Task SetPermissionsForRoleAsync(string roleName, List<string> permissionNames)
         {
             // Remove existing permissions for the role
             var existingPermissions = await _context.RolePermissions
-                .Where(rp => rp.UserRole == role)
+                .Where(rp => rp.RoleName == roleName)
                 .ToListAsync();
             _context.RolePermissions.RemoveRange(existingPermissions);
 
             // Add new permissions
             var newRolePermissions = permissionNames.Select(pn => new RolePermission
             {
-                UserRole = role,
+                RoleName = roleName,
                 PermissionName = pn
             }).ToList();
 

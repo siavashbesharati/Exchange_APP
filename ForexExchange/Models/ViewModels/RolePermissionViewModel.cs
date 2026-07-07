@@ -8,7 +8,7 @@ namespace ForexExchange.Models.ViewModels
     {
         public List<IdentityRole> Roles { get; set; } = new List<IdentityRole>(); // Changed back to IdentityRole
         public List<string> AllPermissions { get; set; } = new List<string>();
-        public UserRole SelectedRole { get; set; }
+        public string SelectedRole { get; set; }
         public List<string> CurrentRolePermissions { get; set; } = new List<string>();
     }
 }

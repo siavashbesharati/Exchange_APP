@@ -699,14 +699,14 @@ namespace ForexExchange.Services
                 foreach (var permissionName in permissionsForRole)
                 {
                     var exists = await _context.RolePermissions
-                        .AnyAsync(rp => rp.UserRole == role && rp.PermissionName == permissionName);
+                        .AnyAsync(rp => rp.RoleName == role.ToString() && rp.PermissionName == permissionName);
 
                     if (!exists)
                     {
                         permissionsToAdd.Add(new RolePermission
                         {
-                            UserRole = role,
-                            PermissionName = permissionName
+                            RoleName = role.ToString(),
+                            PermissionName = permissionName.ToString()
                         });
                     }
                 }

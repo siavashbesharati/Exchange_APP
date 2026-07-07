@@ -8,7 +8,8 @@ namespace ForexExchange.Models
         public int Id { get; set; }
 
         [Required]
-        public UserRole UserRole { get; set; }
+        [StringLength(256)] // Max length for IdentityRole.Name
+        public string RoleName { get; set; } = string.Empty;
 
         [Required]
         [StringLength(100)]

@@ -1172,12 +1172,14 @@ namespace ForexExchange.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("UserRole")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("RoleName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserRole", "PermissionName")
+                    b.HasIndex("RoleName", "PermissionName")
                         .IsUnique();
 
                     b.ToTable("RolePermissions");
