@@ -1,0 +1,67 @@
+@model ForexExchange.Models.ViewModels.RolePermissionViewModel
+@using Microsoft.AspNetCore.Identity
+@using ForexExchange.Models
+
+@{
+    ViewData["Title"] = "Manage Role Permissions";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div class="row">
+    <div class="col-md-8">
+        <form asp-action="UpdateRolePermissions" method="post">
+            <div asp-validation-summary="All" class="text-danger"></div>
+
+            <div class="form-group mb-3">
+                <label for="selectedRole" class="form-label">Select Role:</label>
+                <select id="selectedRole" name="role" class="form-control"
+                    onchange="window.location.href = '/AdminManagement/ManageRolePermissions?role=' + this.value;">
+                    @foreach (var roleEnum in Model.Roles)
+
+                    {
+                        @if (Model.SelectedRole == roleEnum)
+
+                        {
+                            <option value="@roleEnum" selected="selected">
+                                @roleEnum
+                            </option>
+                        }
+
+                        else
+
+                        {
+                            <option value="@roleEnum">
+                                @roleEnum
+                            </option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <h3>Permissions for @Model.SelectedRole.ToString()</h3>
+            <div class="row">
+                @foreach (var permission in Model.AllPermissions)
+
+                {
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input type="checkbox" name="permissionNames" value="@permission" class="form-check-input"
+                                id="permission_@permission.Replace(".", "_")"
+                            @(Model.CurrentRolePermissions.Contains(permission) ? "checked" : "")>
+                            <label class="form-check-label" for="permission_@permission.Replace(".", "_")">
+                                @permission
+                            </label>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-3">Save Permissions</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

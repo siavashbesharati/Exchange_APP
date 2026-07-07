@@ -231,23 +231,37 @@ namespace ForexExchange.Models
 
         /// <summary>
         /// Pool balance change
-        /// تغییر موجودی داشبورد 
+        /// تغییر موجودی داشبورد
         /// </summary>
         [Display(Name = "Pool Balance Changed - موجودی داشبورد  تغییر یافت")]
         PoolBalanceChanged = 15,
 
         /// <summary>
         /// Pool statistics reset
-        /// ریست آمار داشبورد 
+        /// ریست آمار داشبورد
         /// </summary>
         [Display(Name = "Pool Stats Reset - ریست آمار داشبورد ")]
         PoolStatsReset = 16,
+
+        /// <summary>
+        /// Role permissions updated
+        /// دسترسی نقش به سیستم تغییر یافت
+        /// </summary>
+        [Display(Name = "Role Permissions Updated - دسترسی نقش به سیستم تغییر یافت")]
+        RolePermissionsUpdated = 17,
+
+        /// <summary>
+        /// Role created
+        /// نقش ایجاد شد
+        /// </summary>
+        [Display(Name = "Role Created - نقش ایجاد شد")]
+        RoleCreated = 18,
 
         /// <summary>
         /// Other administrative activities
         /// سایر فعالیت‌های مدیریتی
         /// </summary>
         [Display(Name = "Other - سایر")]
-        Other = 99
+        Other = 99,
     }
 }

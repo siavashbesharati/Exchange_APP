@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using ForexExchange.Authorization; // Add for custom permissions
+using ForexExchange.Models.ViewModels;
 
 namespace ForexExchange.Controllers
 {
@@ -40,6 +41,146 @@ namespace ForexExchange.Controllers
             _totpService = totpService;
             _permissionService = permissionService;
         }
+
+        /// <summary>
+        /// Manage Role Permissions
+        /// مدیریت دسترسی‌های نقش‌ها
+        /// </summary>
+        [HttpGet]
+        [HasPermission(Permissions.Users_ChangeRole)] // Or a new specific permission for managing role permissions
+        public async Task<IActionResult> ManageRolePermissions(UserRole? role = null)
+        {
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null)
+            {
+                return RedirectToAction("Login", "Account");
+            }
+
+            var roles = Enum.GetValues(typeof(UserRole)).Cast<UserRole>().ToList();
+            var allPermissions = typeof(Permissions)
+                .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy)
+                .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string))
+                .Select(fi => fi.GetRawConstantValue()?.ToString() ?? string.Empty)
+                .ToList();
+
+            var selectedRole = role ?? UserRole.Admin; // Default to Admin role
+
+            // Get current permissions for the selected role
+            var currentRolePermissions = await _permissionService.GetPermissionsForRoleAsync(selectedRole);
+
+            var viewModel = new RolePermissionViewModel
+            {
+                Roles = roles,
+                AllPermissions = allPermissions,
+                SelectedRole = selectedRole,
+                CurrentRolePermissions = currentRolePermissions
+            };
+
+            return View(viewModel);
+        }
+
+        /// <summary>
+        /// Update Role Permissions
+        /// بروزرسانی دسترسی‌های نقش
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Users_ChangeRole)] // Or a new specific permission for managing role permissions
+        public async Task<IActionResult> UpdateRolePermissions(UserRole selectedRole, List<string> permissionNames)
+        {
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null)
+            {
+                TempData["Error"] = "برای انجام این عملیات ابتدا وارد شوید.";
+                return RedirectToAction("Login", "Account");
+            }
+
+            try
+            {
+                await _permissionService.SetPermissionsForRoleAsync(selectedRole, permissionNames ?? new List<string>());
+
+                await _adminActivityService.LogActivityAsync(
+                    currentUser.Id,
+                    currentUser.UserName ?? "Unknown",
+                    AdminActivityType.RolePermissionsUpdated,
+                    $"دسترسی‌های نقش {selectedRole} بروزرسانی شد.",
+                    entityType: "UserRole",
+                    entityId: ((int)selectedRole),
+                    oldValue: null, // Could fetch old permissions if needed for detailed logging
+                    newValue: string.Join(", ", permissionNames ?? new List<string>())
+                );
+
+                TempData["Success"] = $"دسترسی‌های نقش {selectedRole} با موفقیت بروزرسانی شد.";
+            }
+            catch (Exception ex)
+            {
+                // Log.Error(ex, "Error updating permissions for role {Role}", selectedRole);
+                TempData["Error"] = $"خطا در بروزرسانی دسترسی‌های نقش {selectedRole}: {ex.Message}";
+            }
+
+            return RedirectToAction("ManageRolePermissions", new { role = selectedRole });
+        }
+
+        /// <summary>
+        /// Manage Roles
+        /// مدیریت نقش‌ها
+        /// </summary>
+        [HttpGet]
+        [HasPermission(Permissions.Users_ChangeRole)] // Assuming this permission covers role management
+        public IActionResult ManageRoles()
+        {
+            var roles = _roleManager.Roles.ToList();
+            return View(roles);
+        }
+
+        /// <summary>
+        /// Create New Role
+        /// ایجاد نقش جدید
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Users_ChangeRole)] // Assuming this permission covers role creation
+        public async Task<IActionResult> CreateRole(string roleName)
+        {
+            if (string.IsNullOrWhiteSpace(roleName))
+            {
+                TempData["Error"] = "نام نقش نمی‌تواند خالی باشد.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            if (await _roleManager.RoleExistsAsync(roleName))
+            {
+                TempData["Error"] = $"نقشی با نام '{roleName}' قبلاً وجود دارد.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            var result = await _roleManager.CreateAsync(new IdentityRole(roleName));
+
+            if (result.Succeeded)
+            {
+                var currentUser = await _userManager.GetUserAsync(User);
+                if (currentUser != null)
+                {
+                    await _adminActivityService.LogActivityAsync(
+                        currentUser.Id,
+                        currentUser.UserName ?? "Unknown",
+                        AdminActivityType.RoleCreated,
+                        $"نقش جدید '{roleName}' ایجاد شد.",
+                        entityType: "IdentityRole",
+                        entityId: ((int)AdminActivityType.RoleCreated)
+                    );
+                }
+                TempData["Success"] = $"نقش '{roleName}' با موفقیت ایجاد شد.";
+            }
+            else
+            {
+                TempData["Error"] = $"خطا در ایجاد نقش: {string.Join(", ", result.Errors.Select(e => e.Description))}";
+            }
+
+            return RedirectToAction("ManageRoles");
+        }
+
+
 
         /// <summary>
         /// Admin Activity Log Index
