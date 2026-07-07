@@ -377,7 +377,6 @@ namespace ForexExchange.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_RegenerateTotpSecret)]
         public async Task<IActionResult> RegenerateTotpSecret(string userId)
         {
             if (string.IsNullOrWhiteSpace(userId))
@@ -429,7 +428,6 @@ namespace ForexExchange.Controllers
         [HttpPost]
         [Authorize(Roles = "Programmer")]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_ResetAllSessions)]
         public async Task<IActionResult> ResetAllSessions()
         {
             var currentAdmin = await _userManager.GetUserAsync(User);
@@ -464,7 +462,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_Create)]
+        [HasPermission(Permissions.Manage_Admins)]
         public async Task<IActionResult> CreateAdmin(string userName, string email, string password, UserRole role, string fullName)
         {
             if (string.IsNullOrEmpty(userName) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
@@ -544,7 +542,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_ChangeRole)]
+        [HasPermission(Permissions.Manage_Admins)]
         public async Task<IActionResult> ChangeAdminRole(string userId, UserRole newRole)
         {
             var user = await _userManager.FindByIdAsync(userId);
@@ -639,7 +637,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_Delete)]
+        [HasPermission(Permissions.Manage_Admins)]
         public async Task<IActionResult> DeleteAdmin(string userId)
         {
             var user = await _userManager.FindByIdAsync(userId);
@@ -775,7 +773,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Users_Edit)]
+        [HasPermission(Permissions.Manage_Admins)]
         public async Task<IActionResult> EditAdmin(string userId, string email, string fullName)
         {
             try

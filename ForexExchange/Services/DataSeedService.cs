@@ -1,7 +1,7 @@
+using ForexExchange.Extensions;
+using ForexExchange.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using ForexExchange.Models;
-using ForexExchange.Extensions;
 
 namespace ForexExchange.Services
 {
@@ -25,7 +25,8 @@ namespace ForexExchange.Services
             ForexDbContext context,
             ILogger<DataSeedService> logger,
             IWebScrapingService webScrapingService,
-            ICentralFinancialService centralFinancialService)
+            ICentralFinancialService centralFinancialService
+        )
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -99,13 +100,83 @@ namespace ForexExchange.Services
             var now = DateTime.Now;
             var defaults = new List<Currency>
             {
-                new() { Code = "IRR", Name = "Iranian Toman", PersianName = "تومان", Symbol = "﷼", IsActive = true, DisplayOrder = 1, CreatedAt = now, RatePriority = 8},
-                new() { Code = "USD", Name = "US Dollar", PersianName = "دلار آمریکا", Symbol = "$", IsActive = true, DisplayOrder = 4, CreatedAt = now, RatePriority = 3},
-                new() { Code = "EUR", Name = "Euro", PersianName = "یورو", Symbol = "€", IsActive = true, DisplayOrder = 5, CreatedAt = now, RatePriority = 2},
-                new() { Code = "AED", Name = "UAE Dirham", PersianName = "درهم امارات", Symbol = "د.إ", IsActive = true, DisplayOrder = 3, CreatedAt = now, RatePriority = 4},
-                new() { Code = "OMR", Name = "Omani Rial", PersianName = "ریال عمان", Symbol = "ر.ع.", IsActive = true, DisplayOrder = 2, CreatedAt = now, RatePriority = 1},
-                new() { Code = "TRY", Name = "Turkish Lira", PersianName = "لیر ترکیه", Symbol = "₺", IsActive = true, DisplayOrder = 6, CreatedAt = now, RatePriority = 6},
-                new() { Code = "CNY", Name = "Chinese Yuan", PersianName = "یوان چین", Symbol = "¥", IsActive = true, DisplayOrder = 7, CreatedAt = now, RatePriority = 5},
+                new()
+                {
+                    Code = "IRR",
+                    Name = "Iranian Toman",
+                    PersianName = "تومان",
+                    Symbol = "﷼",
+                    IsActive = true,
+                    DisplayOrder = 1,
+                    CreatedAt = now,
+                    RatePriority = 8,
+                },
+                new()
+                {
+                    Code = "USD",
+                    Name = "US Dollar",
+                    PersianName = "دلار آمریکا",
+                    Symbol = "$",
+                    IsActive = true,
+                    DisplayOrder = 4,
+                    CreatedAt = now,
+                    RatePriority = 3,
+                },
+                new()
+                {
+                    Code = "EUR",
+                    Name = "Euro",
+                    PersianName = "یورو",
+                    Symbol = "€",
+                    IsActive = true,
+                    DisplayOrder = 5,
+                    CreatedAt = now,
+                    RatePriority = 2,
+                },
+                new()
+                {
+                    Code = "AED",
+                    Name = "UAE Dirham",
+                    PersianName = "درهم امارات",
+                    Symbol = "د.إ",
+                    IsActive = true,
+                    DisplayOrder = 3,
+                    CreatedAt = now,
+                    RatePriority = 4,
+                },
+                new()
+                {
+                    Code = "OMR",
+                    Name = "Omani Rial",
+                    PersianName = "ریال عمان",
+                    Symbol = "ر.ع.",
+                    IsActive = true,
+                    DisplayOrder = 2,
+                    CreatedAt = now,
+                    RatePriority = 1,
+                },
+                new()
+                {
+                    Code = "TRY",
+                    Name = "Turkish Lira",
+                    PersianName = "لیر ترکیه",
+                    Symbol = "₺",
+                    IsActive = true,
+                    DisplayOrder = 6,
+                    CreatedAt = now,
+                    RatePriority = 6,
+                },
+                new()
+                {
+                    Code = "CNY",
+                    Name = "Chinese Yuan",
+                    PersianName = "یوان چین",
+                    Symbol = "¥",
+                    IsActive = true,
+                    DisplayOrder = 7,
+                    CreatedAt = now,
+                    RatePriority = 5,
+                },
             };
 
             _context.Currencies.AddRange(defaults);
@@ -122,11 +193,13 @@ namespace ForexExchange.Services
             foreach (var userRole in userRoles)
             {
                 var roleName = userRole.ToString();
-                
+
                 if (!await _roleManager.RoleExistsAsync(roleName))
                 {
                     await _roleManager.CreateAsync(new IdentityRole(roleName));
-                    _logger.LogInformation($"Role '{roleName}' ({userRole.GetDisplayName()}) created successfully");
+                    _logger.LogInformation(
+                        $"Role '{roleName}' ({userRole.GetDisplayName()}) created successfully"
+                    );
                 }
             }
         }
@@ -136,8 +209,22 @@ namespace ForexExchange.Services
             // Define multiple admin users with their phone numbers as passwords
             var adminUsers = new[]
             {
-                new { Phone = "00989195410188", Email = "siavash@iranexpedia.ir", FullName = " توسعه دهنده ", Password = "roberto2025@#$ASD",Role = UserRole.Programmer },
-                new { Phone = "00989120674032", Email = "exsora@iranexpedia.ir", FullName = "سیاوش", Password = "admindemo1",Role = UserRole.Admin },
+                new
+                {
+                    Phone = "00989195410188",
+                    Email = "siavash@iranexpedia.ir",
+                    FullName = " توسعه دهنده ",
+                    Password = "roberto2025@#$ASD",
+                    Role = UserRole.Programmer,
+                },
+                new
+                {
+                    Phone = "00989120674032",
+                    Email = "exsora@iranexpedia.ir",
+                    FullName = "سیاوش",
+                    Password = "admindemo1",
+                    Role = UserRole.Admin,
+                },
             };
 
             foreach (var adminData in adminUsers)
@@ -152,7 +239,9 @@ namespace ForexExchange.Services
                     var updateResult = await _userManager.UpdateAsync(adminUser);
                     if (updateResult.Succeeded)
                     {
-                        _logger.LogInformation($"Updated existing admin user to use phone number as username: {adminData.Phone}");
+                        _logger.LogInformation(
+                            $"Updated existing admin user to use phone number as username: {adminData.Phone}"
+                        );
                     }
                     continue;
                 }
@@ -174,7 +263,7 @@ namespace ForexExchange.Services
                         IsActive = true,
                         CreatedAt = DateTime.Now,
                         EmailConfirmed = true,
-                        PhoneNumber = adminData.Phone
+                        PhoneNumber = adminData.Phone,
                     };
 
                     var result = await _userManager.CreateAsync(adminUser, adminData.Password);
@@ -184,12 +273,16 @@ namespace ForexExchange.Services
                         // Use the enum value as role name
                         var roleName = adminData.Role.ToString();
                         await _userManager.AddToRoleAsync(adminUser, roleName);
-                        _logger.LogInformation($"Admin user created successfully with username: {adminData.Phone}, email: {adminData.Email}, and role: {roleName}");
+                        _logger.LogInformation(
+                            $"Admin user created successfully with username: {adminData.Phone}, email: {adminData.Email}, and role: {roleName}"
+                        );
                     }
                     else
                     {
                         var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                        _logger.LogError($"Failed to create admin user {adminData.Phone}: {errors}");
+                        _logger.LogError(
+                            $"Failed to create admin user {adminData.Phone}: {errors}"
+                        );
                     }
                 }
                 else
@@ -205,8 +298,7 @@ namespace ForexExchange.Services
         /// </summary>
         private async Task CreateSystemCustomerAsync()
         {
-            var systemCustomer = await _context.Customers
-                .FirstOrDefaultAsync(c => c.IsSystem);
+            var systemCustomer = await _context.Customers.FirstOrDefaultAsync(c => c.IsSystem);
 
             if (systemCustomer == null)
             {
@@ -219,12 +311,11 @@ namespace ForexExchange.Services
                     Address = "سیستم داخلی",
                     IsActive = true,
                     IsSystem = true,
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.Now,
                 };
 
                 _context.Customers.Add(systemCustomer);
                 await _context.SaveChangesAsync();
-
 
                 _logger.LogInformation("System customer created successfully");
             }
@@ -250,31 +341,42 @@ namespace ForexExchange.Services
                 }
 
                 // Check if system bank accounts already exist
-                var existingSystemBankAccounts = await _context.BankAccounts
-                    .Where(ba => ba.CustomerId == systemCustomer.Id)
+                var existingSystemBankAccounts = await _context
+                    .BankAccounts.Where(ba => ba.CustomerId == systemCustomer.Id)
                     .CountAsync();
 
                 if (existingSystemBankAccounts > 0)
                 {
-                    _logger.LogInformation($"{existingSystemBankAccounts} system bank accounts already exist, skipping bank account seeding");
+                    _logger.LogInformation(
+                        $"{existingSystemBankAccounts} system bank accounts already exist, skipping bank account seeding"
+                    );
                     return;
                 }
 
-                var currencies = await _context.Currencies
-                    .Where(c => c.IsActive)
-                    .ToListAsync();
+                var currencies = await _context.Currencies.Where(c => c.IsActive).ToListAsync();
 
                 var random = new Random();
-                var bankNames = new[] { "بانک ملی", "بانک صادرات", "بانک تجارت", "بانک کشاورزی", "بانک پارسیان", "بانک پاسارگاد" };
+                var bankNames = new[]
+                {
+                    "بانک ملی",
+                    "بانک صادرات",
+                    "بانک تجارت",
+                    "بانک کشاورزی",
+                    "بانک پارسیان",
+                    "بانک پاسارگاد",
+                };
                 var totalAccountsCreated = 0;
 
-                _logger.LogInformation($"Creating system bank accounts for {currencies.Count} active currencies");
+                _logger.LogInformation(
+                    $"Creating system bank accounts for {currencies.Count} active currencies"
+                );
 
                 foreach (var currency in currencies)
                 {
                     var bankName = bankNames[random.Next(bankNames.Length)];
                     var accountNumber = $"SYS{currency.Code}{random.Next(100000, 999999)}";
-                    var iban = $"IR{random.Next(10, 99)}{random.Next(1000, 9999)}{random.Next(100000000, 999999999)}";
+                    var iban =
+                        $"IR{random.Next(10, 99)}{random.Next(1000, 9999)}{random.Next(100000000, 999999999)}";
                     var initialBalance = (decimal)(random.NextDouble() * 500000 + 100000); // Random balance 100K-600K
 
                     var bankAccount = new BankAccount
@@ -290,17 +392,22 @@ namespace ForexExchange.Services
                         IsDefault = currency.Code == "IRR", // Make base currency account default
                         AccountBalance = Math.Round(initialBalance, 2),
                         CreatedAt = DateTime.Now,
-                        Notes = $"حساب سیستم برای ارز {currency.Name} - ایجاد شده توسط DataSeedService"
+                        Notes =
+                            $"حساب سیستم برای ارز {currency.Name} - ایجاد شده توسط DataSeedService",
                     };
 
                     _context.BankAccounts.Add(bankAccount);
                     totalAccountsCreated++;
 
-                    _logger.LogInformation($"Created system bank account for {currency.Code}: {accountNumber} with balance {initialBalance:N2}");
+                    _logger.LogInformation(
+                        $"Created system bank account for {currency.Code}: {accountNumber} with balance {initialBalance:N2}"
+                    );
                 }
 
                 await _context.SaveChangesAsync();
-                _logger.LogInformation($"Successfully created {totalAccountsCreated} system bank accounts");
+                _logger.LogInformation(
+                    $"Successfully created {totalAccountsCreated} system bank accounts"
+                );
             }
             catch (Exception ex)
             {
@@ -317,18 +424,34 @@ namespace ForexExchange.Services
                 var existingRatesCount = await _context.ExchangeRates.CountAsync();
                 if (existingRatesCount > 0)
                 {
-                    _logger.LogInformation($"{existingRatesCount} exchange rates already exist, skipping rate seeding");
+                    _logger.LogInformation(
+                        $"{existingRatesCount} exchange rates already exist, skipping rate seeding"
+                    );
                     return;
                 }
 
                 // Get currencies
-                var omrCurrency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == "OMR");
-                var eurCurrency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == "EUR");
-                var usdCurrency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == "USD");
-                var aedCurrency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == "AED");
-                var cnyCurrency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == "CNY");
-                var tryCurrency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == "TRY");
-                var irrCurrency = await _context.Currencies.FirstOrDefaultAsync(c => c.Code == "IRR");
+                var omrCurrency = await _context.Currencies.FirstOrDefaultAsync(c =>
+                    c.Code == "OMR"
+                );
+                var eurCurrency = await _context.Currencies.FirstOrDefaultAsync(c =>
+                    c.Code == "EUR"
+                );
+                var usdCurrency = await _context.Currencies.FirstOrDefaultAsync(c =>
+                    c.Code == "USD"
+                );
+                var aedCurrency = await _context.Currencies.FirstOrDefaultAsync(c =>
+                    c.Code == "AED"
+                );
+                var cnyCurrency = await _context.Currencies.FirstOrDefaultAsync(c =>
+                    c.Code == "CNY"
+                );
+                var tryCurrency = await _context.Currencies.FirstOrDefaultAsync(c =>
+                    c.Code == "TRY"
+                );
+                var irrCurrency = await _context.Currencies.FirstOrDefaultAsync(c =>
+                    c.Code == "IRR"
+                );
 
                 if (omrCurrency == null)
                 {
@@ -342,91 +465,107 @@ namespace ForexExchange.Services
                 // OMR to other currencies (OMR as base)
                 if (eurCurrency != null)
                 {
-                    exchangeRates.Add(new ExchangeRate
-                    {
-                        FromCurrencyId = omrCurrency.Id,
-                        ToCurrencyId = eurCurrency.Id,
-                        Rate = 2.22m,
-                        IsActive = true,
-                        UpdatedAt = now,
-                        UpdatedBy = "DataSeed-System"
-                    });
+                    exchangeRates.Add(
+                        new ExchangeRate
+                        {
+                            FromCurrencyId = omrCurrency.Id,
+                            ToCurrencyId = eurCurrency.Id,
+                            Rate = 2.22m,
+                            IsActive = true,
+                            UpdatedAt = now,
+                            UpdatedBy = "DataSeed-System",
+                        }
+                    );
                 }
 
                 if (usdCurrency != null)
                 {
-                    exchangeRates.Add(new ExchangeRate
-                    {
-                        FromCurrencyId = omrCurrency.Id,
-                        ToCurrencyId = usdCurrency.Id,
-                        Rate = 2.60m,
-                        IsActive = true,
-                        UpdatedAt = now,
-                        UpdatedBy = "DataSeed-System"
-                    });
+                    exchangeRates.Add(
+                        new ExchangeRate
+                        {
+                            FromCurrencyId = omrCurrency.Id,
+                            ToCurrencyId = usdCurrency.Id,
+                            Rate = 2.60m,
+                            IsActive = true,
+                            UpdatedAt = now,
+                            UpdatedBy = "DataSeed-System",
+                        }
+                    );
                 }
 
                 if (aedCurrency != null)
                 {
-                    exchangeRates.Add(new ExchangeRate
-                    {
-                        FromCurrencyId = omrCurrency.Id,
-                        ToCurrencyId = aedCurrency.Id,
-                        Rate = 9.55m,
-                        IsActive = true,
-                        UpdatedAt = now,
-                        UpdatedBy = "DataSeed-System"
-                    });
+                    exchangeRates.Add(
+                        new ExchangeRate
+                        {
+                            FromCurrencyId = omrCurrency.Id,
+                            ToCurrencyId = aedCurrency.Id,
+                            Rate = 9.55m,
+                            IsActive = true,
+                            UpdatedAt = now,
+                            UpdatedBy = "DataSeed-System",
+                        }
+                    );
                 }
 
                 if (cnyCurrency != null)
                 {
-                    exchangeRates.Add(new ExchangeRate
-                    {
-                        FromCurrencyId = omrCurrency.Id,
-                        ToCurrencyId = cnyCurrency.Id,
-                        Rate = 18.51m,
-                        IsActive = true,
-                        UpdatedAt = now,
-                        UpdatedBy = "DataSeed-System"
-                    });
+                    exchangeRates.Add(
+                        new ExchangeRate
+                        {
+                            FromCurrencyId = omrCurrency.Id,
+                            ToCurrencyId = cnyCurrency.Id,
+                            Rate = 18.51m,
+                            IsActive = true,
+                            UpdatedAt = now,
+                            UpdatedBy = "DataSeed-System",
+                        }
+                    );
                 }
 
                 if (tryCurrency != null)
                 {
-                    exchangeRates.Add(new ExchangeRate
-                    {
-                        FromCurrencyId = omrCurrency.Id,
-                        ToCurrencyId = tryCurrency.Id,
-                        Rate = 108.44m,
-                        IsActive = true,
-                        UpdatedAt = now,
-                        UpdatedBy = "DataSeed-System"
-                    });
+                    exchangeRates.Add(
+                        new ExchangeRate
+                        {
+                            FromCurrencyId = omrCurrency.Id,
+                            ToCurrencyId = tryCurrency.Id,
+                            Rate = 108.44m,
+                            IsActive = true,
+                            UpdatedAt = now,
+                            UpdatedBy = "DataSeed-System",
+                        }
+                    );
                 }
 
                 if (irrCurrency != null)
                 {
-                    exchangeRates.Add(new ExchangeRate
-                    {
-                        FromCurrencyId = omrCurrency.Id,
-                        ToCurrencyId = irrCurrency.Id,
-                        Rate = 291500m,
-                        IsActive = true,
-                        UpdatedAt = now,
-                        UpdatedBy = "DataSeed-System"
-                    });
+                    exchangeRates.Add(
+                        new ExchangeRate
+                        {
+                            FromCurrencyId = omrCurrency.Id,
+                            ToCurrencyId = irrCurrency.Id,
+                            Rate = 291500m,
+                            IsActive = true,
+                            UpdatedAt = now,
+                            UpdatedBy = "DataSeed-System",
+                        }
+                    );
                 }
 
                 if (exchangeRates.Any())
                 {
                     _context.ExchangeRates.AddRange(exchangeRates);
                     await _context.SaveChangesAsync();
-                    _logger.LogInformation($"Successfully seeded {exchangeRates.Count} OMR-based exchange rates");
+                    _logger.LogInformation(
+                        $"Successfully seeded {exchangeRates.Count} OMR-based exchange rates"
+                    );
                 }
                 else
                 {
-                    _logger.LogWarning("No exchange rates were created - currencies may be missing");
+                    _logger.LogWarning(
+                        "No exchange rates were created - currencies may be missing"
+                    );
                 }
             }
             catch (Exception ex)
@@ -444,32 +583,102 @@ namespace ForexExchange.Services
             try
             {
                 // Check if customers already exist (excluding system customer)
-                var existingCustomerCount = await _context.Customers
-                    .Where(c => !c.IsSystem)
+                var existingCustomerCount = await _context
+                    .Customers.Where(c => !c.IsSystem)
                     .CountAsync();
 
                 if (existingCustomerCount >= 5)
                 {
-                    _logger.LogInformation($"{existingCustomerCount} customers already exist, skipping customer seeding");
+                    _logger.LogInformation(
+                        $"{existingCustomerCount} customers already exist, skipping customer seeding"
+                    );
                     return;
                 }
 
                 var random = new Random();
 
                 // Persian male names
-                var persianMaleNames = new[] { "علی", "محمد", "حسن", "حسین", "احمد", "مهدی", "رضا", "امیر", "سعید", "محسن", "حامد", "مسعود", "فرهاد", "بهروز", "کیوان", "آرمان", "پوریا", "آرین", "سینا", "دانیال" };
+                var persianMaleNames = new[]
+                {
+                    "علی",
+                    "محمد",
+                    "حسن",
+                    "حسین",
+                    "احمد",
+                    "مهدی",
+                    "رضا",
+                    "امیر",
+                    "سعید",
+                    "محسن",
+                    "حامد",
+                    "مسعود",
+                    "فرهاد",
+                    "بهروز",
+                    "کیوان",
+                    "آرمان",
+                    "پوریا",
+                    "آرین",
+                    "سینا",
+                    "دانیال",
+                };
 
                 // Persian female names
-                var persianFemaleNames = new[] { "فاطمه", "زهرا", "مریم", "آیدا", "نرگس", "پریسا", "سارا", "نازنین", "مینا", "شیما", "الهام", "نیلوفر", "مهسا", "طاهره", "زینب", "نگار", "ریحانه", "سمیرا", "لیلا", "مهناز" };
+                var persianFemaleNames = new[]
+                {
+                    "فاطمه",
+                    "زهرا",
+                    "مریم",
+                    "آیدا",
+                    "نرگس",
+                    "پریسا",
+                    "سارا",
+                    "نازنین",
+                    "مینا",
+                    "شیما",
+                    "الهام",
+                    "نیلوفر",
+                    "مهسا",
+                    "طاهره",
+                    "زینب",
+                    "نگار",
+                    "ریحانه",
+                    "سمیرا",
+                    "لیلا",
+                    "مهناز",
+                };
 
-                var persianLastNames = new[] { "احمدی", "محمدی", "حسینی", "رضایی", "موسوی", "کریمی", "حسنی", "صادقی", "مرادی", "علوی", "قاسمی", "بابایی", "نوری", "صالحی", "طاهری", "کاظمی", "جعفری", "رحیمی", "فروغی", "کامرانی" };
+                var persianLastNames = new[]
+                {
+                    "احمدی",
+                    "محمدی",
+                    "حسینی",
+                    "رضایی",
+                    "موسوی",
+                    "کریمی",
+                    "حسنی",
+                    "صادقی",
+                    "مرادی",
+                    "علوی",
+                    "قاسمی",
+                    "بابایی",
+                    "نوری",
+                    "صالحی",
+                    "طاهری",
+                    "کاظمی",
+                    "جعفری",
+                    "رحیمی",
+                    "فروغی",
+                    "کامرانی",
+                };
 
                 var customers = new List<Customer>();
                 var now = DateTime.Now;
 
                 // Create 5-10 customers (random number)
                 var customerCount = random.Next(5, 11);
-                _logger.LogInformation($"Creating {customerCount} test customers with proper gender assignment");
+                _logger.LogInformation(
+                    $"Creating {customerCount} test customers with proper gender assignment"
+                );
 
                 for (int i = 1; i <= customerCount; i++)
                 {
@@ -494,12 +703,13 @@ namespace ForexExchange.Services
                         FullName = $"{firstName} {lastName}",
                         PhoneNumber = $"0912{random.Next(1000000, 9999999)}",
                         Email = $"customer{i}@test.com",
-                        NationalId = $"{random.Next(100, 999)}{random.Next(100000, 999999)}{random.Next(100, 999)}",
+                        NationalId =
+                            $"{random.Next(100, 999)}{random.Next(100000, 999999)}{random.Next(100, 999)}",
                         Address = $"تهران، خیابان {random.Next(1, 50)}، پلاک {random.Next(1, 200)}",
                         IsActive = true,
                         IsSystem = false,
                         Gender = isMale, // true for male, false for female
-                        CreatedAt = now.AddDays(-random.Next(1, 365)) // Random creation date within last year
+                        CreatedAt = now.AddDays(-random.Next(1, 365)), // Random creation date within last year
                     };
 
                     customers.Add(customer);
@@ -508,7 +718,9 @@ namespace ForexExchange.Services
                 _context.Customers.AddRange(customers);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"Created {customerCount} test customers successfully with proper gender assignment");
+                _logger.LogInformation(
+                    $"Created {customerCount} test customers successfully with proper gender assignment"
+                );
             }
             catch (Exception ex)
             {
@@ -527,13 +739,13 @@ namespace ForexExchange.Services
                 var existingPools = await _context.CurrencyPools.CountAsync();
                 if (existingPools > 0)
                 {
-                    _logger.LogInformation($"{existingPools} currency pools already exist, skipping pool seeding");
+                    _logger.LogInformation(
+                        $"{existingPools} currency pools already exist, skipping pool seeding"
+                    );
                     return;
                 }
 
-                var currencies = await _context.Currencies
-                    .OrderBy(c => c.Id)
-                    .ToListAsync();
+                var currencies = await _context.Currencies.OrderBy(c => c.Id).ToListAsync();
 
                 var pools = new List<CurrencyPool>();
 
@@ -551,7 +763,7 @@ namespace ForexExchange.Services
                         RiskLevel = PoolRiskLevel.Low,
                         IsActive = true,
                         LastUpdated = DateTime.UtcNow,
-                        Notes = $"{currency.Name} pool - initial setup"
+                        Notes = $"{currency.Name} pool - initial setup",
                     };
                     pools.Add(pool);
                 }
@@ -579,35 +791,45 @@ namespace ForexExchange.Services
                 var settingsToAdd = new List<SystemSettings>();
 
                 // Define all default settings with their keys
-                var defaultSettingsData = new Dictionary<string, (string Value, string Description, string DataType)>
+                var defaultSettingsData = new Dictionary<
+                    string,
+                    (string Value, string Description, string DataType)
+                >
                 {
                     // Website Branding Settings
-                    { SettingKeys.WebsiteName, ("سامانه معاملات اکسورا", "نام وب‌سایت", "string") },
+                    {
+                        SettingKeys.WebsiteName,
+                        ("سامانه معاملات اکسورا", "نام وب‌سایت", "string")
+                    },
                     { SettingKeys.CompanyName, ("گروه اکسورا", "نام شرکت", "string") },
-                    { SettingKeys.CompanyWebsite, ("https://Exsora.iranexpedia.ir", "وب‌سایت شرکت", "string") }
+                    {
+                        SettingKeys.CompanyWebsite,
+                        ("https://Exsora.iranexpedia.ir", "وب‌سایت شرکت", "string")
+                    },
                 };
-
-
 
                 // Check each setting and add only if it doesn't exist
                 foreach (var (settingKey, (value, description, dataType)) in defaultSettingsData)
                 {
-                    var existingSetting = await _context.SystemSettings
-                        .FirstOrDefaultAsync(s => s.SettingKey == settingKey);
+                    var existingSetting = await _context.SystemSettings.FirstOrDefaultAsync(s =>
+                        s.SettingKey == settingKey
+                    );
 
                     if (existingSetting == null)
                     {
-                        settingsToAdd.Add(new SystemSettings
-                        {
-                            SettingKey = settingKey,
-                            SettingValue = value,
-                            Description = description,
-                            DataType = dataType,
-                            IsActive = true,
-                            CreatedAt = now,
-                            UpdatedAt = now,
-                            UpdatedBy = "DataSeedService"
-                        });
+                        settingsToAdd.Add(
+                            new SystemSettings
+                            {
+                                SettingKey = settingKey,
+                                SettingValue = value,
+                                Description = description,
+                                DataType = dataType,
+                                IsActive = true,
+                                CreatedAt = now,
+                                UpdatedAt = now,
+                                UpdatedBy = "DataSeedService",
+                            }
+                        );
                     }
                 }
 
@@ -615,11 +837,15 @@ namespace ForexExchange.Services
                 {
                     _context.SystemSettings.AddRange(settingsToAdd);
                     await _context.SaveChangesAsync();
-                    _logger.LogInformation($"Successfully seeded {settingsToAdd.Count} new default system settings");
+                    _logger.LogInformation(
+                        $"Successfully seeded {settingsToAdd.Count} new default system settings"
+                    );
                 }
                 else
                 {
-                    _logger.LogInformation("All default system settings already exist, skipping settings seeding");
+                    _logger.LogInformation(
+                        "All default system settings already exist, skipping settings seeding"
+                    );
                 }
             }
             catch (Exception ex)
@@ -638,55 +864,86 @@ namespace ForexExchange.Services
 
             var allPermissions = new List<string>
             {
+                // Order Management
+                Permissions.Order_View,
+                Permissions.Order_Detail,
+                Permissions.Order_Create,
+                Permissions.Order_Edit,
+                Permissions.Order_Delete,
                 // Document Management
                 Permissions.Documents_View,
+                Permissions.Documents_Detail,
                 Permissions.Documents_Create,
                 Permissions.Documents_Edit,
                 Permissions.Documents_Delete,
-
-                // User Management
-                Permissions.Users_View,
-                Permissions.Users_Create,
-                Permissions.Users_Edit,
-                Permissions.Users_ChangeRole,
-                Permissions.Users_Delete,
-                Permissions.Users_RegenerateTotpSecret,
-                Permissions.Users_ResetAllSessions,
+                Permissions.Documents_Confirm,
+                // Reports
+                Permissions.Reports,
+                Permissions.Customer_Reports,
+                Permissions.All_Customers_Balances,
+                Permissions.Bank_Account_Reports,
+                Permissions.Admin_Reports,
+                Permissions.Pool_Reports,
+                Permissions.Order_Reports,
+                Permissions.Document_Reports,
+                Permissions.Pool_Summary_Reports,
+                Permissions.Customer_BankHistory_Report,
+                Permissions.Expenses_Report,
+                // Tasks
+                Permissions.Tasks_View,
+                Permissions.Tasks_Detail,
+                Permissions.Tasks_Create,
+                Permissions.Tasks_Edit,
+                Permissions.Tasks_Delete,
+                // Advance Management
+                Permissions.Advance_Management,
+                // Bank Accounts
+                Permissions.Bank_Accounts_View,
+                Permissions.Bank_Accounts_Detail,
+                Permissions.Bank_Accounts_Create,
+                Permissions.Bank_Accounts_Edit,
+                Permissions.Bank_Accounts_Delete,
+                // Customers
+                Permissions.Customers_View,
+                Permissions.Customers_Detail,
+                Permissions.Customers_Create,
+                Permissions.Customers_Edit,
+                Permissions.Customers_Delete,
+                // Exchange Rates
+                Permissions.Exchange_Rates_Management,
+                // Profile
+                Permissions.Profile_View,
+                // Admin Management
+                Permissions.Manage_Admins,
+                // Database Management
+                Permissions.Database_Management,
             };
 
             var rolePermissionsMap = new Dictionary<UserRole, List<string>>
             {
                 { UserRole.Programmer, allPermissions }, // Programmer has all permissions
                 {
-                    UserRole.Admin, new List<string>
+                    UserRole.Admin,
+                    new List<string>
                     {
                         Permissions.Documents_View,
                         Permissions.Documents_Create,
                         Permissions.Documents_Edit,
                         Permissions.Documents_Delete,
-
-                        Permissions.Users_View,
-                        Permissions.Users_Create,
-                        Permissions.Users_Edit,
-                        Permissions.Users_ChangeRole,
-                        // Admins should not be able to delete other admins or reset sessions/TOTP for security reasons
-                        // Permissions.Users_Delete,
-                        // Permissions.Users_RegenerateTotpSecret,
-                        // Permissions.Users_ResetAllSessions,
+                        
                     }
                 },
                 {
-                    UserRole.Operator, new List<string>
+                    UserRole.Operator,
+                    new List<string>
                     {
                         Permissions.Documents_View,
                         Permissions.Documents_Create,
                         // Operators can create documents but not edit or delete them initially
-
-                        Permissions.Users_View,
                         // Operators can view users but not create, edit, change roles, or delete them
                     }
                 },
-                { UserRole.Customer, new List<string>() } // Customers have no admin permissions
+                { UserRole.Customer, new List<string>() }, // Customers have no admin permissions
             };
 
             var permissionsToAdd = new List<RolePermission>();
@@ -698,16 +955,19 @@ namespace ForexExchange.Services
 
                 foreach (var permissionName in permissionsForRole)
                 {
-                    var exists = await _context.RolePermissions
-                        .AnyAsync(rp => rp.RoleName == role.ToString() && rp.PermissionName == permissionName);
+                    var exists = await _context.RolePermissions.AnyAsync(rp =>
+                        rp.RoleName == role.ToString() && rp.PermissionName == permissionName
+                    );
 
                     if (!exists)
                     {
-                        permissionsToAdd.Add(new RolePermission
-                        {
-                            RoleName = role.ToString(),
-                            PermissionName = permissionName.ToString()
-                        });
+                        permissionsToAdd.Add(
+                            new RolePermission
+                            {
+                                RoleName = role.ToString(),
+                                PermissionName = permissionName.ToString(),
+                            }
+                        );
                     }
                 }
             }
@@ -716,7 +976,9 @@ namespace ForexExchange.Services
             {
                 _context.RolePermissions.AddRange(permissionsToAdd);
                 await _context.SaveChangesAsync();
-                _logger.LogInformation($"Successfully seeded {permissionsToAdd.Count} new role permissions.");
+                _logger.LogInformation(
+                    $"Successfully seeded {permissionsToAdd.Count} new role permissions."
+                );
             }
             else
             {
@@ -725,5 +987,3 @@ namespace ForexExchange.Services
         }
     }
 }
-
-
