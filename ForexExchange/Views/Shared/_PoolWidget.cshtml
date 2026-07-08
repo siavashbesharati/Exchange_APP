@@ -4,9 +4,25 @@
 
 <div class="card  shadow-sm">
     <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
-        <div class="position-absolute start-0 ps-3">
-            <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
-        </div>
+        
+        @using System.Security.Claims
+
+@{
+            string? email = User.FindFirstValue(ClaimTypes.Email);
+
+            string[]? allowedUsers = new[]
+            {
+        "behnam@taban-gorpup.com",
+        "siavash@taban-gorpup.com"
+    };
+        }
+
+        @if (allowedUsers.Contains(email, StringComparer.OrdinalIgnoreCase))
+        {
+            <div class="position-absolute start-0 ps-3">
+                <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+            </div>
+        }
         <div class="text-center">
             <i class="fas fa-piggy-bank me-2"></i>
             <strong>داشبورد ارزی</strong>
