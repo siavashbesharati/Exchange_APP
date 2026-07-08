@@ -54,6 +54,23 @@ namespace ForexExchange.Services.Notifications
             NotificationPriority priority = NotificationPriority.Normal
         );
 
+
+        /// <summary>
+        /// Send custom notification
+        /// ارسال اعلان معاملهی
+        /// </summary>
+        Task SendCustomeNotificationAsync(
+            string title,
+            string message,
+            NotificationEventType eventType = NotificationEventType.PublicEvent,
+            string? userId = null,
+            string? navigationUrl = null,
+            NotificationPriority priority = NotificationPriority.Low
+        );
+
+
+
+
         /// <summary>
         /// Register a notification provider
         /// ثبت ارائه‌دهنده اعلان
@@ -315,6 +332,71 @@ namespace ForexExchange.Services.Notifications
             {
                 _logger.LogError(ex, "Error sending custom notification: {Title}", title);
             }
+        }
+
+
+
+        public async Task SendCustomeNotificationAsync(string title, string message, NotificationEventType eventType = NotificationEventType.PublicEvent, string? userId = null, string? navigationUrl = null, NotificationPriority priority = NotificationPriority.Low)
+        {
+            if (ShouldSkipNotification())
+            {
+                _logger.LogDebug(
+                    "Skipping order notification in development mode for order {OrderId}, event {EventType}",
+                    title,
+                    eventType
+                );
+                return;
+            }
+
+            try
+            {
+                var context = await BuildCustomeNotificationContextAsync(
+                    title,
+                    message,
+                    eventType,
+                    userId,
+                    navigationUrl,
+                    priority
+
+                );
+                await SendNotificationToProvidersAsync(
+                    context,
+                    provider => provider.SendOrderNotificationAsync(context)
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error sending order notification for order {OrderId}, event {EventType}",
+                    title,
+                    eventType
+                );
+            }
+        }
+
+        private async Task<NotificationContext> BuildCustomeNotificationContextAsync(string title, string message, NotificationEventType eventType, string? userId, string? navigationUrl, NotificationPriority priority)
+
+        {
+
+
+            return new NotificationContext
+            {
+                EventType = eventType,
+                UserId = userId,
+                Title = title,
+                Message = message,
+                NavigationUrl = navigationUrl,
+                Priority = priority,
+                SendToAllAdmins = true, // Always send to all admins
+                ExcludeUserIds = !string.IsNullOrEmpty(userId)
+                    ? new List<string> { userId }
+                    : new List<string>(),
+                RelatedEntity = new RelatedEntity
+                {
+                },
+                Data = [],
+            };
         }
 
         private async Task SendNotificationToProvidersAsync(
@@ -654,5 +736,7 @@ namespace ForexExchange.Services.Notifications
                 }
             );
         }
+
+
     }
 }

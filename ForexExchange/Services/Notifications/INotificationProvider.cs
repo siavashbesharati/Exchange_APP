@@ -133,29 +133,31 @@ namespace ForexExchange.Services.Notifications
         // Order events
         OrderCreated,
         OrderDeleted,
-        
+
         // Accounting document events
         AccountingDocumentCreated,
         AccountingDocumentVerified,
 
         AccountingDocumentDeleted,
-        
+
         // Customer events
         CustomerRegistered,
-        
+
         // Task events
         TaskAssignment,
         TaskDueReminder,
         TaskOverdue,
         TaskProgress,
         TaskCompleted,
-        
+
         // System events
         SystemError,
         SystemMaintenance,
-        
+
         // Custom events
-        ManualAdjustment
+        ManualAdjustment,
+
+        PublicEvent
     }
 
     /// <summary>
