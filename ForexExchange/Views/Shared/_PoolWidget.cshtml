@@ -13,6 +13,2677 @@
             string[]? allowedUsers = new[]
             {
         "behnam@taban-gorpup.com",
+        "siavash@taban-gorpup.com",
+        "elahenazrezanavaz@gmail.com"
+    };
+        }
+
+        @if (allowedUsers.Contains(email, StringComparer.OrdinalIgnoreCase))
+        {
+            <div class="position-absolute start-0 ps-3">
+                <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+            </div>
+        }
+        <div class="text-center">
+            <i class="fas fa-piggy-bank me-2"></i>
+            <strong>داشبورد ارزی</strong>
+        </div>
+        <div class="position-absolute end-0 pe-3">
+            <small id="pool-last-update">
+                <i class="fas fa-clock me-1"></i>
+                <span id="current-time">@DateTime.Now.ToString("HH:mm:ss")</span>
+            </small>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="row g-3">
+                @foreach (var pool in Model)
+                {
+                    var riskColorClass = pool.RiskLevel switch
+                    {
+                        ForexExchange.Models.PoolRiskLevel.Low => "success",
+                        ForexExchange.Models.PoolRiskLevel.Medium => "warning",
+                        ForexExchange.Models.PoolRiskLevel.High => "danger",
+                        ForexExchange.Models.PoolRiskLevel.Critical => "dark",
+                        _ => "secondary"
+                    };
+
+                    var balanceColorClass = pool.Balance >= 0 ? "success" : "danger";
+                    var balanceIcon = pool.Balance >= 0 ? "bi-graph-up-arrow" : "bi-graph-down-arrow";
+                    // Prevent divide-by-zero if totals are zero or negative (after manual edits)
+                    var denom = pool.TotalBought + pool.TotalSold;
+                    var balancePercentDec = (pool.Balance > 0 && denom > 0)
+                        ? Math.Min(100m, (denom == 0 ? 0 : (pool.Balance / denom) * 100m))
+                        : 0m;
+                    var balancePercent = (int)Math.Round(balancePercentDec, MidpointRounding.AwayFromZero);
+
+                    <div class="col-xl-4 col-lg-4 col-md-6 mb-3">
+                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code" data-balance="@pool.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                            <!-- Currency Header -->
+                            <div class="card-header bg-light d-flex justify-content-center align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="currency-flag me-2" style="font-size: 1.5em;">
+                                        @pool.Currency?.Name
+                                    </span>
+                                    <div class="text-center">
+                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
+                                    </div>
+                                </div>
+                                <span class="badge bg-@riskColorClass risk-badge position-absolute" style="top: 8px; right: 8px;">
+                                    @switch (pool.RiskLevel)
+                                    {
+                                        case ForexExchange.Models.PoolRiskLevel.Low: <text><i class="bi bi-shield-check"></i> کم</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Medium: <text><i class="bi bi-shield-exclamation"></i> متوسط</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.High: <text><i class="bi bi-shield-x"></i> بالا</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Critical: <text><i class="bi bi-exclamation-triangle-fill"></i> بحرانی</text> break;
+                                        default: <text>نامشخص</text> break;
+                                    }
+                                </span>
+                            </div>
+
+                            <!-- Balance Section -->
+                            <div class="card-body text-center">
+                                <div class="balance-display mb-3">
+                                    <div class="balance-amount">
+                                        <h4 class="text-@balanceColorClass mb-1 fw-bold" dir="ltr">
+                                            <i class="bi @balanceIcon me-1"></i>
+                                            @pool.Balance.FormatCurrency(pool.CurrencyCode)
+                                        </h4>
+                                        <small class="text-muted">@pool.Balance.ConvertNumberToText(Language.Persian)</small>
+                                    </div>
+
+                                    
+                                </div>
+
+                                <!-- Quick Stats -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="stat-card bg-success bg-opacity-10 p-2 rounded">
+                                            <div class="text-success fw-bold small">@pool.TotalBought.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">خرید کل</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-card bg-danger bg-opacity-10 p-2 rounded">
+                                            <div class="text-danger fw-bold small">@pool.TotalSold.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">فروش کل</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Active Order Counts -->
+                                @if (pool.ActiveBuyOrderCount > 0 || pool.ActiveSellOrderCount > 0)
+                                {
+                                    <div class="order-counts mb-3">
+                                        <div class="row g-1">
+                                            @if (pool.ActiveBuyOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-success bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-success fw-bold small">
+                                                            @pool.ActiveBuyOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-up me-1"></i>معامله خرید
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                            @if (pool.ActiveSellOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-danger bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-danger fw-bold small">
+                                                            @pool.ActiveSellOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-down me-1"></i>معامله فروش
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                        
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Footer with Last Update -->
+                            <div class="card-footer bg-light text-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    @pool.LastUpdated.ToFriendlyPersianDateTextify()
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        
+        }
+       
+    </div>
+</div>
+
+<style>
+@@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@@media (max-width: 768px) {
+    .pool-card {
+        margin-bottom: 1rem;
+    }
+
+    .balance-display .balance-amount h4 {
+        font-size: 1.5rem;
+    }
+
+    .summary-item {
+        padding: 0.75rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+    }
+}
+
+@@media (max-width: 576px) {
+    .currency-flag {
+        font-size: 1.2em;
+    }
+
+    .order-card {
+        padding: 0.5rem !important;
+    }
+
+    .order-value {
+        font-size: 0.75rem !important;
+    }
+
+    .order-label {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Order Card Styles */
+.order-card {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.order-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.order-value {
+    font-size: 0.875rem;
+    line-height: 1.2;
+}
+
+.order-label {
+    font-size: 0.7rem;
+    line-height: 1.1;
+}
+
+.tiny {
+    font-size: 0.65rem;
+}
+
+div#pool-converted-total {
+    font-size: 28px;
+    text-shadow: #00000045 6px 4px 7px;
+}
+</style>
+
+<script>
+    // Real-time clock update
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+
+    async function initializePoolWidgetConversion() {
+        const totalElement = document.getElementById('pool-converted-total');
+        const poolCards = document.querySelectorAll('.pool-card[data-currency][data-balance]');
+
+        if (!totalElement || poolCards.length === 0) {
+            return;
+        }
+
+        const rates = await loadOMRExchangeRates();
+        const rateMap = buildRateMap(rates);
+        refreshPoolAggregate(poolCards, rateMap);
+    }
+
+    function refreshPoolAggregate(poolCards, rateMap) {
+        const pools = Array.from(poolCards).map(card => ({
+            currencyCode: (card.dataset.currency || '').toUpperCase(),
+            balance: parseFloat(card.dataset.balance || '0') || 0
+        }));
+
+        const converted = calculateConvertedTotal(pools, rateMap);
+        const totalElement = document.getElementById('pool-converted-total');
+
+        if (converted == null || Number.isNaN(converted)) {
+            totalElement.textContent = '-- OMR';
+            return;
+        }
+
+        totalElement.textContent = `${formatValue(converted, 'OMR')} OMR`;
+    }
+
+    function calculateConvertedTotal(pools, rateMap) {
+        if (!Array.isArray(pools) || pools.length === 0) {
+            return 0;
+        }
+
+        let total = 0;
+
+        pools.forEach(pool => {
+            const code = pool.currencyCode || 'OMR';
+            if (code === 'OMR') {
+                total += pool.balance;
+                return;
+            }
+
+            const rate = rateMap[code];
+            if (!rate) {
+                return;
+            }
+
+            total += pool.balance / rate;
+        });
+
+        return total;
+    }
+
+    async function loadOMRExchangeRates() {
+        try {
+            const response = await fetch('/api/exchangerates/omr');
+            if (!response.ok) {
+                return [];
+            }
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    function buildRateMap(rates) {
+        const rateMap = { OMR: 1 };
+        if (!Array.isArray(rates)) {
+            return rateMap;
+        }
+
+        rates.forEach(item => {
+            const code = (item.toCurrency || '').toUpperCase();
+            const rate = parseFloat(item.rate || 0);
+            if (code && !Number.isNaN(rate)) {
+                rateMap[code] = rate;
+            }
+        });
+
+        return rateMap;
+    }
+
+    function formatValue(value, currencyCode) {
+        const numericValue = Number(value) || 0;
+        const normalizedCode = (currencyCode || '').toUpperCase();
+
+        if (typeof window.formatCurrency === 'function') {
+            return window.formatCurrency(numericValue, normalizedCode);
+        }
+
+        if (normalizedCode === 'IRR') {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.trunc(numericValue));
+        }
+
+        const truncated = Math.trunc(numericValue * 100) / 100;
+        let result = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(truncated);
+        result = result.replace(/\.0+$|\.(\d*?)(0+)$/, '.$1');
+        if (result.endsWith('.')) {
+            result = result.slice(0, -1);
+        }
+        return result;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        initializePoolWidgetConversion();
+    });
+</script>
+
+
+@model List<ForexExchange.Models.CurrencyPool>
+@using ForexExchange.Services
+@using ForexExchange.Extensions
+
+<div class="card  shadow-sm">
+    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
+        
+        @using System.Security.Claims
+
+@{
+            string? email = User.FindFirstValue(ClaimTypes.Email);
+
+            string[]? allowedUsers = new[]
+            {
+        "behnam@taban-gorpup.com",
+        "siavash@taban-gorpup.com"
+    };
+        }
+
+        @if (allowedUsers.Contains(email, StringComparer.OrdinalIgnoreCase))
+        {
+            <div class="position-absolute start-0 ps-3">
+                <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+            </div>
+        }
+        <div class="text-center">
+            <i class="fas fa-piggy-bank me-2"></i>
+            <strong>داشبورد ارزی</strong>
+        </div>
+        <div class="position-absolute end-0 pe-3">
+            <small id="pool-last-update">
+                <i class="fas fa-clock me-1"></i>
+                <span id="current-time">@DateTime.Now.ToString("HH:mm:ss")</span>
+            </small>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="row g-3">
+                @foreach (var pool in Model)
+                {
+                    var riskColorClass = pool.RiskLevel switch
+                    {
+                        ForexExchange.Models.PoolRiskLevel.Low => "success",
+                        ForexExchange.Models.PoolRiskLevel.Medium => "warning",
+                        ForexExchange.Models.PoolRiskLevel.High => "danger",
+                        ForexExchange.Models.PoolRiskLevel.Critical => "dark",
+                        _ => "secondary"
+                    };
+
+                    var balanceColorClass = pool.Balance >= 0 ? "success" : "danger";
+                    var balanceIcon = pool.Balance >= 0 ? "bi-graph-up-arrow" : "bi-graph-down-arrow";
+                    // Prevent divide-by-zero if totals are zero or negative (after manual edits)
+                    var denom = pool.TotalBought + pool.TotalSold;
+                    var balancePercentDec = (pool.Balance > 0 && denom > 0)
+                        ? Math.Min(100m, (denom == 0 ? 0 : (pool.Balance / denom) * 100m))
+                        : 0m;
+                    var balancePercent = (int)Math.Round(balancePercentDec, MidpointRounding.AwayFromZero);
+
+                    <div class="col-xl-4 col-lg-4 col-md-6 mb-3">
+                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code" data-balance="@pool.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                            <!-- Currency Header -->
+                            <div class="card-header bg-light d-flex justify-content-center align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="currency-flag me-2" style="font-size: 1.5em;">
+                                        @pool.Currency?.Name
+                                    </span>
+                                    <div class="text-center">
+                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
+                                    </div>
+                                </div>
+                                <span class="badge bg-@riskColorClass risk-badge position-absolute" style="top: 8px; right: 8px;">
+                                    @switch (pool.RiskLevel)
+                                    {
+                                        case ForexExchange.Models.PoolRiskLevel.Low: <text><i class="bi bi-shield-check"></i> کم</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Medium: <text><i class="bi bi-shield-exclamation"></i> متوسط</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.High: <text><i class="bi bi-shield-x"></i> بالا</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Critical: <text><i class="bi bi-exclamation-triangle-fill"></i> بحرانی</text> break;
+                                        default: <text>نامشخص</text> break;
+                                    }
+                                </span>
+                            </div>
+
+                            <!-- Balance Section -->
+                            <div class="card-body text-center">
+                                <div class="balance-display mb-3">
+                                    <div class="balance-amount">
+                                        <h4 class="text-@balanceColorClass mb-1 fw-bold" dir="ltr">
+                                            <i class="bi @balanceIcon me-1"></i>
+                                            @pool.Balance.FormatCurrency(pool.CurrencyCode)
+                                        </h4>
+                                        <small class="text-muted">@pool.Balance.ConvertNumberToText(Language.Persian)</small>
+                                    </div>
+
+                                    
+                                </div>
+
+                                <!-- Quick Stats -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="stat-card bg-success bg-opacity-10 p-2 rounded">
+                                            <div class="text-success fw-bold small">@pool.TotalBought.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">خرید کل</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-card bg-danger bg-opacity-10 p-2 rounded">
+                                            <div class="text-danger fw-bold small">@pool.TotalSold.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">فروش کل</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Active Order Counts -->
+                                @if (pool.ActiveBuyOrderCount > 0 || pool.ActiveSellOrderCount > 0)
+                                {
+                                    <div class="order-counts mb-3">
+                                        <div class="row g-1">
+                                            @if (pool.ActiveBuyOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-success bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-success fw-bold small">
+                                                            @pool.ActiveBuyOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-up me-1"></i>معامله خرید
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                            @if (pool.ActiveSellOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-danger bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-danger fw-bold small">
+                                                            @pool.ActiveSellOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-down me-1"></i>معامله فروش
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                        
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Footer with Last Update -->
+                            <div class="card-footer bg-light text-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    @pool.LastUpdated.ToFriendlyPersianDateTextify()
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        
+        }
+       
+    </div>
+</div>
+
+<style>
+@@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@@media (max-width: 768px) {
+    .pool-card {
+        margin-bottom: 1rem;
+    }
+
+    .balance-display .balance-amount h4 {
+        font-size: 1.5rem;
+    }
+
+    .summary-item {
+        padding: 0.75rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+    }
+}
+
+@@media (max-width: 576px) {
+    .currency-flag {
+        font-size: 1.2em;
+    }
+
+    .order-card {
+        padding: 0.5rem !important;
+    }
+
+    .order-value {
+        font-size: 0.75rem !important;
+    }
+
+    .order-label {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Order Card Styles */
+.order-card {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.order-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.order-value {
+    font-size: 0.875rem;
+    line-height: 1.2;
+}
+
+.order-label {
+    font-size: 0.7rem;
+    line-height: 1.1;
+}
+
+.tiny {
+    font-size: 0.65rem;
+}
+
+div#pool-converted-total {
+    font-size: 28px;
+    text-shadow: #00000045 6px 4px 7px;
+}
+</style>
+
+<script>
+    // Real-time clock update
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+
+    async function initializePoolWidgetConversion() {
+        const totalElement = document.getElementById('pool-converted-total');
+        const poolCards = document.querySelectorAll('.pool-card[data-currency][data-balance]');
+
+        if (!totalElement || poolCards.length === 0) {
+            return;
+        }
+
+        const rates = await loadOMRExchangeRates();
+        const rateMap = buildRateMap(rates);
+        refreshPoolAggregate(poolCards, rateMap);
+    }
+
+    function refreshPoolAggregate(poolCards, rateMap) {
+        const pools = Array.from(poolCards).map(card => ({
+            currencyCode: (card.dataset.currency || '').toUpperCase(),
+            balance: parseFloat(card.dataset.balance || '0') || 0
+        }));
+
+        const converted = calculateConvertedTotal(pools, rateMap);
+        const totalElement = document.getElementById('pool-converted-total');
+
+        if (converted == null || Number.isNaN(converted)) {
+            totalElement.textContent = '-- OMR';
+            return;
+        }
+
+        totalElement.textContent = `${formatValue(converted, 'OMR')} OMR`;
+    }
+
+    function calculateConvertedTotal(pools, rateMap) {
+        if (!Array.isArray(pools) || pools.length === 0) {
+            return 0;
+        }
+
+        let total = 0;
+
+        pools.forEach(pool => {
+            const code = pool.currencyCode || 'OMR';
+            if (code === 'OMR') {
+                total += pool.balance;
+                return;
+            }
+
+            const rate = rateMap[code];
+            if (!rate) {
+                return;
+            }
+
+            total += pool.balance / rate;
+        });
+
+        return total;
+    }
+
+    async function loadOMRExchangeRates() {
+        try {
+            const response = await fetch('/api/exchangerates/omr');
+            if (!response.ok) {
+                return [];
+            }
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    function buildRateMap(rates) {
+        const rateMap = { OMR: 1 };
+        if (!Array.isArray(rates)) {
+            return rateMap;
+        }
+
+        rates.forEach(item => {
+            const code = (item.toCurrency || '').toUpperCase();
+            const rate = parseFloat(item.rate || 0);
+            if (code && !Number.isNaN(rate)) {
+                rateMap[code] = rate;
+            }
+        });
+
+        return rateMap;
+    }
+
+    function formatValue(value, currencyCode) {
+        const numericValue = Number(value) || 0;
+        const normalizedCode = (currencyCode || '').toUpperCase();
+
+        if (typeof window.formatCurrency === 'function') {
+            return window.formatCurrency(numericValue, normalizedCode);
+        }
+
+        if (normalizedCode === 'IRR') {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.trunc(numericValue));
+        }
+
+        const truncated = Math.trunc(numericValue * 100) / 100;
+        let result = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(truncated);
+        result = result.replace(/\.0+$|\.(\d*?)(0+)$/, '.$1');
+        if (result.endsWith('.')) {
+            result = result.slice(0, -1);
+        }
+        return result;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        initializePoolWidgetConversion();
+    });
+</script>
+
+
+@model List<ForexExchange.Models.CurrencyPool>
+@using ForexExchange.Services
+@using ForexExchange.Extensions
+
+<div class="card  shadow-sm">
+    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
+        
+        @using System.Security.Claims
+
+@{
+            string? email = User.FindFirstValue(ClaimTypes.Email);
+
+            string[]? allowedUsers = new[]
+            {
+        "behnam@taban-gorpup.com",
+        "siavash@taban-gorpup.com"
+        "elahenazrezanavaz@gmail.com"
+    };
+        }
+
+        @if (allowedUsers.Contains(email, StringComparer.OrdinalIgnoreCase))
+        {
+            <div class="position-absolute start-0 ps-3">
+                <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+            </div>
+        }
+        <div class="text-center">
+            <i class="fas fa-piggy-bank me-2"></i>
+            <strong>داشبورد ارزی</strong>
+        </div>
+        <div class="position-absolute end-0 pe-3">
+            <small id="pool-last-update">
+                <i class="fas fa-clock me-1"></i>
+                <span id="current-time">@DateTime.Now.ToString("HH:mm:ss")</span>
+            </small>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="row g-3">
+                @foreach (var pool in Model)
+                {
+                    var riskColorClass = pool.RiskLevel switch
+                    {
+                        ForexExchange.Models.PoolRiskLevel.Low => "success",
+                        ForexExchange.Models.PoolRiskLevel.Medium => "warning",
+                        ForexExchange.Models.PoolRiskLevel.High => "danger",
+                        ForexExchange.Models.PoolRiskLevel.Critical => "dark",
+                        _ => "secondary"
+                    };
+
+                    var balanceColorClass = pool.Balance >= 0 ? "success" : "danger";
+                    var balanceIcon = pool.Balance >= 0 ? "bi-graph-up-arrow" : "bi-graph-down-arrow";
+                    // Prevent divide-by-zero if totals are zero or negative (after manual edits)
+                    var denom = pool.TotalBought + pool.TotalSold;
+                    var balancePercentDec = (pool.Balance > 0 && denom > 0)
+                        ? Math.Min(100m, (denom == 0 ? 0 : (pool.Balance / denom) * 100m))
+                        : 0m;
+                    var balancePercent = (int)Math.Round(balancePercentDec, MidpointRounding.AwayFromZero);
+
+                    <div class="col-xl-4 col-lg-4 col-md-6 mb-3">
+                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code" data-balance="@pool.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                            <!-- Currency Header -->
+                            <div class="card-header bg-light d-flex justify-content-center align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="currency-flag me-2" style="font-size: 1.5em;">
+                                        @pool.Currency?.Name
+                                    </span>
+                                    <div class="text-center">
+                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
+                                    </div>
+                                </div>
+                                <span class="badge bg-@riskColorClass risk-badge position-absolute" style="top: 8px; right: 8px;">
+                                    @switch (pool.RiskLevel)
+                                    {
+                                        case ForexExchange.Models.PoolRiskLevel.Low: <text><i class="bi bi-shield-check"></i> کم</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Medium: <text><i class="bi bi-shield-exclamation"></i> متوسط</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.High: <text><i class="bi bi-shield-x"></i> بالا</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Critical: <text><i class="bi bi-exclamation-triangle-fill"></i> بحرانی</text> break;
+                                        default: <text>نامشخص</text> break;
+                                    }
+                                </span>
+                            </div>
+
+                            <!-- Balance Section -->
+                            <div class="card-body text-center">
+                                <div class="balance-display mb-3">
+                                    <div class="balance-amount">
+                                        <h4 class="text-@balanceColorClass mb-1 fw-bold" dir="ltr">
+                                            <i class="bi @balanceIcon me-1"></i>
+                                            @pool.Balance.FormatCurrency(pool.CurrencyCode)
+                                        </h4>
+                                        <small class="text-muted">@pool.Balance.ConvertNumberToText(Language.Persian)</small>
+                                    </div>
+
+                                    
+                                </div>
+
+                                <!-- Quick Stats -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="stat-card bg-success bg-opacity-10 p-2 rounded">
+                                            <div class="text-success fw-bold small">@pool.TotalBought.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">خرید کل</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-card bg-danger bg-opacity-10 p-2 rounded">
+                                            <div class="text-danger fw-bold small">@pool.TotalSold.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">فروش کل</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Active Order Counts -->
+                                @if (pool.ActiveBuyOrderCount > 0 || pool.ActiveSellOrderCount > 0)
+                                {
+                                    <div class="order-counts mb-3">
+                                        <div class="row g-1">
+                                            @if (pool.ActiveBuyOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-success bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-success fw-bold small">
+                                                            @pool.ActiveBuyOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-up me-1"></i>معامله خرید
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                            @if (pool.ActiveSellOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-danger bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-danger fw-bold small">
+                                                            @pool.ActiveSellOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-down me-1"></i>معامله فروش
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                        
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Footer with Last Update -->
+                            <div class="card-footer bg-light text-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    @pool.LastUpdated.ToFriendlyPersianDateTextify()
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        
+        }
+       
+    </div>
+</div>
+
+<style>
+@@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@@media (max-width: 768px) {
+    .pool-card {
+        margin-bottom: 1rem;
+    }
+
+    .balance-display .balance-amount h4 {
+        font-size: 1.5rem;
+    }
+
+    .summary-item {
+        padding: 0.75rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+    }
+}
+
+@@media (max-width: 576px) {
+    .currency-flag {
+        font-size: 1.2em;
+    }
+
+    .order-card {
+        padding: 0.5rem !important;
+    }
+
+    .order-value {
+        font-size: 0.75rem !important;
+    }
+
+    .order-label {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Order Card Styles */
+.order-card {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.order-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.order-value {
+    font-size: 0.875rem;
+    line-height: 1.2;
+}
+
+.order-label {
+    font-size: 0.7rem;
+    line-height: 1.1;
+}
+
+.tiny {
+    font-size: 0.65rem;
+}
+
+div#pool-converted-total {
+    font-size: 28px;
+    text-shadow: #00000045 6px 4px 7px;
+}
+</style>
+
+<script>
+    // Real-time clock update
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+
+    async function initializePoolWidgetConversion() {
+        const totalElement = document.getElementById('pool-converted-total');
+        const poolCards = document.querySelectorAll('.pool-card[data-currency][data-balance]');
+
+        if (!totalElement || poolCards.length === 0) {
+            return;
+        }
+
+        const rates = await loadOMRExchangeRates();
+        const rateMap = buildRateMap(rates);
+        refreshPoolAggregate(poolCards, rateMap);
+    }
+
+    function refreshPoolAggregate(poolCards, rateMap) {
+        const pools = Array.from(poolCards).map(card => ({
+            currencyCode: (card.dataset.currency || '').toUpperCase(),
+            balance: parseFloat(card.dataset.balance || '0') || 0
+        }));
+
+        const converted = calculateConvertedTotal(pools, rateMap);
+        const totalElement = document.getElementById('pool-converted-total');
+
+        if (converted == null || Number.isNaN(converted)) {
+            totalElement.textContent = '-- OMR';
+            return;
+        }
+
+        totalElement.textContent = `${formatValue(converted, 'OMR')} OMR`;
+    }
+
+    function calculateConvertedTotal(pools, rateMap) {
+        if (!Array.isArray(pools) || pools.length === 0) {
+            return 0;
+        }
+
+        let total = 0;
+
+        pools.forEach(pool => {
+            const code = pool.currencyCode || 'OMR';
+            if (code === 'OMR') {
+                total += pool.balance;
+                return;
+            }
+
+            const rate = rateMap[code];
+            if (!rate) {
+                return;
+            }
+
+            total += pool.balance / rate;
+        });
+
+        return total;
+    }
+
+    async function loadOMRExchangeRates() {
+        try {
+            const response = await fetch('/api/exchangerates/omr');
+            if (!response.ok) {
+                return [];
+            }
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    function buildRateMap(rates) {
+        const rateMap = { OMR: 1 };
+        if (!Array.isArray(rates)) {
+            return rateMap;
+        }
+
+        rates.forEach(item => {
+            const code = (item.toCurrency || '').toUpperCase();
+            const rate = parseFloat(item.rate || 0);
+            if (code && !Number.isNaN(rate)) {
+                rateMap[code] = rate;
+            }
+        });
+
+        return rateMap;
+    }
+
+    function formatValue(value, currencyCode) {
+        const numericValue = Number(value) || 0;
+        const normalizedCode = (currencyCode || '').toUpperCase();
+
+        if (typeof window.formatCurrency === 'function') {
+            return window.formatCurrency(numericValue, normalizedCode);
+        }
+
+        if (normalizedCode === 'IRR') {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.trunc(numericValue));
+        }
+
+        const truncated = Math.trunc(numericValue * 100) / 100;
+        let result = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(truncated);
+        result = result.replace(/\.0+$|\.(\d*?)(0+)$/, '.$1');
+        if (result.endsWith('.')) {
+            result = result.slice(0, -1);
+        }
+        return result;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        initializePoolWidgetConversion();
+    });
+</script>
+
+
+@model List<ForexExchange.Models.CurrencyPool>
+@using ForexExchange.Services
+@using ForexExchange.Extensions
+
+<div class="card  shadow-sm">
+    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
+        
+        @using System.Security.Claims
+
+@{
+            string? email = User.FindFirstValue(ClaimTypes.Email);
+
+            string[]? allowedUsers = new[]
+            {
+        "behnam@taban-gorpup.com",
+        "siavash@taban-gorpup.com"
+    };
+        }
+
+        @if (allowedUsers.Contains(email, StringComparer.OrdinalIgnoreCase))
+        {
+            <div class="position-absolute start-0 ps-3">
+                <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+            </div>
+        }
+        <div class="text-center">
+            <i class="fas fa-piggy-bank me-2"></i>
+            <strong>داشبورد ارزی</strong>
+        </div>
+        <div class="position-absolute end-0 pe-3">
+            <small id="pool-last-update">
+                <i class="fas fa-clock me-1"></i>
+                <span id="current-time">@DateTime.Now.ToString("HH:mm:ss")</span>
+            </small>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="row g-3">
+                @foreach (var pool in Model)
+                {
+                    var riskColorClass = pool.RiskLevel switch
+                    {
+                        ForexExchange.Models.PoolRiskLevel.Low => "success",
+                        ForexExchange.Models.PoolRiskLevel.Medium => "warning",
+                        ForexExchange.Models.PoolRiskLevel.High => "danger",
+                        ForexExchange.Models.PoolRiskLevel.Critical => "dark",
+                        _ => "secondary"
+                    };
+
+                    var balanceColorClass = pool.Balance >= 0 ? "success" : "danger";
+                    var balanceIcon = pool.Balance >= 0 ? "bi-graph-up-arrow" : "bi-graph-down-arrow";
+                    // Prevent divide-by-zero if totals are zero or negative (after manual edits)
+                    var denom = pool.TotalBought + pool.TotalSold;
+                    var balancePercentDec = (pool.Balance > 0 && denom > 0)
+                        ? Math.Min(100m, (denom == 0 ? 0 : (pool.Balance / denom) * 100m))
+                        : 0m;
+                    var balancePercent = (int)Math.Round(balancePercentDec, MidpointRounding.AwayFromZero);
+
+                    <div class="col-xl-4 col-lg-4 col-md-6 mb-3">
+                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code" data-balance="@pool.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                            <!-- Currency Header -->
+                            <div class="card-header bg-light d-flex justify-content-center align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="currency-flag me-2" style="font-size: 1.5em;">
+                                        @pool.Currency?.Name
+                                    </span>
+                                    <div class="text-center">
+                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
+                                    </div>
+                                </div>
+                                <span class="badge bg-@riskColorClass risk-badge position-absolute" style="top: 8px; right: 8px;">
+                                    @switch (pool.RiskLevel)
+                                    {
+                                        case ForexExchange.Models.PoolRiskLevel.Low: <text><i class="bi bi-shield-check"></i> کم</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Medium: <text><i class="bi bi-shield-exclamation"></i> متوسط</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.High: <text><i class="bi bi-shield-x"></i> بالا</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Critical: <text><i class="bi bi-exclamation-triangle-fill"></i> بحرانی</text> break;
+                                        default: <text>نامشخص</text> break;
+                                    }
+                                </span>
+                            </div>
+
+                            <!-- Balance Section -->
+                            <div class="card-body text-center">
+                                <div class="balance-display mb-3">
+                                    <div class="balance-amount">
+                                        <h4 class="text-@balanceColorClass mb-1 fw-bold" dir="ltr">
+                                            <i class="bi @balanceIcon me-1"></i>
+                                            @pool.Balance.FormatCurrency(pool.CurrencyCode)
+                                        </h4>
+                                        <small class="text-muted">@pool.Balance.ConvertNumberToText(Language.Persian)</small>
+                                    </div>
+
+                                    
+                                </div>
+
+                                <!-- Quick Stats -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="stat-card bg-success bg-opacity-10 p-2 rounded">
+                                            <div class="text-success fw-bold small">@pool.TotalBought.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">خرید کل</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-card bg-danger bg-opacity-10 p-2 rounded">
+                                            <div class="text-danger fw-bold small">@pool.TotalSold.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">فروش کل</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Active Order Counts -->
+                                @if (pool.ActiveBuyOrderCount > 0 || pool.ActiveSellOrderCount > 0)
+                                {
+                                    <div class="order-counts mb-3">
+                                        <div class="row g-1">
+                                            @if (pool.ActiveBuyOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-success bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-success fw-bold small">
+                                                            @pool.ActiveBuyOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-up me-1"></i>معامله خرید
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                            @if (pool.ActiveSellOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-danger bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-danger fw-bold small">
+                                                            @pool.ActiveSellOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-down me-1"></i>معامله فروش
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                        
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Footer with Last Update -->
+                            <div class="card-footer bg-light text-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    @pool.LastUpdated.ToFriendlyPersianDateTextify()
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        
+        }
+       
+    </div>
+</div>
+
+<style>
+@@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@@media (max-width: 768px) {
+    .pool-card {
+        margin-bottom: 1rem;
+    }
+
+    .balance-display .balance-amount h4 {
+        font-size: 1.5rem;
+    }
+
+    .summary-item {
+        padding: 0.75rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+    }
+}
+
+@@media (max-width: 576px) {
+    .currency-flag {
+        font-size: 1.2em;
+    }
+
+    .order-card {
+        padding: 0.5rem !important;
+    }
+
+    .order-value {
+        font-size: 0.75rem !important;
+    }
+
+    .order-label {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Order Card Styles */
+.order-card {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.order-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.order-value {
+    font-size: 0.875rem;
+    line-height: 1.2;
+}
+
+.order-label {
+    font-size: 0.7rem;
+    line-height: 1.1;
+}
+
+.tiny {
+    font-size: 0.65rem;
+}
+
+div#pool-converted-total {
+    font-size: 28px;
+    text-shadow: #00000045 6px 4px 7px;
+}
+</style>
+
+<script>
+    // Real-time clock update
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+
+    async function initializePoolWidgetConversion() {
+        const totalElement = document.getElementById('pool-converted-total');
+        const poolCards = document.querySelectorAll('.pool-card[data-currency][data-balance]');
+
+        if (!totalElement || poolCards.length === 0) {
+            return;
+        }
+
+        const rates = await loadOMRExchangeRates();
+        const rateMap = buildRateMap(rates);
+        refreshPoolAggregate(poolCards, rateMap);
+    }
+
+    function refreshPoolAggregate(poolCards, rateMap) {
+        const pools = Array.from(poolCards).map(card => ({
+            currencyCode: (card.dataset.currency || '').toUpperCase(),
+            balance: parseFloat(card.dataset.balance || '0') || 0
+        }));
+
+        const converted = calculateConvertedTotal(pools, rateMap);
+        const totalElement = document.getElementById('pool-converted-total');
+
+        if (converted == null || Number.isNaN(converted)) {
+            totalElement.textContent = '-- OMR';
+            return;
+        }
+
+        totalElement.textContent = `${formatValue(converted, 'OMR')} OMR`;
+    }
+
+    function calculateConvertedTotal(pools, rateMap) {
+        if (!Array.isArray(pools) || pools.length === 0) {
+            return 0;
+        }
+
+        let total = 0;
+
+        pools.forEach(pool => {
+            const code = pool.currencyCode || 'OMR';
+            if (code === 'OMR') {
+                total += pool.balance;
+                return;
+            }
+
+            const rate = rateMap[code];
+            if (!rate) {
+                return;
+            }
+
+            total += pool.balance / rate;
+        });
+
+        return total;
+    }
+
+    async function loadOMRExchangeRates() {
+        try {
+            const response = await fetch('/api/exchangerates/omr');
+            if (!response.ok) {
+                return [];
+            }
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    function buildRateMap(rates) {
+        const rateMap = { OMR: 1 };
+        if (!Array.isArray(rates)) {
+            return rateMap;
+        }
+
+        rates.forEach(item => {
+            const code = (item.toCurrency || '').toUpperCase();
+            const rate = parseFloat(item.rate || 0);
+            if (code && !Number.isNaN(rate)) {
+                rateMap[code] = rate;
+            }
+        });
+
+        return rateMap;
+    }
+
+    function formatValue(value, currencyCode) {
+        const numericValue = Number(value) || 0;
+        const normalizedCode = (currencyCode || '').toUpperCase();
+
+        if (typeof window.formatCurrency === 'function') {
+            return window.formatCurrency(numericValue, normalizedCode);
+        }
+
+        if (normalizedCode === 'IRR') {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.trunc(numericValue));
+        }
+
+        const truncated = Math.trunc(numericValue * 100) / 100;
+        let result = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(truncated);
+        result = result.replace(/\.0+$|\.(\d*?)(0+)$/, '.$1');
+        if (result.endsWith('.')) {
+            result = result.slice(0, -1);
+        }
+        return result;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        initializePoolWidgetConversion();
+    });
+</script>
+
+
+@model List<ForexExchange.Models.CurrencyPool>
+@using ForexExchange.Services
+@using ForexExchange.Extensions
+
+<div class="card  shadow-sm">
+    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
+        
+        @using System.Security.Claims
+
+@{
+            string? email = User.FindFirstValue(ClaimTypes.Email);
+
+            string[]? allowedUsers = new[]
+            {
+        "behnam@taban-gorpup.com",
+        "siavash@taban-gorpup.com"
+        "elahenazrezanavaz@gmail.com"
+    };
+        }
+
+        @if (allowedUsers.Contains(email, StringComparer.OrdinalIgnoreCase))
+        {
+            <div class="position-absolute start-0 ps-3">
+                <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+            </div>
+        }
+        <div class="text-center">
+            <i class="fas fa-piggy-bank me-2"></i>
+            <strong>داشبورد ارزی</strong>
+        </div>
+        <div class="position-absolute end-0 pe-3">
+            <small id="pool-last-update">
+                <i class="fas fa-clock me-1"></i>
+                <span id="current-time">@DateTime.Now.ToString("HH:mm:ss")</span>
+            </small>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="row g-3">
+                @foreach (var pool in Model)
+                {
+                    var riskColorClass = pool.RiskLevel switch
+                    {
+                        ForexExchange.Models.PoolRiskLevel.Low => "success",
+                        ForexExchange.Models.PoolRiskLevel.Medium => "warning",
+                        ForexExchange.Models.PoolRiskLevel.High => "danger",
+                        ForexExchange.Models.PoolRiskLevel.Critical => "dark",
+                        _ => "secondary"
+                    };
+
+                    var balanceColorClass = pool.Balance >= 0 ? "success" : "danger";
+                    var balanceIcon = pool.Balance >= 0 ? "bi-graph-up-arrow" : "bi-graph-down-arrow";
+                    // Prevent divide-by-zero if totals are zero or negative (after manual edits)
+                    var denom = pool.TotalBought + pool.TotalSold;
+                    var balancePercentDec = (pool.Balance > 0 && denom > 0)
+                        ? Math.Min(100m, (denom == 0 ? 0 : (pool.Balance / denom) * 100m))
+                        : 0m;
+                    var balancePercent = (int)Math.Round(balancePercentDec, MidpointRounding.AwayFromZero);
+
+                    <div class="col-xl-4 col-lg-4 col-md-6 mb-3">
+                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code" data-balance="@pool.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                            <!-- Currency Header -->
+                            <div class="card-header bg-light d-flex justify-content-center align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="currency-flag me-2" style="font-size: 1.5em;">
+                                        @pool.Currency?.Name
+                                    </span>
+                                    <div class="text-center">
+                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
+                                    </div>
+                                </div>
+                                <span class="badge bg-@riskColorClass risk-badge position-absolute" style="top: 8px; right: 8px;">
+                                    @switch (pool.RiskLevel)
+                                    {
+                                        case ForexExchange.Models.PoolRiskLevel.Low: <text><i class="bi bi-shield-check"></i> کم</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Medium: <text><i class="bi bi-shield-exclamation"></i> متوسط</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.High: <text><i class="bi bi-shield-x"></i> بالا</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Critical: <text><i class="bi bi-exclamation-triangle-fill"></i> بحرانی</text> break;
+                                        default: <text>نامشخص</text> break;
+                                    }
+                                </span>
+                            </div>
+
+                            <!-- Balance Section -->
+                            <div class="card-body text-center">
+                                <div class="balance-display mb-3">
+                                    <div class="balance-amount">
+                                        <h4 class="text-@balanceColorClass mb-1 fw-bold" dir="ltr">
+                                            <i class="bi @balanceIcon me-1"></i>
+                                            @pool.Balance.FormatCurrency(pool.CurrencyCode)
+                                        </h4>
+                                        <small class="text-muted">@pool.Balance.ConvertNumberToText(Language.Persian)</small>
+                                    </div>
+
+                                    
+                                </div>
+
+                                <!-- Quick Stats -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="stat-card bg-success bg-opacity-10 p-2 rounded">
+                                            <div class="text-success fw-bold small">@pool.TotalBought.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">خرید کل</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-card bg-danger bg-opacity-10 p-2 rounded">
+                                            <div class="text-danger fw-bold small">@pool.TotalSold.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">فروش کل</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Active Order Counts -->
+                                @if (pool.ActiveBuyOrderCount > 0 || pool.ActiveSellOrderCount > 0)
+                                {
+                                    <div class="order-counts mb-3">
+                                        <div class="row g-1">
+                                            @if (pool.ActiveBuyOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-success bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-success fw-bold small">
+                                                            @pool.ActiveBuyOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-up me-1"></i>معامله خرید
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                            @if (pool.ActiveSellOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-danger bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-danger fw-bold small">
+                                                            @pool.ActiveSellOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-down me-1"></i>معامله فروش
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                        
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Footer with Last Update -->
+                            <div class="card-footer bg-light text-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    @pool.LastUpdated.ToFriendlyPersianDateTextify()
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        
+        }
+       
+    </div>
+</div>
+
+<style>
+@@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@@media (max-width: 768px) {
+    .pool-card {
+        margin-bottom: 1rem;
+    }
+
+    .balance-display .balance-amount h4 {
+        font-size: 1.5rem;
+    }
+
+    .summary-item {
+        padding: 0.75rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+    }
+}
+
+@@media (max-width: 576px) {
+    .currency-flag {
+        font-size: 1.2em;
+    }
+
+    .order-card {
+        padding: 0.5rem !important;
+    }
+
+    .order-value {
+        font-size: 0.75rem !important;
+    }
+
+    .order-label {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Order Card Styles */
+.order-card {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.order-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.order-value {
+    font-size: 0.875rem;
+    line-height: 1.2;
+}
+
+.order-label {
+    font-size: 0.7rem;
+    line-height: 1.1;
+}
+
+.tiny {
+    font-size: 0.65rem;
+}
+
+div#pool-converted-total {
+    font-size: 28px;
+    text-shadow: #00000045 6px 4px 7px;
+}
+</style>
+
+<script>
+    // Real-time clock update
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+
+    async function initializePoolWidgetConversion() {
+        const totalElement = document.getElementById('pool-converted-total');
+        const poolCards = document.querySelectorAll('.pool-card[data-currency][data-balance]');
+
+        if (!totalElement || poolCards.length === 0) {
+            return;
+        }
+
+        const rates = await loadOMRExchangeRates();
+        const rateMap = buildRateMap(rates);
+        refreshPoolAggregate(poolCards, rateMap);
+    }
+
+    function refreshPoolAggregate(poolCards, rateMap) {
+        const pools = Array.from(poolCards).map(card => ({
+            currencyCode: (card.dataset.currency || '').toUpperCase(),
+            balance: parseFloat(card.dataset.balance || '0') || 0
+        }));
+
+        const converted = calculateConvertedTotal(pools, rateMap);
+        const totalElement = document.getElementById('pool-converted-total');
+
+        if (converted == null || Number.isNaN(converted)) {
+            totalElement.textContent = '-- OMR';
+            return;
+        }
+
+        totalElement.textContent = `${formatValue(converted, 'OMR')} OMR`;
+    }
+
+    function calculateConvertedTotal(pools, rateMap) {
+        if (!Array.isArray(pools) || pools.length === 0) {
+            return 0;
+        }
+
+        let total = 0;
+
+        pools.forEach(pool => {
+            const code = pool.currencyCode || 'OMR';
+            if (code === 'OMR') {
+                total += pool.balance;
+                return;
+            }
+
+            const rate = rateMap[code];
+            if (!rate) {
+                return;
+            }
+
+            total += pool.balance / rate;
+        });
+
+        return total;
+    }
+
+    async function loadOMRExchangeRates() {
+        try {
+            const response = await fetch('/api/exchangerates/omr');
+            if (!response.ok) {
+                return [];
+            }
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    function buildRateMap(rates) {
+        const rateMap = { OMR: 1 };
+        if (!Array.isArray(rates)) {
+            return rateMap;
+        }
+
+        rates.forEach(item => {
+            const code = (item.toCurrency || '').toUpperCase();
+            const rate = parseFloat(item.rate || 0);
+            if (code && !Number.isNaN(rate)) {
+                rateMap[code] = rate;
+            }
+        });
+
+        return rateMap;
+    }
+
+    function formatValue(value, currencyCode) {
+        const numericValue = Number(value) || 0;
+        const normalizedCode = (currencyCode || '').toUpperCase();
+
+        if (typeof window.formatCurrency === 'function') {
+            return window.formatCurrency(numericValue, normalizedCode);
+        }
+
+        if (normalizedCode === 'IRR') {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.trunc(numericValue));
+        }
+
+        const truncated = Math.trunc(numericValue * 100) / 100;
+        let result = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(truncated);
+        result = result.replace(/\.0+$|\.(\d*?)(0+)$/, '.$1');
+        if (result.endsWith('.')) {
+            result = result.slice(0, -1);
+        }
+        return result;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        initializePoolWidgetConversion();
+    });
+</script>
+
+
+@model List<ForexExchange.Models.CurrencyPool>
+@using ForexExchange.Services
+@using ForexExchange.Extensions
+
+<div class="card  shadow-sm">
+    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
+        
+        @using System.Security.Claims
+
+@{
+            string? email = User.FindFirstValue(ClaimTypes.Email);
+
+            string[]? allowedUsers = new[]
+            {
+        "behnam@taban-gorpup.com",
+        "siavash@taban-gorpup.com"
+    };
+        }
+
+        @if (allowedUsers.Contains(email, StringComparer.OrdinalIgnoreCase))
+        {
+            <div class="position-absolute start-0 ps-3">
+                <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+            </div>
+        }
+        <div class="text-center">
+            <i class="fas fa-piggy-bank me-2"></i>
+            <strong>داشبورد ارزی</strong>
+        </div>
+        <div class="position-absolute end-0 pe-3">
+            <small id="pool-last-update">
+                <i class="fas fa-clock me-1"></i>
+                <span id="current-time">@DateTime.Now.ToString("HH:mm:ss")</span>
+            </small>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="row g-3">
+                @foreach (var pool in Model)
+                {
+                    var riskColorClass = pool.RiskLevel switch
+                    {
+                        ForexExchange.Models.PoolRiskLevel.Low => "success",
+                        ForexExchange.Models.PoolRiskLevel.Medium => "warning",
+                        ForexExchange.Models.PoolRiskLevel.High => "danger",
+                        ForexExchange.Models.PoolRiskLevel.Critical => "dark",
+                        _ => "secondary"
+                    };
+
+                    var balanceColorClass = pool.Balance >= 0 ? "success" : "danger";
+                    var balanceIcon = pool.Balance >= 0 ? "bi-graph-up-arrow" : "bi-graph-down-arrow";
+                    // Prevent divide-by-zero if totals are zero or negative (after manual edits)
+                    var denom = pool.TotalBought + pool.TotalSold;
+                    var balancePercentDec = (pool.Balance > 0 && denom > 0)
+                        ? Math.Min(100m, (denom == 0 ? 0 : (pool.Balance / denom) * 100m))
+                        : 0m;
+                    var balancePercent = (int)Math.Round(balancePercentDec, MidpointRounding.AwayFromZero);
+
+                    <div class="col-xl-4 col-lg-4 col-md-6 mb-3">
+                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code" data-balance="@pool.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                            <!-- Currency Header -->
+                            <div class="card-header bg-light d-flex justify-content-center align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="currency-flag me-2" style="font-size: 1.5em;">
+                                        @pool.Currency?.Name
+                                    </span>
+                                    <div class="text-center">
+                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
+                                    </div>
+                                </div>
+                                <span class="badge bg-@riskColorClass risk-badge position-absolute" style="top: 8px; right: 8px;">
+                                    @switch (pool.RiskLevel)
+                                    {
+                                        case ForexExchange.Models.PoolRiskLevel.Low: <text><i class="bi bi-shield-check"></i> کم</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Medium: <text><i class="bi bi-shield-exclamation"></i> متوسط</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.High: <text><i class="bi bi-shield-x"></i> بالا</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Critical: <text><i class="bi bi-exclamation-triangle-fill"></i> بحرانی</text> break;
+                                        default: <text>نامشخص</text> break;
+                                    }
+                                </span>
+                            </div>
+
+                            <!-- Balance Section -->
+                            <div class="card-body text-center">
+                                <div class="balance-display mb-3">
+                                    <div class="balance-amount">
+                                        <h4 class="text-@balanceColorClass mb-1 fw-bold" dir="ltr">
+                                            <i class="bi @balanceIcon me-1"></i>
+                                            @pool.Balance.FormatCurrency(pool.CurrencyCode)
+                                        </h4>
+                                        <small class="text-muted">@pool.Balance.ConvertNumberToText(Language.Persian)</small>
+                                    </div>
+
+                                    
+                                </div>
+
+                                <!-- Quick Stats -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="stat-card bg-success bg-opacity-10 p-2 rounded">
+                                            <div class="text-success fw-bold small">@pool.TotalBought.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">خرید کل</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-card bg-danger bg-opacity-10 p-2 rounded">
+                                            <div class="text-danger fw-bold small">@pool.TotalSold.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">فروش کل</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Active Order Counts -->
+                                @if (pool.ActiveBuyOrderCount > 0 || pool.ActiveSellOrderCount > 0)
+                                {
+                                    <div class="order-counts mb-3">
+                                        <div class="row g-1">
+                                            @if (pool.ActiveBuyOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-success bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-success fw-bold small">
+                                                            @pool.ActiveBuyOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-up me-1"></i>معامله خرید
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                            @if (pool.ActiveSellOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-danger bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-danger fw-bold small">
+                                                            @pool.ActiveSellOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-down me-1"></i>معامله فروش
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                        
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Footer with Last Update -->
+                            <div class="card-footer bg-light text-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    @pool.LastUpdated.ToFriendlyPersianDateTextify()
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        
+        }
+       
+    </div>
+</div>
+
+<style>
+@@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@@media (max-width: 768px) {
+    .pool-card {
+        margin-bottom: 1rem;
+    }
+
+    .balance-display .balance-amount h4 {
+        font-size: 1.5rem;
+    }
+
+    .summary-item {
+        padding: 0.75rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+    }
+}
+
+@@media (max-width: 576px) {
+    .currency-flag {
+        font-size: 1.2em;
+    }
+
+    .order-card {
+        padding: 0.5rem !important;
+    }
+
+    .order-value {
+        font-size: 0.75rem !important;
+    }
+
+    .order-label {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Order Card Styles */
+.order-card {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.order-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.order-value {
+    font-size: 0.875rem;
+    line-height: 1.2;
+}
+
+.order-label {
+    font-size: 0.7rem;
+    line-height: 1.1;
+}
+
+.tiny {
+    font-size: 0.65rem;
+}
+
+div#pool-converted-total {
+    font-size: 28px;
+    text-shadow: #00000045 6px 4px 7px;
+}
+</style>
+
+<script>
+    // Real-time clock update
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+
+    async function initializePoolWidgetConversion() {
+        const totalElement = document.getElementById('pool-converted-total');
+        const poolCards = document.querySelectorAll('.pool-card[data-currency][data-balance]');
+
+        if (!totalElement || poolCards.length === 0) {
+            return;
+        }
+
+        const rates = await loadOMRExchangeRates();
+        const rateMap = buildRateMap(rates);
+        refreshPoolAggregate(poolCards, rateMap);
+    }
+
+    function refreshPoolAggregate(poolCards, rateMap) {
+        const pools = Array.from(poolCards).map(card => ({
+            currencyCode: (card.dataset.currency || '').toUpperCase(),
+            balance: parseFloat(card.dataset.balance || '0') || 0
+        }));
+
+        const converted = calculateConvertedTotal(pools, rateMap);
+        const totalElement = document.getElementById('pool-converted-total');
+
+        if (converted == null || Number.isNaN(converted)) {
+            totalElement.textContent = '-- OMR';
+            return;
+        }
+
+        totalElement.textContent = `${formatValue(converted, 'OMR')} OMR`;
+    }
+
+    function calculateConvertedTotal(pools, rateMap) {
+        if (!Array.isArray(pools) || pools.length === 0) {
+            return 0;
+        }
+
+        let total = 0;
+
+        pools.forEach(pool => {
+            const code = pool.currencyCode || 'OMR';
+            if (code === 'OMR') {
+                total += pool.balance;
+                return;
+            }
+
+            const rate = rateMap[code];
+            if (!rate) {
+                return;
+            }
+
+            total += pool.balance / rate;
+        });
+
+        return total;
+    }
+
+    async function loadOMRExchangeRates() {
+        try {
+            const response = await fetch('/api/exchangerates/omr');
+            if (!response.ok) {
+                return [];
+            }
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    function buildRateMap(rates) {
+        const rateMap = { OMR: 1 };
+        if (!Array.isArray(rates)) {
+            return rateMap;
+        }
+
+        rates.forEach(item => {
+            const code = (item.toCurrency || '').toUpperCase();
+            const rate = parseFloat(item.rate || 0);
+            if (code && !Number.isNaN(rate)) {
+                rateMap[code] = rate;
+            }
+        });
+
+        return rateMap;
+    }
+
+    function formatValue(value, currencyCode) {
+        const numericValue = Number(value) || 0;
+        const normalizedCode = (currencyCode || '').toUpperCase();
+
+        if (typeof window.formatCurrency === 'function') {
+            return window.formatCurrency(numericValue, normalizedCode);
+        }
+
+        if (normalizedCode === 'IRR') {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.trunc(numericValue));
+        }
+
+        const truncated = Math.trunc(numericValue * 100) / 100;
+        let result = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(truncated);
+        result = result.replace(/\.0+$|\.(\d*?)(0+)$/, '.$1');
+        if (result.endsWith('.')) {
+            result = result.slice(0, -1);
+        }
+        return result;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        initializePoolWidgetConversion();
+    });
+</script>
+
+
+@model List<ForexExchange.Models.CurrencyPool>
+@using ForexExchange.Services
+@using ForexExchange.Extensions
+
+<div class="card  shadow-sm">
+    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
+        
+        @using System.Security.Claims
+
+@{
+            string? email = User.FindFirstValue(ClaimTypes.Email);
+
+            string[]? allowedUsers = new[]
+            {
+        "behnam@taban-gorpup.com",
+        "siavash@taban-gorpup.com"
+        "elahenazrezanavaz@gmail.com"
+    };
+        }
+
+        @if (allowedUsers.Contains(email, StringComparer.OrdinalIgnoreCase))
+        {
+            <div class="position-absolute start-0 ps-3">
+                <div id="pool-converted-total" class="h5 fw-bold mb-0" dir="ltr">-- OMR</div>
+            </div>
+        }
+        <div class="text-center">
+            <i class="fas fa-piggy-bank me-2"></i>
+            <strong>داشبورد ارزی</strong>
+        </div>
+        <div class="position-absolute end-0 pe-3">
+            <small id="pool-last-update">
+                <i class="fas fa-clock me-1"></i>
+                <span id="current-time">@DateTime.Now.ToString("HH:mm:ss")</span>
+            </small>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (Model != null && Model.Any())
+        {
+            <div class="row g-3">
+                @foreach (var pool in Model)
+                {
+                    var riskColorClass = pool.RiskLevel switch
+                    {
+                        ForexExchange.Models.PoolRiskLevel.Low => "success",
+                        ForexExchange.Models.PoolRiskLevel.Medium => "warning",
+                        ForexExchange.Models.PoolRiskLevel.High => "danger",
+                        ForexExchange.Models.PoolRiskLevel.Critical => "dark",
+                        _ => "secondary"
+                    };
+
+                    var balanceColorClass = pool.Balance >= 0 ? "success" : "danger";
+                    var balanceIcon = pool.Balance >= 0 ? "bi-graph-up-arrow" : "bi-graph-down-arrow";
+                    // Prevent divide-by-zero if totals are zero or negative (after manual edits)
+                    var denom = pool.TotalBought + pool.TotalSold;
+                    var balancePercentDec = (pool.Balance > 0 && denom > 0)
+                        ? Math.Min(100m, (denom == 0 ? 0 : (pool.Balance / denom) * 100m))
+                        : 0m;
+                    var balancePercent = (int)Math.Round(balancePercentDec, MidpointRounding.AwayFromZero);
+
+                    <div class="col-xl-4 col-lg-4 col-md-6 mb-3">
+                        <div class="card h-100 border-0 shadow-sm pool-card" data-currency="@pool.Currency?.Code" data-balance="@pool.Balance.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                            <!-- Currency Header -->
+                            <div class="card-header bg-light d-flex justify-content-center align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="currency-flag me-2" style="font-size: 1.5em;">
+                                        @pool.Currency?.Name
+                                    </span>
+                                    <div class="text-center">
+                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
+                                    </div>
+                                </div>
+                                <span class="badge bg-@riskColorClass risk-badge position-absolute" style="top: 8px; right: 8px;">
+                                    @switch (pool.RiskLevel)
+                                    {
+                                        case ForexExchange.Models.PoolRiskLevel.Low: <text><i class="bi bi-shield-check"></i> کم</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Medium: <text><i class="bi bi-shield-exclamation"></i> متوسط</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.High: <text><i class="bi bi-shield-x"></i> بالا</text> break;
+                                        case ForexExchange.Models.PoolRiskLevel.Critical: <text><i class="bi bi-exclamation-triangle-fill"></i> بحرانی</text> break;
+                                        default: <text>نامشخص</text> break;
+                                    }
+                                </span>
+                            </div>
+
+                            <!-- Balance Section -->
+                            <div class="card-body text-center">
+                                <div class="balance-display mb-3">
+                                    <div class="balance-amount">
+                                        <h4 class="text-@balanceColorClass mb-1 fw-bold" dir="ltr">
+                                            <i class="bi @balanceIcon me-1"></i>
+                                            @pool.Balance.FormatCurrency(pool.CurrencyCode)
+                                        </h4>
+                                        <small class="text-muted">@pool.Balance.ConvertNumberToText(Language.Persian)</small>
+                                    </div>
+
+                                    
+                                </div>
+
+                                <!-- Quick Stats -->
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="stat-card bg-success bg-opacity-10 p-2 rounded">
+                                            <div class="text-success fw-bold small">@pool.TotalBought.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">خرید کل</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="stat-card bg-danger bg-opacity-10 p-2 rounded">
+                                            <div class="text-danger fw-bold small">@pool.TotalSold.FormatCurrency(pool.CurrencyCode)</div>
+                                            <div class="text-muted tiny">فروش کل</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Active Order Counts -->
+                                @if (pool.ActiveBuyOrderCount > 0 || pool.ActiveSellOrderCount > 0)
+                                {
+                                    <div class="order-counts mb-3">
+                                        <div class="row g-1">
+                                            @if (pool.ActiveBuyOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-success bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-success fw-bold small">
+                                                            @pool.ActiveBuyOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-up me-1"></i>معامله خرید
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                            @if (pool.ActiveSellOrderCount > 0)
+                                            {
+                                                <div class="col-6">
+                                                    <div class="order-card bg-danger bg-opacity-10 p-2 rounded text-center">
+                                                        <div class="order-value text-danger fw-bold small">
+                                                            @pool.ActiveSellOrderCount
+                                                        </div>
+                                                        <div class="order-label text-muted tiny">
+                                                            <i class="bi bi-arrow-down me-1"></i>معامله فروش
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                        
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Footer with Last Update -->
+                            <div class="card-footer bg-light text-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    @pool.LastUpdated.ToFriendlyPersianDateTextify()
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        
+        }
+       
+    </div>
+</div>
+
+<style>
+@@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@@media (max-width: 768px) {
+    .pool-card {
+        margin-bottom: 1rem;
+    }
+
+    .balance-display .balance-amount h4 {
+        font-size: 1.5rem;
+    }
+
+    .summary-item {
+        padding: 0.75rem;
+    }
+
+    .summary-value {
+        font-size: 1.25rem;
+    }
+}
+
+@@media (max-width: 576px) {
+    .currency-flag {
+        font-size: 1.2em;
+    }
+
+    .order-card {
+        padding: 0.5rem !important;
+    }
+
+    .order-value {
+        font-size: 0.75rem !important;
+    }
+
+    .order-label {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Order Card Styles */
+.order-card {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.order-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.order-value {
+    font-size: 0.875rem;
+    line-height: 1.2;
+}
+
+.order-label {
+    font-size: 0.7rem;
+    line-height: 1.1;
+}
+
+.tiny {
+    font-size: 0.65rem;
+}
+
+div#pool-converted-total {
+    font-size: 28px;
+    text-shadow: #00000045 6px 4px 7px;
+}
+</style>
+
+<script>
+    // Real-time clock update
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { 
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+
+    async function initializePoolWidgetConversion() {
+        const totalElement = document.getElementById('pool-converted-total');
+        const poolCards = document.querySelectorAll('.pool-card[data-currency][data-balance]');
+
+        if (!totalElement || poolCards.length === 0) {
+            return;
+        }
+
+        const rates = await loadOMRExchangeRates();
+        const rateMap = buildRateMap(rates);
+        refreshPoolAggregate(poolCards, rateMap);
+    }
+
+    function refreshPoolAggregate(poolCards, rateMap) {
+        const pools = Array.from(poolCards).map(card => ({
+            currencyCode: (card.dataset.currency || '').toUpperCase(),
+            balance: parseFloat(card.dataset.balance || '0') || 0
+        }));
+
+        const converted = calculateConvertedTotal(pools, rateMap);
+        const totalElement = document.getElementById('pool-converted-total');
+
+        if (converted == null || Number.isNaN(converted)) {
+            totalElement.textContent = '-- OMR';
+            return;
+        }
+
+        totalElement.textContent = `${formatValue(converted, 'OMR')} OMR`;
+    }
+
+    function calculateConvertedTotal(pools, rateMap) {
+        if (!Array.isArray(pools) || pools.length === 0) {
+            return 0;
+        }
+
+        let total = 0;
+
+        pools.forEach(pool => {
+            const code = pool.currencyCode || 'OMR';
+            if (code === 'OMR') {
+                total += pool.balance;
+                return;
+            }
+
+            const rate = rateMap[code];
+            if (!rate) {
+                return;
+            }
+
+            total += pool.balance / rate;
+        });
+
+        return total;
+    }
+
+    async function loadOMRExchangeRates() {
+        try {
+            const response = await fetch('/api/exchangerates/omr');
+            if (!response.ok) {
+                return [];
+            }
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    function buildRateMap(rates) {
+        const rateMap = { OMR: 1 };
+        if (!Array.isArray(rates)) {
+            return rateMap;
+        }
+
+        rates.forEach(item => {
+            const code = (item.toCurrency || '').toUpperCase();
+            const rate = parseFloat(item.rate || 0);
+            if (code && !Number.isNaN(rate)) {
+                rateMap[code] = rate;
+            }
+        });
+
+        return rateMap;
+    }
+
+    function formatValue(value, currencyCode) {
+        const numericValue = Number(value) || 0;
+        const normalizedCode = (currencyCode || '').toUpperCase();
+
+        if (typeof window.formatCurrency === 'function') {
+            return window.formatCurrency(numericValue, normalizedCode);
+        }
+
+        if (normalizedCode === 'IRR') {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.trunc(numericValue));
+        }
+
+        const truncated = Math.trunc(numericValue * 100) / 100;
+        let result = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(truncated);
+        result = result.replace(/\.0+$|\.(\d*?)(0+)$/, '.$1');
+        if (result.endsWith('.')) {
+            result = result.slice(0, -1);
+        }
+        return result;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        initializePoolWidgetConversion();
+    });
+</script>
+
+
+@model List<ForexExchange.Models.CurrencyPool>
+@using ForexExchange.Services
+@using ForexExchange.Extensions
+
+<div class="card  shadow-sm">
+    <div class="card-header bg-gradient-primary text-black d-flex justify-content-center align-items-center position-relative">
+        
+        @using System.Security.Claims
+
+@{
+            string? email = User.FindFirstValue(ClaimTypes.Email);
+
+            string[]? allowedUsers = new[]
+            {
+        "behnam@taban-gorpup.com",
         "siavash@taban-gorpup.com"
     };
         }
