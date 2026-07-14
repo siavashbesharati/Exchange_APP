@@ -2,20 +2,12 @@
 # Configuration
 # ============================
 
-# Your saved WinSCP session name
 $Site = "Plesk"
-
-# Remote website folder
 $RemoteFolder = "/"
-
-# Publish folder (default dotnet publish output location for -c Release)
 $Publish = Join-Path $PSScriptRoot "bin\Release\net9.0\publish"
+$OfflineTemplate = Join-Path $PSScriptRoot "app_offline.htm"
+$RemoteOfflineName = "app_offline.htm"
 
-$RemoteOfflineName         = "app_offline.htm"
-$RemoteOfflineDisabledName = "app_offline.htm.disabled"
-
-# Only these files get deployed after publish (fast, targeted updates).
-# Add more filenames here if you need other files synced too.
 $MainFiles = @(
     "ForexExchange.dll",
     "ForexExchange.exe",
@@ -28,15 +20,34 @@ if (!(Test-Path $winscp)) {
     $winscp = "$env:ProgramFiles\WinSCP\WinSCP.com"
 }
 
+if (!(Test-Path $OfflineTemplate)) {
+    Write-Host "ERROR: app_offline.htm not found at: $OfflineTemplate" -ForegroundColor Red
+    exit 1
+}
+
+if (!(Test-Path $winscp)) {
+    Write-Host "ERROR: WinSCP not found at: $winscp" -ForegroundColor Red
+    exit 1
+}
+
+# Helper: Run a WinSCP script. Returns $true if exit code is 0.
+function Invoke-WinScpScript {
+    param([string]$ScriptContent, [string]$LogPath)
+    $tempFile = Join-Path $env:TEMP ([System.IO.Path]::GetRandomFileName() + ".txt")
+    $ScriptContent | Set-Content $tempFile -Encoding ASCII
+    & $winscp /script="$tempFile" /log="$LogPath"
+    $exit = $LASTEXITCODE
+    Remove-Item $tempFile -ErrorAction SilentlyContinue
+    return ($exit -eq 0)
+}
+
 # ============================
 # Build
 # ============================
 
 Write-Host ""
 Write-Host "Publishing..." -ForegroundColor Cyan
-
 dotnet publish -c Release
-
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Publish failed!" -ForegroundColor Red
     exit 1
@@ -44,33 +55,41 @@ if ($LASTEXITCODE -ne 0) {
 
 # ============================
 # Step 1: Enable maintenance mode
-# The offline page already lives on the server as app_offline.htm.disabled.
-# Just rename it to app_offline.htm so IIS picks it up immediately.
+# Delete any existing app_offline.htm (ignore errors), then upload the template.
 # ============================
 
 Write-Host "Enabling maintenance mode..." -ForegroundColor Yellow
 
-$enableScript = @"
+# 1a) Delete (ignore failure)
+$deleteScript = @"
+option batch continue
+option confirm off
+open "$Site"
+rm "$RemoteFolder$RemoteOfflineName"
+exit
+"@
+$ignore = Invoke-WinScpScript $deleteScript "$env:TEMP\winscp_delete.log"
+
+# 1b) Upload the offline page (must succeed)
+$uploadScript = @"
 option batch abort
 option confirm off
 open "$Site"
-
-# Delete any existing live offline page so rename can succeed
-option batch continue
-rm "$RemoteFolder$RemoteOfflineName"
-option batch abort
-
-# Rename .disabled → .htm to enable maintenance mode
-mv "$RemoteFolder$RemoteOfflineDisabledName" "$RemoteFolder$RemoteOfflineName"
+put "$OfflineTemplate" "$RemoteFolder$RemoteOfflineName"
 exit
 "@
+$uploadOk = Invoke-WinScpScript $uploadScript "$env:TEMP\winscp_enable.log"
 
-# Give IIS a moment to actually unload the app pool / release file locks
-# before we overwrite the dll/exe below.
+if (-not $uploadOk) {
+    Write-Host "Failed to enable maintenance mode! See log: $env:TEMP\winscp_enable.log" -ForegroundColor Red
+    exit 1
+}
+
+# Give IIS time to unload
 Start-Sleep -Seconds 5
 
 # ============================
-# Step 2: Upload only the main app files (not the whole publish folder)
+# Step 2: Upload application files
 # ============================
 
 Write-Host "Uploading application files..." -ForegroundColor Cyan
@@ -78,13 +97,12 @@ Write-Host "Uploading application files..." -ForegroundColor Cyan
 foreach ($file in $MainFiles) {
     $localPath = Join-Path $Publish $file
     if (!(Test-Path $localPath)) {
-        Write-Host "File not found, skipping: $localPath" -ForegroundColor Red
+        Write-Host "File not found: $localPath" -ForegroundColor Red
         exit 1
     }
 }
 
 $putLines = ($MainFiles | ForEach-Object { "put `"$Publish\$_`" `"$RemoteFolder`"" }) -join "`n"
-
 $syncScript = @"
 option batch abort
 option confirm off
@@ -92,42 +110,36 @@ open "$Site"
 $putLines
 exit
 "@
+$syncOk = Invoke-WinScpScript $syncScript "$env:TEMP\winscp_sync.log"
 
-$syncTemp = Join-Path $env:TEMP "deploy_sync.txt"
-$syncScript | Set-Content $syncTemp
-
-& $winscp /script="$syncTemp" /log="$env:TEMP\winscp_sync.log"
-$syncExit = $LASTEXITCODE
-Remove-Item $syncTemp -ErrorAction SilentlyContinue
-
-if ($syncExit -ne 0) {
+if (-not $syncOk) {
     Write-Host "Deployment failed! Site is still in maintenance mode." -ForegroundColor Red
     Write-Host "See log: $env:TEMP\winscp_sync.log" -ForegroundColor Yellow
-    Write-Host "Fix the issue and re-run, or manually rename $RemoteOfflineName on the server to restore the site." -ForegroundColor Yellow
+    Write-Host "Manually delete $RemoteOfflineName on the server to restore the site." -ForegroundColor Yellow
     exit 1
 }
 
 # ============================
 # Step 3: Disable maintenance mode
-# Rename app_offline.htm back to app_offline.htm.disabled, ready for next time.
+# Delete app_offline.htm (ignore errors) – site comes back.
 # ============================
 
 Write-Host "Disabling maintenance mode..." -ForegroundColor Yellow
 
 $disableScript = @"
-option batch abort
+option batch continue
 option confirm off
 open "$Site"
-
-# Remove any leftover disabled file to avoid collision
-option batch continue
-rm "$RemoteFolder$RemoteOfflineDisabledName"
-option batch abort
-
-# Now rename the live offline file back to .disabled
-mv "$RemoteFolder$RemoteOfflineName" "$RemoteFolder$RemoteOfflineDisabledName"
+rm "$RemoteFolder$RemoteOfflineName"
 exit
 "@
+$disableOk = Invoke-WinScpScript $disableScript "$env:TEMP\winscp_disable.log"
+
+# Even if deletion fails, we consider it a success (file might already be gone)
+# but we log the failure just in case.
+if (-not $disableOk) {
+    Write-Host "WARNING: Could not delete $RemoteOfflineName. It may already be gone. See log: $env:TEMP\winscp_disable.log" -ForegroundColor Yellow
+}
 
 Write-Host ""
 Write-Host "Deployment completed successfully!" -ForegroundColor Green
