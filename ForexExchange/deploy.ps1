@@ -6,17 +6,17 @@
 $Site = "Plesk"
 
 # Remote website folder
-$RemoteFolder = "/httpdocs/"
+$RemoteFolder = "/"
 
-# Publish folder (created next to this script)
-$Publish = Join-Path $PSScriptRoot "publish"
+# Publish folder (default dotnet publish output location for -c Release)
+$Publish = Join-Path $PSScriptRoot "bin\Release\net9.0\publish"
 
 # Your pre-made app_offline.htm template (the Farsi maintenance page you already have)
 # Put it next to this script, or change the path below.
 $OfflineTemplate = Join-Path $PSScriptRoot "app_offline.htm"
 
 $RemoteOfflineName         = "app_offline.htm"
-$RemoteOfflineDisabledName = "app_offline.htm.disabled"
+$RemoteOfflineDisabledName = "app_offline.htm.disabled.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 
 # WinSCP executable
 $winscp = "${env:ProgramFiles(x86)}\WinSCP\WinSCP.com"
@@ -103,7 +103,9 @@ if ($syncExit -ne 0) {
 # ============================
 # Step 3: Disable maintenance mode
 # Renamed (not deleted) so IIS stops finding it, but you keep a copy
-# on the server for the next deploy / for reference.
+# on the server for reference. The name includes a timestamp so it
+# never collides with a leftover .disabled file from an earlier run
+# (that collision is what was causing the rename to fail before).
 # ============================
 
 Write-Host "Disabling maintenance mode..." -ForegroundColor Yellow
