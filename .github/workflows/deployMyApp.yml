@@ -1,4 +1,4 @@
-name: Test FTP
+name: Test FTPs
 
 on:
   workflow_dispatch:
