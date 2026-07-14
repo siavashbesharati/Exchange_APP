@@ -1,12 +1,60 @@
-# ===== Configuration =====
-$Project = "F:\Expedia\Exsora\Exchange_APP\Exchange_APP.csproj"
-$PublishFolder = "F:\Expedia\Exsora\Exchange_APP\publish"
+Write-Host ""
+Write-Host "Publishing..." -ForegroundColor Cyan
 
-$FtpHost = "pnl.taban-group.com"
-$Username = "sia"
-$Password = "roberto2026@#$ASD"
+dotnet publish $Project -c Release -o $Publish
 
-# Remote IIS folder
-$RemoteFolder = "/httpdocs/"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Publish failed!" -ForegroundColor Red
+    exit 1
+}
 
-$WinSCP = "C:\Program Files (x86)\WinSCP\WinSCP.com"
+Write-Host "Creating app_offline.htm..." -ForegroundColor Yellow
+
+@"
+<html>
+<head><title>Updating...</title></head>
+<body style="font-family:Arial;text-align:center;margin-top:100px">
+<h2>Application is updating...</h2>
+<p>Please try again in a few seconds.</p>
+</body>
+</html>
+"@ | Set-Content "$Publish\app_offline.htm"
+
+$script = @"
+option batch abort
+option confirm off
+
+open $Site
+
+echo Uploading app_offline.htm...
+put "$Publish\app_offline.htm" "$RemoteFolder"
+
+echo Waiting for IIS...
+call timeout /t 2 > nul
+
+echo Synchronizing files...
+synchronize remote "$Publish" "$RemoteFolder"
+
+echo Removing app_offline.htm...
+rm "$RemoteFolder/app_offline.htm"
+
+exit
+"@
+
+$temp = "$env:TEMP\deploy.txt"
+$script | Set-Content $temp
+
+Write-Host "Uploading..." -ForegroundColor Cyan
+
+& $winscp /script="$temp"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Deployment failed!" -ForegroundColor Red
+    Remove-Item $temp -ErrorAction SilentlyContinue
+    exit 1
+}
+
+Remove-Item $temp -ErrorAction SilentlyContinue
+
+Write-Host ""
+Write-Host "Deployment completed successfully!" -ForegroundColor Green
