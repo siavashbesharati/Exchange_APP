@@ -1,53 +1,13 @@
-name: "🚀 Deploy My App"
+name: Test FTP
 
 on:
-  push:
-    branches: [ master ]  # your main branch
+  workflow_dispatch:
 
 jobs:
-  deploy:
-    runs-on: [self-hosted, Linux, X64]
+  test:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Show runner info
+      - name: Test FTP Port
         run: |
-          echo "Runner info:"
-          uname -a
-          whoami
-          pwd
-          env
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Show files after checkout
-        run: ls -la
-
-      - name: Build .NET app
-        run: dotnet publish -c Release -o publish
-
-      - name: Show published files
-        run: ls -la publish
-
-      - name: Stop .NET service
-        run: sudo systemctl stop ${{ vars.SERVICE_NAME }} || echo "Service not found, skipping stop"
-
-      - name: Upload changed files to server
-        run: |
-          echo "Syncing files to ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ vars.PROJECT_PATH }}"
-          rsync -avz --delete publish/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:${{ vars.PROJECT_PATH }}
-
-      - name: Start .NET service
-        run: sudo systemctl start ${{ vars.SERVICE_NAME }} || echo "Service start failed, check manually"
-
-      - name: Verify service status
-        run: |
-          STATUS=$(systemctl is-active ${{ vars.SERVICE_NAME }})
-          echo "Service status: $STATUS"
-          if [ "$STATUS" != "active" ]; then
-            echo "Service failed to start!"
-            exit 1
-          fi
-
-      - name: Show deployed files on server
-        run: ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "ls -la ${{ vars.PROJECT_PATH }}"
+          nc -zv pnl.taban-group.com 21
