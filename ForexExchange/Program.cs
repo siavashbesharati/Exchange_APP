@@ -34,10 +34,10 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
-    // This project uses the non-default file name "appsetting.json" (singular),
+    // This project uses the non-default file name "appsettings.json" (singular),
     // which ASP.NET Core does not load automatically. Register it explicitly.
     builder.Configuration
-        .AddJsonFile("appsetting.json", optional: true, reloadOnChange: true)
+        .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
         .AddJsonFile(
             $"appsetting.{builder.Environment.EnvironmentName}.json",
             optional: true,
