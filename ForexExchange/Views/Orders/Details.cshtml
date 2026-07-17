@@ -11,7 +11,7 @@
     const long receiptOffset = 100000;
     var receiptNumber = (Model.Id * receiptMultiplier) + receiptOffset;
 
-    ViewData["Title"] = $"رسید معامله #{receiptNumber}";
+    ViewData["Title"] = $"رسید معامله {receiptNumber}";
 
     var websiteName = await SettingsService.GetWebsiteNameAsync();
     var companyName = await SettingsService.GetCompanyNameAsync();
@@ -178,6 +178,30 @@
         padding: 0.45rem 0;
         border: none;
         min-height: 28px;
+    }
+
+    .customer-info-section {
+        text-align: center;
+    }
+
+    .customer-info-section .section-title {
+        text-align: center;
+    }
+
+    .customer-info-section .document-row {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.5rem 0.75rem;
+    }
+
+    .customer-info-section .document-label {
+        width: auto;
+        text-align: center;
+    }
+
+    .customer-info-section .document-value {
+        flex: 0 1 auto;
+        text-align: center;
     }
 
     .document-label {
@@ -480,34 +504,36 @@
             </div>
             <div class="document-title">رسید معامله ارزی</div>
             <div class="document-number">
-                <span class="info-badge primary">شماره رسید #@receiptNumber</span>
+                <span class="info-badge primary">شماره رسید @receiptNumber</span>
             </div>
         </div>
 
         <div class="document-content">
-            <div class="section-title">اطلاعات مشتری</div>
-            <div class="document-row">
-                <div class="document-label">نام مشتری:</div>
-                <div class="document-value">
-                    @if (Model.Customer != null)
-                    {
-                        <strong>@customerTitle @Model.Customer.FullName</strong>
-                    }
-                    else
-                    {
-                        <span>شناسه مشتری: @Model.CustomerId</span>
-                    }
-                </div>
-            </div>
-            @if (Model.Customer != null)
-            {
+            <div class="customer-info-section">
+                <div class="section-title">اطلاعات مشتری</div>
                 <div class="document-row">
-                    <div class="document-label">شماره تماس:</div>
-                    <div class="document-value" style="direction:ltr;unicode-bidi:plaintext">
-                        @Model.Customer.PhoneNumber
+                    <div class="document-label">نام مشتری:</div>
+                    <div class="document-value">
+                        @if (Model.Customer != null)
+                        {
+                            <strong>@customerTitle @Model.Customer.FullName</strong>
+                        }
+                        else
+                        {
+                            <span>شناسه مشتری: @Model.CustomerId</span>
+                        }
                     </div>
                 </div>
-            }
+                @if (Model.Customer != null)
+                {
+                    <div class="document-row">
+                        <div class="document-label">شماره تماس:</div>
+                        <div class="document-value" style="direction:ltr;unicode-bidi:plaintext">
+                            @Model.Customer.PhoneNumber
+                        </div>
+                    </div>
+                }
+            </div>
 
             <div class="section-title">جزئیات تبادل ارز</div>
 
