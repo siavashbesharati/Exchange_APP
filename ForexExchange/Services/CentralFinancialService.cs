@@ -3713,7 +3713,10 @@ namespace ForexExchange.Services
 
             await _notificationHub.SendManualAdjustmentNotificationAsync(
                     title: "تعدیل دستی موجودی حذف شد",
-                    message: $"تعدیل دستی مشتری حذف شد - مبلغ: {historyRecord.TransactionAmount:N2} {historyRecord.CurrencyCode}",
+                    message:
+                        $"مشتری: {historyRecord.Customer?.FullName ?? "نامعلوم"}\n"
+                        + $"مبلغ: {historyRecord.TransactionAmount:N2} {historyRecord.CurrencyCode}\n"
+                        + $"شناسه تراکنش: {transactionId}",
                     eventType: NotificationEventType.ManualAdjustment,
                     userId: performingUserId,
                     navigationUrl: $"/Reports/CustomerReports?customerId={historyRecord.CustomerId}",

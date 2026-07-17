@@ -213,7 +213,9 @@ try
             sp.GetRequiredService<ForexDbContext>(),
             sp.GetRequiredService<ILogger<ForexExchange.Services.Notifications.NotificationHub>>(),
             sp.GetRequiredService<IConfiguration>(),
-            sp.GetRequiredService<IWebHostEnvironment>());
+            sp.GetRequiredService<IWebHostEnvironment>(),
+            sp.GetRequiredService<IHttpContextAccessor>(),
+            sp.GetRequiredService<UserManager<ApplicationUser>>());
 
         hub.RegisterProvider(sp.GetRequiredService<SignalRNotificationProvider>());
         hub.RegisterProvider(sp.GetRequiredService<TelegramNotificationProvider>());

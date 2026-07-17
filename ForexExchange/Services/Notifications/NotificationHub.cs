@@ -1,4 +1,6 @@
 using ForexExchange.Models;
+using ForexExchange.Services.Notifications.Helpers;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace ForexExchange.Services.Notifications
@@ -101,18 +103,24 @@ namespace ForexExchange.Services.Notifications
         private readonly List<INotificationProvider> _providers;
         private readonly IConfiguration _configuration;
         private readonly IWebHostEnvironment _environment;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly UserManager<ApplicationUser> _userManager;
 
         public NotificationHub(
             ForexDbContext context,
             ILogger<NotificationHub> logger,
             IConfiguration configuration,
-            IWebHostEnvironment environment
+            IWebHostEnvironment environment,
+            IHttpContextAccessor httpContextAccessor,
+            UserManager<ApplicationUser> userManager
         )
         {
             _context = context;
             _logger = logger;
             _configuration = configuration;
             _environment = environment;
+            _httpContextAccessor = httpContextAccessor;
+            _userManager = userManager;
             _providers = new List<INotificationProvider>();
         }
 
@@ -188,6 +196,7 @@ namespace ForexExchange.Services.Notifications
                     oldStatus,
                     newStatus
                 );
+                await EnrichWithActorInfoAsync(context);
                 await SendNotificationToProvidersAsync(
                     context,
                     provider => provider.SendOrderNotificationAsync(context)
@@ -227,6 +236,7 @@ namespace ForexExchange.Services.Notifications
                     eventType,
                     userId
                 );
+                await EnrichWithActorInfoAsync(context);
                 await SendNotificationToProvidersAsync(
                     context,
                     provider => provider.SendAccountingDocumentNotificationAsync(context)
@@ -323,6 +333,7 @@ namespace ForexExchange.Services.Notifications
                     navigationUrl,
                     priority
                 );
+                await EnrichWithActorInfoAsync(context);
                 await SendNotificationToProvidersAsync(
                     context,
                     provider => provider.SendManualAdjustmentNotificationAsync(context)
@@ -449,6 +460,30 @@ namespace ForexExchange.Services.Notifications
             await Task.WhenAll(tasks);
         }
 
+        private async Task EnrichWithActorInfoAsync(NotificationContext context)
+        {
+            context.OccurredAt = DateTime.Now;
+
+            if (!string.IsNullOrEmpty(context.UserId))
+            {
+                var user = await _userManager.FindByIdAsync(context.UserId);
+                context.Actor.UserName = !string.IsNullOrWhiteSpace(user?.FullName)
+                    ? user!.FullName
+                    : user?.UserName ?? context.UserId;
+            }
+
+            var httpContext = _httpContextAccessor.HttpContext;
+            if (httpContext == null)
+                return;
+
+            context.Actor.IpAddress = ClientRequestInfoHelper.GetClientIpAddress(httpContext);
+            context.Actor.UserAgent = httpContext.Request.Headers.UserAgent.ToString();
+            context.Actor.Browser = ClientRequestInfoHelper.ParseBrowser(context.Actor.UserAgent);
+            context.Actor.OperatingSystem = ClientRequestInfoHelper.ParseOperatingSystem(
+                context.Actor.UserAgent
+            );
+        }
+
         private async Task<NotificationContext> BuildOrderNotificationContextAsync(
             Order order,
             NotificationEventType eventType,
@@ -515,10 +550,12 @@ namespace ForexExchange.Services.Notifications
                 {
                     ["orderId"] = order.Id,
                     ["customerId"] = order.CustomerId,
+                    ["customerName"] = customer?.FullName ?? "نامعلوم",
                     ["amount"] = order.FromAmount,
                     ["totalAmount"] = order.ToAmount,
                     ["fromCurrency"] = fromCurrency?.PersianName ?? "",
                     ["toCurrency"] = toCurrency?.PersianName ?? "",
+                    ["rate"] = order.Rate,
                     ["oldStatus"] = oldStatus ?? "",
                     ["newStatus"] = newStatus ?? "",
                 },
@@ -611,8 +648,10 @@ namespace ForexExchange.Services.Notifications
                     ["documentId"] = document.Id,
                     ["payerCustomerId"] = document.PayerCustomerId ?? 0,
                     ["receiverCustomerId"] = document.ReceiverCustomerId ?? 0,
+                    ["payerCustomerName"] = payerCustomer?.FullName ?? "",
+                    ["receiverCustomerName"] = receiverCustomer?.FullName ?? "",
                     ["amount"] = document.Amount,
-                    ["currencyCode"] = document.CurrencyCode,
+                    ["currencyCode"] = currency?.PersianName ?? document.CurrencyCode,
                     ["title"] = document.Title,
                     ["isVerified"] = document.IsVerified,
                 },

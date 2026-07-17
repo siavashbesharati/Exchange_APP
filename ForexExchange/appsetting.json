@@ -18,7 +18,9 @@
       "Enabled": true,
       "ProxyBaseUrl": "https://reverse.darkgpt.workers.dev",
       "BotToken": "8377558116:AAEt1-NpbciCLJSecxmmF0zvqHmHUaYrsaQ",
-      "TargetChatId": "631037221"
+      "TargetChatIds": [
+        "631037221"
+      ]
     }
   }
 }

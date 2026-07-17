@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using ForexExchange.Services.Notifications.Helpers;
 
 
 namespace ForexExchange.Services.Notifications.Providers
@@ -16,7 +17,7 @@ namespace ForexExchange.Services.Notifications.Providers
 
         private readonly string _proxyBaseUrl;
         private readonly string _botToken;
-        private readonly string _targetChatId;
+        private readonly IReadOnlyList<string> _targetChatIds;
 
         public string ProviderName => "Telegram";
 
@@ -34,44 +35,75 @@ namespace ForexExchange.Services.Notifications.Providers
             _httpClient = httpClient;
 
             _proxyBaseUrl =
-                _configuration["Telegram:ProxyBaseUrl"] ?? "https://reverse.darkgpt.workers.dev";
+                _configuration["Notifications:Telegram:ProxyBaseUrl"]
+                ?? "https://reverse.darkgpt.workers.dev";
             _botToken =
-                _configuration["Telegram:BotToken"]
+                _configuration["Notifications:Telegram:BotToken"]
                 ?? "8377558116:AAEt1-NpbciCLJSecxmmF0zvqHmHUaYrsaQ";
-            _targetChatId = _configuration["Telegram:TargetChatId"] ?? "631037221";
+            _targetChatIds = LoadTargetChatIds(_configuration);
             _logger.LogInformation(
-                "Telegram Notification Provider initialized. ProxyBaseUrl: {ProxyBaseUrl}, BotToken: {BotToken}, TargetChatId: {TargetChatId}",
+                "Telegram Notification Provider initialized. ProxyBaseUrl: {ProxyBaseUrl}, TargetChatIds: {TargetChatIds}",
                 _proxyBaseUrl,
-                _botToken,
-                _targetChatId
+                string.Join(", ", _targetChatIds)
             );
         }
 
-        private async Task SendTelegramMessageInternalAsync(string title, string message)
+        private static IReadOnlyList<string> LoadTargetChatIds(IConfiguration configuration)
         {
-            var messageToSend = $"**{title}**\n\n{message}";
+            var chatIds =
+                configuration
+                    .GetSection("Notifications:Telegram:TargetChatIds")
+                    .Get<string[]>()
+                ?? Array.Empty<string>();
 
-            // ساخت آدرس نهایی متصل به ورکر کلودفلر
+            return chatIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private async Task SendTelegramMessageInternalAsync(NotificationContext context)
+        {
+            if (_targetChatIds.Count == 0)
+            {
+                _logger.LogWarning(
+                    "No Telegram target chat IDs configured (Notifications:Telegram:TargetChatIds). Skipping message."
+                );
+                return;
+            }
+
+            var messageToSend = TelegramMessageFormatter.Format(context);
             var url = $"{_proxyBaseUrl}/bot{_botToken}/sendMessage";
 
-            // ساخت Payload تلگرام با چت‌آیدی هاردکد شده
+            var sendTasks = _targetChatIds.Select(chatId =>
+                SendTelegramMessageToChatAsync(url, chatId, messageToSend)
+            );
+            await Task.WhenAll(sendTasks);
+        }
+
+        private async Task SendTelegramMessageToChatAsync(
+            string url,
+            string chatId,
+            string messageToSend
+        )
+        {
             var payload = new
             {
-                chat_id = _targetChatId,
+                chat_id = chatId,
                 text = messageToSend,
-                parse_mode = "Markdown",
+                parse_mode = "HTML",
             };
 
-            _logger.LogDebug("Serializing Telegram payload.");
+            _logger.LogDebug("Serializing Telegram payload for chat ID {ChatId}.", chatId);
             var json = JsonSerializer.Serialize(payload);
-            _logger.LogDebug("Telegram payload serialized. JSON: {Json}", json);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             try
             {
                 _logger.LogInformation(
                     "Sending Telegram message to chat ID {ChatId}. URL: {Url}",
-                    _targetChatId,
+                    chatId,
                     url
                 );
                 var response = await _httpClient.PostAsync(url, content);
@@ -80,14 +112,16 @@ namespace ForexExchange.Services.Notifications.Providers
                 if (response.IsSuccessStatusCode)
                 {
                     _logger.LogInformation(
-                        "Telegram message sent successfully. Response: {Response}",
+                        "Telegram message sent successfully to chat ID {ChatId}. Response: {Response}",
+                        chatId,
                         responseContent
                     );
                 }
                 else
                 {
                     _logger.LogError(
-                        "Failed to send Telegram message. Status Code: {StatusCode}, Response: {Response}",
+                        "Failed to send Telegram message to chat ID {ChatId}. Status Code: {StatusCode}, Response: {Response}",
+                        chatId,
                         response.StatusCode,
                         responseContent
                     );
@@ -95,59 +129,68 @@ namespace ForexExchange.Services.Notifications.Providers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending Telegram message");
+                _logger.LogError(ex, "Error sending Telegram message to chat ID {ChatId}", chatId);
             }
         }
 
         public async Task SendOrderNotificationAsync(NotificationContext context)
         {
-            _logger.LogInformation("try to send Order notifcation  isEnabled:", IsEnabled);
+            _logger.LogInformation(
+                "Sending order Telegram notification. Enabled: {IsEnabled}",
+                IsEnabled
+            );
 
             if (!IsEnabled)
                 return;
-            await SendTelegramMessageInternalAsync(context.Title, context.Message);
+            await SendTelegramMessageInternalAsync(context);
         }
 
         public async Task SendAccountingDocumentNotificationAsync(NotificationContext context)
         {
             _logger.LogInformation(
-                "try to send AccountingDocument notifcation  isEnabled:",
+                "Sending accounting document Telegram notification. Enabled: {IsEnabled}",
                 IsEnabled
             );
 
             if (!IsEnabled)
                 return;
-            await SendTelegramMessageInternalAsync(context.Title, context.Message);
+            await SendTelegramMessageInternalAsync(context);
         }
 
         public async Task SendCustomerNotificationAsync(NotificationContext context)
         {
-            _logger.LogInformation("try to send Customer notifcation  isEnabled:", IsEnabled);
+            _logger.LogInformation(
+                "Sending customer Telegram notification. Enabled: {IsEnabled}",
+                IsEnabled
+            );
 
             if (!IsEnabled)
                 return;
-            await SendTelegramMessageInternalAsync(context.Title, context.Message);
+            await SendTelegramMessageInternalAsync(context);
         }
 
         public async Task SendSystemNotificationAsync(NotificationContext context)
         {
-            _logger.LogInformation("try to send System notifcation  isEnabled:", IsEnabled);
+            _logger.LogInformation(
+                "Sending system Telegram notification. Enabled: {IsEnabled}",
+                IsEnabled
+            );
 
             if (!IsEnabled)
                 return;
-            await SendTelegramMessageInternalAsync(context.Title, context.Message);
+            await SendTelegramMessageInternalAsync(context);
         }
 
         public async Task SendManualAdjustmentNotificationAsync(NotificationContext context)
         {
             _logger.LogInformation(
-                "try to send ManualAdjustment notifcation  isEnabled:",
+                "Sending manual adjustment Telegram notification. Enabled: {IsEnabled}",
                 IsEnabled
             );
 
             if (!IsEnabled)
                 return;
-            await SendTelegramMessageInternalAsync(context.Title, context.Message);
+            await SendTelegramMessageInternalAsync(context);
         }
     }
 }

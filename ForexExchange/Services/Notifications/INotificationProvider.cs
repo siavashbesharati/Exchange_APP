@@ -122,6 +122,30 @@ namespace ForexExchange.Services.Notifications
         /// اطلاعات موجودیت مرتبط
         /// </summary>
         public RelatedEntity? RelatedEntity { get; set; }
+
+        /// <summary>
+        /// Information about the user who triggered the event
+        /// اطلاعات کاربر انجام‌دهنده رویداد
+        /// </summary>
+        public NotificationActorInfo Actor { get; set; } = new();
+
+        /// <summary>
+        /// When the event occurred
+        /// زمان وقوع رویداد
+        /// </summary>
+        public DateTime OccurredAt { get; set; } = DateTime.Now;
+    }
+
+    /// <summary>
+    /// Actor metadata for audit-style notifications
+    /// </summary>
+    public class NotificationActorInfo
+    {
+        public string UserName { get; set; } = "نامشخص";
+        public string? IpAddress { get; set; }
+        public string? UserAgent { get; set; }
+        public string Browser { get; set; } = "نامشخص";
+        public string OperatingSystem { get; set; } = "نامشخص";
     }
 
     /// <summary>
