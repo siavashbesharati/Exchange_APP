@@ -259,7 +259,7 @@
                         <span id="connectionText">در حال اتصال...</span>
                     </div>
 
-                    <div class="container" style="padding-bottom: 120px;">
+                    <div class="container" style="padding-bottom: @(ViewData["HideStickyFooter"] as bool? == true ? "24px" : "120px");">
                         <main role="main" class="pb-3">
                             @RenderBody()
                         </main>
@@ -267,7 +267,7 @@
 
                     @if (User.Identity?.IsAuthenticated == true)
                     {
-                        @if (!User.IsInRole("Customer"))
+                        @if (!User.IsInRole("Customer") && ViewData["HideStickyFooter"] as bool? != true)
                         {
                             <!-- Admin Footer with Currency Pool Section -->
                             <div class="fixed-bottom bg-light border-top shadow-lg" style="border-top: 3px solid #00000014 !important;">

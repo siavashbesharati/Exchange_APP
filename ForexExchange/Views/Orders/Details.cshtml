@@ -12,6 +12,7 @@
     var receiptNumber = (Model.Id * receiptMultiplier) + receiptOffset;
 
     ViewData["Title"] = $"جزئیات معامله {receiptNumber}";
+    ViewData["HideStickyFooter"] = true;
 
     var logoDataUrl = await SettingsService.GetLogoDataUrlAsync();
     var websiteName = await SettingsService.GetWebsiteNameAsync();
@@ -352,7 +353,7 @@
     }
 </style>
 
-<div class="od-page" id="orderReceipt">
+<div class="od-page" id="orderReceipt" dir="rtl">
     <div class="od-top">
         <div class="od-brand">
             @if (!string.IsNullOrWhiteSpace(logoDataUrl))
@@ -384,7 +385,7 @@
 
     <div class="od-card od-receipt">
         <div class="label">شماره رسید</div>
-        <div class="number">@receiptNumber</div>
+        <div class="number" >@receiptNumber</div>
     </div>
 
     <div class="od-card od-customer">
@@ -392,7 +393,7 @@
         @if (Model.Customer != null)
         {
             <div class="name">@customerTitle @Model.Customer.FullName</div>
-            <div class="phone">@Model.Customer.PhoneNumber</div>
+            <div class="phone" data-ltr="true">@Model.Customer.PhoneNumber</div>
         }
         else
         {
@@ -482,12 +483,16 @@
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/modern-screenshot@4.6.0/dist/index.js"></script>
     <script>
         (function () {
             const button = document.getElementById('screenshotReceiptBtn');
             const receipt = document.getElementById('orderReceipt');
-            if (!button || !receipt || typeof html2canvas !== 'function') return;
+            const api = window.modernScreenshot;
+            if (!button || !receipt || !api || typeof api.domToPng !== 'function') {
+                console.error('modern-screenshot failed to load');
+                return;
+            }
 
             button.addEventListener('click', async function () {
                 const originalText = button.innerHTML;
@@ -495,16 +500,15 @@
                 button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
                 try {
-                    const canvas = await html2canvas(receipt, {
+                    const dataUrl = await api.domToPng(receipt, {
                         backgroundColor: '#f4f6f8',
                         scale: Math.max(window.devicePixelRatio || 1, 2),
-                        useCORS: true,
-                        allowTaint: true
+                        quality: 1
                     });
 
                     const link = document.createElement('a');
                     link.download = 'order-@(receiptNumber).png';
-                    link.href = canvas.toDataURL('image/png');
+                    link.href = dataUrl;
                     link.click();
                 } catch (error) {
                     console.error(error);
