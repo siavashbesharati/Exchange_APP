@@ -43,6 +43,23 @@ namespace ForexExchange.Services.Notifications
             string? userId = null
         );
 
+        Task SendTaskNotificationAsync(
+            TaskItem task,
+            NotificationEventType eventType,
+            string? userId = null,
+            string? oldStatus = null
+        );
+
+        Task SendSystemNotificationAsync(
+            string title,
+            string message,
+            NotificationEventType eventType = NotificationEventType.SystemError,
+            string? userId = null,
+            string? navigationUrl = null,
+            NotificationPriority priority = NotificationPriority.High,
+            Dictionary<string, object>? data = null
+        );
+
         /// <summary>
         /// Send custom notification
         /// ارسال اعلان معاملهی
@@ -68,6 +85,15 @@ namespace ForexExchange.Services.Notifications
             string? userId = null,
             string? navigationUrl = null,
             NotificationPriority priority = NotificationPriority.Low
+        );
+
+        Task SendPublicNotificationAsync(
+            string title,
+            string message,
+            string? userId = null,
+            string? navigationUrl = null,
+            NotificationPriority priority = NotificationPriority.Low,
+            Dictionary<string, object>? data = null
         );
 
 
@@ -139,16 +165,16 @@ namespace ForexExchange.Services.Notifications
         public IEnumerable<INotificationProvider> GetProviders() => _providers.AsReadOnly();
 
         /// <summary>
-        /// Check if notifications should be disabled in development mode
-        /// بررسی اینکه آیا اعلان‌ها در حالت توسعه غیرفعال شوند
+        /// Check whether notifications are disabled for the current environment
+        /// بررسی فعال بودن اعلان‌ها در محیط فعلی
         /// </summary>
         private bool ShouldSkipNotification()
         {
-            var disableInDevelopment = _configuration.GetValue(
-                "Notifications:DisableInDevelopment",
-                false
+            var enabledInDevelopment = _configuration.GetValue(
+                "Notifications:EnabledInDevelopment",
+                true
             );
-            return disableInDevelopment && _environment.IsDevelopment();
+            return _environment.IsDevelopment() && !enabledInDevelopment;
         }
 
         public Task SetProviderEnabledAsync(string providerName, bool enabled)
@@ -289,6 +315,7 @@ namespace ForexExchange.Services.Notifications
                     eventType,
                     userId
                 );
+                await EnrichWithActorInfoAsync(context);
                 await SendNotificationToProvidersAsync(
                     context,
                     provider => provider.SendCustomerNotificationAsync(context)
@@ -302,6 +329,77 @@ namespace ForexExchange.Services.Notifications
                     customer.Id,
                     eventType
                 );
+            }
+        }
+
+        public async Task SendTaskNotificationAsync(
+            TaskItem task,
+            NotificationEventType eventType,
+            string? userId = null,
+            string? oldStatus = null
+        )
+        {
+            if (ShouldSkipNotification())
+                return;
+
+            try
+            {
+                var context = await BuildTaskNotificationContextAsync(
+                    task,
+                    eventType,
+                    userId,
+                    oldStatus
+                );
+                await EnrichWithActorInfoAsync(context);
+                await SendNotificationToProvidersAsync(
+                    context,
+                    provider => provider.SendSystemNotificationAsync(context)
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error sending task notification for task {TaskId}, event {EventType}",
+                    task.Id,
+                    eventType
+                );
+            }
+        }
+
+        public async Task SendSystemNotificationAsync(
+            string title,
+            string message,
+            NotificationEventType eventType = NotificationEventType.SystemError,
+            string? userId = null,
+            string? navigationUrl = null,
+            NotificationPriority priority = NotificationPriority.High,
+            Dictionary<string, object>? data = null
+        )
+        {
+            if (ShouldSkipNotification())
+                return;
+
+            try
+            {
+                var context = BuildGenericNotificationContext(
+                    title,
+                    message,
+                    eventType,
+                    userId,
+                    navigationUrl,
+                    priority,
+                    data
+                );
+                await EnrichWithActorInfoAsync(context);
+                await SendNotificationToProvidersAsync(
+                    context,
+                    provider => provider.SendSystemNotificationAsync(context)
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending system notification: {Title}", title);
             }
         }
 
@@ -347,67 +445,57 @@ namespace ForexExchange.Services.Notifications
 
 
 
-        public async Task SendCustomeNotificationAsync(string title, string message, NotificationEventType eventType = NotificationEventType.PublicEvent, string? userId = null, string? navigationUrl = null, NotificationPriority priority = NotificationPriority.Low)
+        public Task SendCustomeNotificationAsync(
+            string title,
+            string message,
+            NotificationEventType eventType = NotificationEventType.PublicEvent,
+            string? userId = null,
+            string? navigationUrl = null,
+            NotificationPriority priority = NotificationPriority.Low
+        )
+        {
+            return SendPublicNotificationAsync(
+                title,
+                message,
+                userId,
+                navigationUrl,
+                priority
+            );
+        }
+
+        public async Task SendPublicNotificationAsync(
+            string title,
+            string message,
+            string? userId = null,
+            string? navigationUrl = null,
+            NotificationPriority priority = NotificationPriority.Low,
+            Dictionary<string, object>? data = null
+        )
         {
             if (ShouldSkipNotification())
-            {
-                _logger.LogDebug(
-                    "Skipping order notification in development mode for order {OrderId}, event {EventType}",
-                    title,
-                    eventType
-                );
                 return;
-            }
 
             try
             {
-                var context = await BuildCustomeNotificationContextAsync(
+                var context = BuildGenericNotificationContext(
                     title,
                     message,
-                    eventType,
+                    NotificationEventType.PublicEvent,
                     userId,
                     navigationUrl,
-                    priority
-
+                    priority,
+                    data
                 );
+                await EnrichWithActorInfoAsync(context);
                 await SendNotificationToProvidersAsync(
                     context,
-                    provider => provider.SendOrderNotificationAsync(context)
+                    provider => provider.SendSystemNotificationAsync(context)
                 );
             }
             catch (Exception ex)
             {
-                _logger.LogError(
-                    ex,
-                    "Error sending order notification for order {OrderId}, event {EventType}",
-                    title,
-                    eventType
-                );
+                _logger.LogError(ex, "Error sending public notification: {Title}", title);
             }
-        }
-
-        private async Task<NotificationContext> BuildCustomeNotificationContextAsync(string title, string message, NotificationEventType eventType, string? userId, string? navigationUrl, NotificationPriority priority)
-
-        {
-
-
-            return new NotificationContext
-            {
-                EventType = eventType,
-                UserId = userId,
-                Title = title,
-                Message = message,
-                NavigationUrl = navigationUrl,
-                Priority = priority,
-                SendToAllAdmins = true, // Always send to all admins
-                ExcludeUserIds = !string.IsNullOrEmpty(userId)
-                    ? new List<string> { userId }
-                    : new List<string>(),
-                RelatedEntity = new RelatedEntity
-                {
-                },
-                Data = [],
-            };
         }
 
         private async Task SendNotificationToProvidersAsync(
@@ -463,16 +551,31 @@ namespace ForexExchange.Services.Notifications
         private async Task EnrichWithActorInfoAsync(NotificationContext context)
         {
             context.OccurredAt = DateTime.Now;
+            context.Actor.UserName = "سیستم";
+            var httpContext = _httpContextAccessor.HttpContext;
+
+            if (!string.IsNullOrWhiteSpace(httpContext?.User.Identity?.Name))
+                context.Actor.UserName = httpContext.User.Identity.Name;
 
             if (!string.IsNullOrEmpty(context.UserId))
             {
-                var user = await _userManager.FindByIdAsync(context.UserId);
-                context.Actor.UserName = !string.IsNullOrWhiteSpace(user?.FullName)
-                    ? user!.FullName
-                    : user?.UserName ?? context.UserId;
+                try
+                {
+                    var user = await _userManager.FindByIdAsync(context.UserId);
+                    context.Actor.UserName = !string.IsNullOrWhiteSpace(user?.FullName)
+                        ? user!.FullName
+                        : user?.UserName ?? context.Actor.UserName;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Could not resolve notification actor {UserId}",
+                        context.UserId
+                    );
+                }
             }
 
-            var httpContext = _httpContextAccessor.HttpContext;
             if (httpContext == null)
                 return;
 
@@ -482,6 +585,88 @@ namespace ForexExchange.Services.Notifications
             context.Actor.OperatingSystem = ClientRequestInfoHelper.ParseOperatingSystem(
                 context.Actor.UserAgent
             );
+        }
+
+        private async Task<NotificationContext> BuildTaskNotificationContextAsync(
+            TaskItem task,
+            NotificationEventType eventType,
+            string? userId,
+            string? oldStatus
+        )
+        {
+            var assignedUser = task.AssignedToUser;
+            if (assignedUser == null && !string.IsNullOrEmpty(task.AssignedToUserId))
+            {
+                assignedUser = await _userManager.FindByIdAsync(task.AssignedToUserId);
+            }
+
+            var title = eventType switch
+            {
+                NotificationEventType.TaskAssignment => "📌 وظیفه واگذار شد",
+                NotificationEventType.TaskDueReminder => "⏰ یادآوری سررسید وظیفه",
+                NotificationEventType.TaskOverdue => "🚨 وظیفه سررسید گذشته",
+                NotificationEventType.TaskCompleted => "✅ وظیفه تکمیل شد",
+                _ => "🔄 وضعیت وظیفه تغییر کرد",
+            };
+
+            return new NotificationContext
+            {
+                EventType = eventType,
+                UserId = userId,
+                Title = title,
+                Message = task.Description,
+                NavigationUrl = $"/Tasks/Details/{task.Id}",
+                Priority = eventType == NotificationEventType.TaskOverdue
+                    ? NotificationPriority.High
+                    : NotificationPriority.Normal,
+                SendToAllAdmins = true,
+                ExcludeUserIds = !string.IsNullOrEmpty(userId)
+                    ? new List<string> { userId }
+                    : new List<string>(),
+                RelatedEntity = new RelatedEntity
+                {
+                    EntityType = "Task",
+                    EntityId = task.Id,
+                },
+                Data = new Dictionary<string, object>
+                {
+                    ["taskId"] = task.Id,
+                    ["title"] = task.Title,
+                    ["description"] = task.Description,
+                    ["assignedTo"] = assignedUser?.FullName
+                        ?? assignedUser?.UserName
+                        ?? "بدون مسئول",
+                    ["dueDate"] = task.DueDate?.ToString("yyyy-MM-dd HH:mm") ?? "بدون سررسید",
+                    ["oldStatus"] = oldStatus ?? "",
+                    ["status"] = task.Status.ToString(),
+                },
+            };
+        }
+
+        private static NotificationContext BuildGenericNotificationContext(
+            string title,
+            string message,
+            NotificationEventType eventType,
+            string? userId,
+            string? navigationUrl,
+            NotificationPriority priority,
+            Dictionary<string, object>? data
+        )
+        {
+            return new NotificationContext
+            {
+                EventType = eventType,
+                UserId = userId,
+                Title = title,
+                Message = message,
+                NavigationUrl = navigationUrl,
+                Priority = priority,
+                SendToAllAdmins = true,
+                ExcludeUserIds = !string.IsNullOrEmpty(userId)
+                    ? new List<string> { userId }
+                    : new List<string>(),
+                Data = data ?? new Dictionary<string, object>(),
+            };
         }
 
         private async Task<NotificationContext> BuildOrderNotificationContextAsync(

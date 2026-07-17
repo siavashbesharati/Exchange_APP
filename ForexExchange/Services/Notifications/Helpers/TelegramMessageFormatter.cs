@@ -16,6 +16,15 @@ namespace ForexExchange.Services.Notifications.Helpers
                 NotificationEventType.OrderDeleted => FormatOrderDeleted(context),
                 NotificationEventType.AccountingDocumentCreated => FormatAccountingDocumentCreated(context),
                 NotificationEventType.AccountingDocumentVerified => FormatAccountingDocumentVerified(context),
+                NotificationEventType.AccountingDocumentDeleted => FormatAccountingDocumentCreated(context),
+                NotificationEventType.CustomerRegistered => FormatCustomerRegistered(context),
+                NotificationEventType.TaskAssignment
+                    or NotificationEventType.TaskDueReminder
+                    or NotificationEventType.TaskOverdue
+                    or NotificationEventType.TaskProgress
+                    or NotificationEventType.TaskCompleted => FormatTask(context),
+                NotificationEventType.SystemError => FormatSystemError(context),
+                NotificationEventType.SystemMaintenance => FormatSystemMaintenance(context),
                 NotificationEventType.ManualAdjustment => FormatManualAdjustment(context),
                 _ => FormatGeneric(context),
             };
@@ -97,6 +106,56 @@ namespace ForexExchange.Services.Notifications.Helpers
             return sb.ToString();
         }
 
+        private static string FormatCustomerRegistered(NotificationContext context)
+        {
+            var sb = new StringBuilder();
+            AppendHeader(sb, context.Title);
+            AppendLine(sb, "👤 مشتری", GetValue(context.Data, "fullName"));
+            AppendLine(sb, "📱 تلفن", GetValue(context.Data, "phoneNumber"));
+            AppendLine(sb, "🆔 شناسه", $"#{GetValue(context.Data, "customerId")}");
+            AppendActorFooter(sb, context);
+            return sb.ToString();
+        }
+
+        private static string FormatTask(NotificationContext context)
+        {
+            var sb = new StringBuilder();
+            AppendHeader(sb, context.Title);
+            AppendLine(sb, "📋 وظیفه", GetValue(context.Data, "title"));
+            AppendLine(sb, "🆔 شناسه", $"#{GetValue(context.Data, "taskId")}");
+            AppendLine(sb, "👤 مسئول", GetValue(context.Data, "assignedTo"));
+            AppendLine(sb, "📅 سررسید", GetValue(context.Data, "dueDate"));
+            AppendLine(sb, "📊 وضعیت", GetValue(context.Data, "status"));
+
+            var description = GetValue(context.Data, "description");
+            if (description != "—" && !string.IsNullOrWhiteSpace(description))
+                AppendLine(sb, "📝 توضیحات", description);
+
+            AppendActorFooter(sb, context);
+            return sb.ToString();
+        }
+
+        private static string FormatSystemError(NotificationContext context)
+        {
+            var sb = new StringBuilder();
+            AppendHeader(sb, context.Title);
+            AppendLine(sb, "📝 خطا", context.Message);
+            AppendOptionalLine(sb, "📍 مسیر", context.Data, "path");
+            AppendOptionalLine(sb, "⚙️ نوع خطا", context.Data, "exceptionType");
+            AppendActorFooter(sb, context);
+            return sb.ToString();
+        }
+
+        private static string FormatSystemMaintenance(NotificationContext context)
+        {
+            var sb = new StringBuilder();
+            AppendHeader(sb, context.Title);
+            AppendLine(sb, "🛠️ عملیات", context.Message);
+            AppendOptionalLine(sb, "📦 جزئیات", context.Data, "details");
+            AppendActorFooter(sb, context);
+            return sb.ToString();
+        }
+
         private static string FormatGeneric(NotificationContext context)
         {
             var sb = new StringBuilder();
@@ -128,6 +187,18 @@ namespace ForexExchange.Services.Notifications.Helpers
             sb.AppendLine($"{label}: <b>{Escape(value)}</b>");
         }
 
+        private static void AppendOptionalLine(
+            StringBuilder sb,
+            string label,
+            Dictionary<string, object> data,
+            string key
+        )
+        {
+            var value = GetValue(data, key);
+            if (value != "—" && !string.IsNullOrWhiteSpace(value))
+                AppendLine(sb, label, value);
+        }
+
         private static void AppendActorFooter(StringBuilder sb, NotificationContext context)
         {
             var actor = context.Actor;
@@ -151,7 +222,7 @@ namespace ForexExchange.Services.Notifications.Helpers
                     formattable.ToString("N0", null) ?? "—",
                 "rate" when value is IFormattable formattable =>
                     formattable.ToString("N2", null) ?? "—",
-                _ => WebUtility.HtmlEncode(value.ToString() ?? "—"),
+                _ => value.ToString() ?? "—",
             };
         }
 

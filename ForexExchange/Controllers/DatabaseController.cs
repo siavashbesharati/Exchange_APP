@@ -224,6 +224,18 @@ namespace ForexExchange.Controllers
 
                 // Read from final path (never held by SQLite) and return for download
                 var fileBytes = await System.IO.File.ReadAllBytesAsync(fullBackupPath);
+                var currentUser = await _userManager.GetUserAsync(User);
+                await _notificationHub.SendSystemNotificationAsync(
+                    "🗄️ پشتیبان‌گیری پایگاه داده",
+                    "نسخه پشتیبان پایگاه داده با موفقیت ایجاد شد.",
+                    NotificationEventType.SystemMaintenance,
+                    currentUser?.Id,
+                    priority: NotificationPriority.Normal,
+                    data: new Dictionary<string, object>
+                    {
+                        ["details"] = $"{backupFileName} ({fileInfo.Length:N0} bytes)",
+                    }
+                );
                 return File(fileBytes, "application/octet-stream", backupFileName);
             }
             catch (Exception ex)
@@ -502,6 +514,18 @@ namespace ForexExchange.Controllers
                 _context.ChangeTracker.Clear();
 
                 TempData["Success"] = $"بازیابی پایگاه داده با موفقیت انجام شد. پشتیبان خودکار ایجاد شد: {backupFileName}";
+                var currentUser = await _userManager.GetUserAsync(User);
+                await _notificationHub.SendSystemNotificationAsync(
+                    "♻️ بازیابی پایگاه داده",
+                    "پایگاه داده با موفقیت از نسخه پشتیبان بازیابی شد.",
+                    NotificationEventType.SystemMaintenance,
+                    currentUser?.Id,
+                    priority: NotificationPriority.High,
+                    data: new Dictionary<string, object>
+                    {
+                        ["details"] = backupFile.FileName,
+                    }
+                );
             }
             catch (Exception ex)
             {
@@ -837,6 +861,14 @@ namespace ForexExchange.Controllers
                 // Call the service method instead of local implementation
                 await _centralFinancialService.RebuildAllFinancialBalancesAsync(performedBy);
 
+                await _notificationHub.SendSystemNotificationAsync(
+                    "🔧 بازسازی موجودی‌های مالی",
+                    "بازسازی کامل موجودی‌های مالی با موفقیت انجام شد.",
+                    NotificationEventType.SystemMaintenance,
+                    user?.Id,
+                    priority: NotificationPriority.High
+                );
+
                 TempData["Success"] = "بازسازی کامل موجودی‌های مالی با زنجیره‌های منسجم موجودی با موفقیت انجام شد!";
                 return RedirectToAction("Index");
             }
@@ -872,6 +904,19 @@ namespace ForexExchange.Controllers
                 await _centralFinancialService.RebuildAllFinancialBalancesAsync(performedBy);
                 await _currencyPoolService.UpdateAllOrderCountsAsync();
                 var successMessage = $"داشبورد با موفقیت ریست شد.<br/>";
+
+                await _notificationHub.SendSystemNotificationAsync(
+                    "🧊 ریست داشبورد مالی",
+                    "سفارش‌ها فریز و داشبورد مالی با موفقیت بازسازی شد.",
+                    NotificationEventType.SystemMaintenance,
+                    user?.Id,
+                    priority: NotificationPriority.High,
+                    data: new Dictionary<string, object>
+                    {
+                        ["details"] =
+                            $"{ordersFrozen} سفارش، {manualPoolSoftDeleted} تعدیل دستی",
+                    }
+                );
 
                 return Json(new
                 {

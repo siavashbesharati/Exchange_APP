@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using ForexExchange.Models;
 using ForexExchange.Services;
+using ForexExchange.Services.Notifications;
 using System.Globalization;
 
 namespace ForexExchange.Controllers
@@ -18,6 +19,7 @@ namespace ForexExchange.Controllers
         private readonly IShareableLinkService _shareableLinkService;
         private readonly AdminNotificationService _adminNotificationService;
         private readonly ICentralFinancialService _centralFinancialService;
+        private readonly INotificationHub _notificationHub;
 
         public CustomersController(
             ForexDbContext context,
@@ -26,7 +28,8 @@ namespace ForexExchange.Controllers
             CustomerDebtCreditService debtCreditService,
             IShareableLinkService shareableLinkService,
             AdminNotificationService adminNotificationService,
-            ICentralFinancialService centralFinancialService)
+            ICentralFinancialService centralFinancialService,
+            INotificationHub notificationHub)
         {
             _context = context;
             _userManager = userManager;
@@ -35,6 +38,7 @@ namespace ForexExchange.Controllers
             _shareableLinkService = shareableLinkService;
             _adminNotificationService = adminNotificationService;
             _centralFinancialService = centralFinancialService;
+            _notificationHub = notificationHub;
         }        // GET: Customers
         public async Task<IActionResult> Index()
         {
@@ -85,6 +89,14 @@ namespace ForexExchange.Controllers
                     };
                     _context.Customers.Add(customer);
                     await _context.SaveChangesAsync();
+
+                    var currentUser = await _userManager.GetUserAsync(User);
+                    await _notificationHub.SendCustomerNotificationAsync(
+                        customer,
+                        NotificationEventType.CustomerRegistered,
+                        currentUser?.Id
+                    );
+
                     return RedirectToAction("Index");
                 }
                 catch (DbUpdateException ex)

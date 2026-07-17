@@ -1666,6 +1666,8 @@ namespace ForexExchange.Controllers
                         DeletedAt = a.DeletedAt,
                         DeletedBy = a.DeletedBy,
                         IsVerified = a.IsVerified,
+                        Amount = a.Amount,
+                        CurrencyCode = a.CurrencyCode,
                         CurrencyId = a.CurrencyId, // REQUIRED!
                         PayerType = a.PayerType,
                         PayerCustomerId = a.PayerCustomerId,
@@ -1716,6 +1718,15 @@ namespace ForexExchange.Controllers
                 };
                 _context.AdminActivities.Add(adminActivity);
                 await _context.SaveChangesAsync();
+
+                if (currentUser != null)
+                {
+                    await _notificationHub.SendAccountingDocumentNotificationAsync(
+                        document,
+                        NotificationEventType.AccountingDocumentDeleted,
+                        currentUser.Id
+                    );
+                }
 
                 var successMessage =
                     $"سند حسابداری #{document.Id} با موفقیت حذف شد و تأثیرات مالی آن برگردانده شد.";

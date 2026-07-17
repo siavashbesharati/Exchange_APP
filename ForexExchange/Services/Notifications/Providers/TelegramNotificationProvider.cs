@@ -22,7 +22,10 @@ namespace ForexExchange.Services.Notifications.Providers
         public string ProviderName => "Telegram";
 
         public bool IsEnabled =>
-            _configuration.GetValue<bool>("Notifications:Telegram:Enabled", true);
+            _configuration.GetValue<bool?>("Notifications:Telegram:Enabled") == true
+            && !string.IsNullOrWhiteSpace(_proxyBaseUrl)
+            && !string.IsNullOrWhiteSpace(_botToken)
+            && _targetChatIds.Count > 0;
 
         public TelegramNotificationProvider(
             ILogger<TelegramNotificationProvider> logger,
@@ -35,15 +38,33 @@ namespace ForexExchange.Services.Notifications.Providers
             _httpClient = httpClient;
 
             _proxyBaseUrl =
-                _configuration["Notifications:Telegram:ProxyBaseUrl"]
-                ?? "https://reverse.darkgpt.workers.dev";
-            _botToken =
-                _configuration["Notifications:Telegram:BotToken"]
-                ?? "8377558116:AAEt1-NpbciCLJSecxmmF0zvqHmHUaYrsaQ";
+                _configuration["Notifications:Telegram:ProxyBaseUrl"]?.Trim() ?? string.Empty;
+            _botToken = _configuration["Notifications:Telegram:BotToken"]?.Trim() ?? string.Empty;
             _targetChatIds = LoadTargetChatIds(_configuration);
+
+            if (string.IsNullOrWhiteSpace(_proxyBaseUrl))
+            {
+                _logger.LogWarning(
+                    "Notifications:Telegram:ProxyBaseUrl is missing in app settings."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(_botToken))
+            {
+                _logger.LogWarning("Notifications:Telegram:BotToken is missing in app settings.");
+            }
+
+            if (_targetChatIds.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Notifications:Telegram:TargetChatIds is missing or empty in app settings."
+                );
+            }
+
             _logger.LogInformation(
-                "Telegram Notification Provider initialized. ProxyBaseUrl: {ProxyBaseUrl}, TargetChatIds: {TargetChatIds}",
-                _proxyBaseUrl,
+                "Telegram Notification Provider initialized. Enabled: {Enabled}, ProxyBaseUrl configured: {HasProxy}, TargetChatIds: {TargetChatIds}",
+                IsEnabled,
+                !string.IsNullOrWhiteSpace(_proxyBaseUrl),
                 string.Join(", ", _targetChatIds)
             );
         }
@@ -65,16 +86,16 @@ namespace ForexExchange.Services.Notifications.Providers
 
         private async Task SendTelegramMessageInternalAsync(NotificationContext context)
         {
-            if (_targetChatIds.Count == 0)
+            if (!IsEnabled)
             {
                 _logger.LogWarning(
-                    "No Telegram target chat IDs configured (Notifications:Telegram:TargetChatIds). Skipping message."
+                    "Telegram provider is not fully configured in app settings. Skipping message."
                 );
                 return;
             }
 
             var messageToSend = TelegramMessageFormatter.Format(context);
-            var url = $"{_proxyBaseUrl}/bot{_botToken}/sendMessage";
+            var url = $"{_proxyBaseUrl.TrimEnd('/')}/bot{_botToken}/sendMessage";
 
             var sendTasks = _targetChatIds.Select(chatId =>
                 SendTelegramMessageToChatAsync(url, chatId, messageToSend)

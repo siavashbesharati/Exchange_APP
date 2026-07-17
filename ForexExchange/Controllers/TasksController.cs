@@ -6,6 +6,7 @@ using TaskStatus = ForexExchange.Models.TaskStatus;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using ForexExchange.Services.Notifications;
 
 namespace ForexExchange.Controllers
 {
@@ -14,11 +15,17 @@ namespace ForexExchange.Controllers
     {
         private readonly ITaskManagementService _taskService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly INotificationHub _notificationHub;
 
-        public TasksController(ITaskManagementService taskService, UserManager<ApplicationUser> userManager)
+        public TasksController(
+            ITaskManagementService taskService,
+            UserManager<ApplicationUser> userManager,
+            INotificationHub notificationHub
+        )
         {
             _taskService = taskService;
             _userManager = userManager;
+            _notificationHub = notificationHub;
         }
 
         // GET: Tasks
@@ -69,7 +76,17 @@ namespace ForexExchange.Controllers
             {
                 try
                 {
-                    await _taskService.CreateTaskAsync(task.Title, task.Description, task.DueDate, task.AssignedToUserId);
+                    var createdTask = await _taskService.CreateTaskAsync(
+                        task.Title,
+                        task.Description,
+                        task.DueDate,
+                        task.AssignedToUserId
+                    );
+                    await _notificationHub.SendTaskNotificationAsync(
+                        createdTask,
+                        NotificationEventType.TaskAssignment,
+                        _userManager.GetUserId(User)
+                    );
                     TempData["Success"] = "وظیفه با موفقیت ایجاد شد.";
                     return RedirectToAction(nameof(Index));
                 }
@@ -112,7 +129,43 @@ namespace ForexExchange.Controllers
             {
                 try
                 {
-                    await _taskService.UpdateTaskAsync(id, task.Title, task.Description, task.DueDate, task.Status, task.AssignedToUserId);
+                    var existingTask = await _taskService.GetTaskByIdAsync(id);
+                    if (existingTask == null)
+                        return NotFound();
+
+                    var oldStatus = existingTask.Status;
+                    var oldAssignedUserId = existingTask.AssignedToUserId;
+                    var updatedTask = await _taskService.UpdateTaskAsync(
+                        id,
+                        task.Title,
+                        task.Description,
+                        task.DueDate,
+                        task.Status,
+                        task.AssignedToUserId
+                    );
+
+                    var currentUserId = _userManager.GetUserId(User);
+                    if (oldAssignedUserId != updatedTask.AssignedToUserId)
+                    {
+                        await _notificationHub.SendTaskNotificationAsync(
+                            updatedTask,
+                            NotificationEventType.TaskAssignment,
+                            currentUserId,
+                            oldStatus.ToString()
+                        );
+                    }
+
+                    if (oldStatus != updatedTask.Status)
+                    {
+                        await _notificationHub.SendTaskNotificationAsync(
+                            updatedTask,
+                            updatedTask.Status == TaskStatus.Completed
+                                ? NotificationEventType.TaskCompleted
+                                : NotificationEventType.TaskProgress,
+                            currentUserId,
+                            oldStatus.ToString()
+                        );
+                    }
                     TempData["Success"] = "وظیفه با موفقیت به‌روزرسانی شد.";
                     return RedirectToAction(nameof(Index));
                 }
@@ -164,9 +217,23 @@ namespace ForexExchange.Controllers
             try
             {
                 var currentUserId = _userManager.GetUserId(User);
+                var task = await _taskService.GetTaskByIdAsync(id);
+                var oldStatus = task?.Status;
                 var result = await _taskService.UpdateTaskStatusAsync(id, status, currentUserId);
                 if (result)
                 {
+                    if (task != null)
+                    {
+                        task.Status = status;
+                        await _notificationHub.SendTaskNotificationAsync(
+                            task,
+                            status == TaskStatus.Completed
+                                ? NotificationEventType.TaskCompleted
+                                : NotificationEventType.TaskProgress,
+                            currentUserId,
+                            oldStatus?.ToString()
+                        );
+                    }
                     TempData["Success"] = "وضعیت وظیفه با موفقیت به‌روزرسانی شد.";
                 }
                 else

@@ -34,6 +34,16 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
+    // This project uses the non-default file name "appsetting.json" (singular),
+    // which ASP.NET Core does not load automatically. Register it explicitly.
+    builder.Configuration
+        .AddJsonFile("appsetting.json", optional: true, reloadOnChange: true)
+        .AddJsonFile(
+            $"appsetting.{builder.Environment.EnvironmentName}.json",
+            optional: true,
+            reloadOnChange: true
+        );
+
     builder.Host.UseSerilog();
 
     var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"]
@@ -237,6 +247,38 @@ try
         catch (Exception ex)
         {
             Log.Error(ex, "Unhandled exception for {Path}", context.Request.Path);
+
+            try
+            {
+                var notificationHub =
+                    context.RequestServices.GetRequiredService<INotificationHub>();
+                var userId = context.User.FindFirst(
+                    System.Security.Claims.ClaimTypes.NameIdentifier
+                )?.Value;
+
+                await notificationHub.SendSystemNotificationAsync(
+                    title: "🚨 خطای مدیریت‌نشده سیستم",
+                    message: ex.Message,
+                    eventType: NotificationEventType.SystemError,
+                    userId: userId,
+                    navigationUrl: context.Request.Path,
+                    priority: NotificationPriority.Critical,
+                    data: new Dictionary<string, object>
+                    {
+                        ["path"] = context.Request.Path.ToString(),
+                        ["method"] = context.Request.Method,
+                        ["exceptionType"] = ex.GetType().Name,
+                    }
+                );
+            }
+            catch (Exception notificationException)
+            {
+                Log.Error(
+                    notificationException,
+                    "Failed to send Telegram notification for unhandled exception"
+                );
+            }
+
             throw;
         }
     });
