@@ -23,7 +23,7 @@
     var toLabel = toCode == "IRR" ? "Toman" : (Model.ToCurrency?.PersianName ?? toCode);
     var customerTitle = Model.Customer == null
         ? ""
-        : (Model.Customer.Gender ? "آقای" : "خانم");
+        : (Model.Customer.Gender ? "MR. " : "MS. ");
 
     var statusText = Model.IsDeleted ? "حذف شده" : Model.IsFrozen ? "منجمد" : "تایید شد";
     var statusClass = Model.IsDeleted ? "is-deleted" : Model.IsFrozen ? "is-frozen" : "is-ok";
@@ -385,7 +385,7 @@
 
     <div class="od-card od-receipt">
         <div class="label">شماره رسید</div>
-        <div class="number" >@receiptNumber</div>
+        <div class="phone" >@receiptNumber</div>
     </div>
 
     <div class="od-card od-customer">
@@ -421,24 +421,16 @@
     <div class="od-card">
         <div class="od-card-title">اطلاعات معامله</div>
         <div class="od-meta">
-            <div class="od-meta-item">
-                <span class="k">جفت ارز</span>
-                <span class="v ltr">@fromCode / @toCode</span>
-            </div>
+           
             <div class="od-meta-item">
                 <span class="k">نرخ تبدیل</span>
-                <span class="v ltr">1 @fromCode = @Model.Rate.ToString("N4") @toCode</span>
+                <span class="v ltr">1 @fromCode = @Model.Rate.FormatCurrency(toCode) @toCode</span>
             </div>
             <div class="od-meta-item">
                 <span class="k">تاریخ تراکنش</span>
                 <span class="v ltr">@Model.CreatedAt.ToString("yyyy/MM/dd HH:mm")</span>
             </div>
-            <div class="od-meta-item">
-                <span class="k">آخرین بروزرسانی</span>
-                <span class="v ltr">
-                    @(Model.UpdatedAt?.ToString("yyyy/MM/dd HH:mm") ?? "—")
-                </span>
-            </div>
+            
         </div>
     </div>
 
