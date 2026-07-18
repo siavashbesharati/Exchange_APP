@@ -25,6 +25,13 @@
         ? ""
         : (Model.Customer.Gender ? "MR. " : "MS. ");
 
+    // RatePriority: lower number = stronger currency.
+    // Display always as: 1 strongest = rate weakest
+    var fromPriority = Model.FromCurrency?.RatePriority ?? int.MaxValue;
+    var toPriority = Model.ToCurrency?.RatePriority ?? int.MaxValue;
+    var strongCode = fromPriority <= toPriority ? fromCode : toCode;
+    var weakCode = fromPriority <= toPriority ? toCode : fromCode;
+
     var statusText = Model.IsDeleted ? "حذف شده" : Model.IsFrozen ? "منجمد" : "تایید شد";
     var statusClass = Model.IsDeleted ? "is-deleted" : Model.IsFrozen ? "is-frozen" : "is-ok";
 }
@@ -424,7 +431,7 @@
            
             <div class="od-meta-item">
                 <span class="k">نرخ تبدیل</span>
-                <span class="v ltr">1 @fromCode = @Model.Rate.FormatCurrency(toCode) @toCode</span>
+                <span class="v ltr">1 @strongCode = @Model.Rate.FormatCurrency(weakCode) @weakCode</span>
             </div>
             <div class="od-meta-item">
                 <span class="k">تاریخ تراکنش</span>
