@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
+using ForexExchange.Extensions;
 using ForexExchange.Helpers;
 
 namespace ForexExchange.Services.Notifications.Helpers
@@ -42,9 +44,9 @@ namespace ForexExchange.Services.Notifications.Helpers
             AppendLine(
                 sb,
                 "💱 مبلغ",
-                $"{GetValue(data, "amount")} {GetValue(data, "fromCurrency")} → {GetValue(data, "totalAmount")} {GetValue(data, "toCurrency")}"
+                $"{FormatMoney(data, "amount", "fromCurrencyCode")} {GetValue(data, "fromCurrency")} → {FormatMoney(data, "totalAmount", "toCurrencyCode")} {GetValue(data, "toCurrency")}"
             );
-            AppendLine(sb, "📈 نرخ", GetValue(data, "rate"));
+            AppendLine(sb, "📈 نرخ", FormatMoney(data, "rate", currencyKey: null));
             AppendActorFooter(sb, context);
             return sb.ToString();
         }
@@ -59,7 +61,7 @@ namespace ForexExchange.Services.Notifications.Helpers
             AppendLine(
                 sb,
                 "💱 مبلغ",
-                $"{GetValue(data, "amount")} {GetValue(data, "fromCurrency")} → {GetValue(data, "totalAmount")} {GetValue(data, "toCurrency")}"
+                $"{FormatMoney(data, "amount", "fromCurrencyCode")} {GetValue(data, "fromCurrency")} → {FormatMoney(data, "totalAmount", "toCurrencyCode")} {GetValue(data, "toCurrency")}"
             );
             AppendActorFooter(sb, context);
             return sb.ToString();
@@ -72,7 +74,11 @@ namespace ForexExchange.Services.Notifications.Helpers
             AppendHeader(sb, context.Title);
             AppendLine(sb, "📄 شماره سند", $"#{GetValue(data, "documentId")}");
             AppendLine(sb, "📝 عنوان", GetValue(data, "title"));
-            AppendLine(sb, "💰 مبلغ", $"{GetValue(data, "amount")} {GetValue(data, "currencyCode")}");
+            AppendLine(
+                sb,
+                "💰 مبلغ",
+                $"{FormatMoney(data, "amount", "currencyCode")} {GetValue(data, "currencyName")}"
+            );
             AppendPartyLines(sb, data);
             AppendActorFooter(sb, context);
             return sb.ToString();
@@ -85,7 +91,11 @@ namespace ForexExchange.Services.Notifications.Helpers
             AppendHeader(sb, context.Title);
             AppendLine(sb, "📄 شماره سند", $"#{GetValue(data, "documentId")}");
             AppendLine(sb, "📝 عنوان", GetValue(data, "title"));
-            AppendLine(sb, "💰 مبلغ", $"{GetValue(data, "amount")} {GetValue(data, "currencyCode")}");
+            AppendLine(
+                sb,
+                "💰 مبلغ",
+                $"{FormatMoney(data, "amount", "currencyCode")} {GetValue(data, "currencyName")}"
+            );
             AppendPartyLines(sb, data);
             AppendActorFooter(sb, context);
             return sb.ToString();
@@ -216,14 +226,78 @@ namespace ForexExchange.Services.Notifications.Helpers
             if (!data.TryGetValue(key, out var value) || value == null)
                 return "—";
 
-            return key switch
+            return value.ToString() ?? "—";
+        }
+
+        /// <summary>
+        /// Formats money using global truncate rules (no rounding):
+        /// IRR = no decimals, others = up to 2 decimals with trailing zeros removed.
+        /// </summary>
+        private static string FormatMoney(
+            Dictionary<string, object> data,
+            string amountKey,
+            string? currencyKey
+        )
+        {
+            if (!data.TryGetValue(amountKey, out var value) || value == null)
+                return "—";
+
+            if (!TryConvertToDecimal(value, out var amount))
+                return value.ToString() ?? "—";
+
+            string? currencyCode = null;
+            if (!string.IsNullOrWhiteSpace(currencyKey))
             {
-                "amount" or "totalAmount" when value is IFormattable formattable =>
-                    formattable.ToString("N0", null) ?? "—",
-                "rate" when value is IFormattable formattable =>
-                    formattable.ToString("N2", null) ?? "—",
-                _ => value.ToString() ?? "—",
-            };
+                currencyCode = GetString(data, currencyKey);
+                if (currencyCode == "—")
+                    currencyCode = null;
+            }
+
+            return amount.FormatCurrency(currencyCode);
+        }
+
+        private static string GetString(Dictionary<string, object> data, string key)
+        {
+            if (!data.TryGetValue(key, out var value) || value == null)
+                return "—";
+
+            return value.ToString() ?? "—";
+        }
+
+        private static bool TryConvertToDecimal(object value, out decimal amount)
+        {
+            switch (value)
+            {
+                case decimal d:
+                    amount = d;
+                    return true;
+                case double dbl:
+                    amount = (decimal)dbl;
+                    return true;
+                case float f:
+                    amount = (decimal)f;
+                    return true;
+                case int i:
+                    amount = i;
+                    return true;
+                case long l:
+                    amount = l;
+                    return true;
+                case IConvertible convertible:
+                    try
+                    {
+                        amount = convertible.ToDecimal(CultureInfo.InvariantCulture);
+                        return true;
+                    }
+                    catch
+                    {
+                        amount = 0;
+                        return false;
+                    }
+                default:
+                    amount = 0;
+                    return false;
+            }
         }
 
         private static string Escape(string? value)
