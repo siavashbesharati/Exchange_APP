@@ -408,7 +408,9 @@ namespace ForexExchange.Controllers
 
             var customers = await _context.Customers
                 .Where(c => c.IsActive &&
-                           (c.FullName.Contains(term) || c.PhoneNumber.Contains(term)))
+                           (c.FullName.Contains(term)
+                            || c.PhoneNumber.Contains(term)
+                            || (c.SecondaryPhoneNumber != null && c.SecondaryPhoneNumber.Contains(term))))
                 .Select(c => new
                 {
                     id = c.Id,

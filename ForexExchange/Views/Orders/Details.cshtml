@@ -16,11 +16,16 @@
 
     var logoDataUrl = await SettingsService.GetLogoDataUrlAsync();
     var websiteName = await SettingsService.GetWebsiteNameAsync();
+    var currentUserName = User.FindFirst("FullName")?.Value
+        ?? User.Identity?.Name
+        ?? "نامشخص";
 
     var fromCode = Model.FromCurrency?.Code ?? "";
     var toCode = Model.ToCurrency?.Code ?? "";
-    var fromLabel = fromCode == "IRR" ? "Toman" : (Model.FromCurrency?.PersianName ?? fromCode);
-    var toLabel = toCode == "IRR" ? "Toman" : (Model.ToCurrency?.PersianName ?? toCode);
+    var fromLabel = Model.FromCurrency?.PersianName ?? fromCode;
+    var toLabel = Model.ToCurrency?.PersianName ?? toCode;
+    var fromDisplay = fromCode == "IRR" ? "تومان" : $"{fromLabel} ({fromCode})";
+    var toDisplay = toCode == "IRR" ? "تومان" : $"{toLabel} ({toCode})";
     var customerTitle = Model.Customer == null
         ? ""
         : (Model.Customer.Gender ? "MR. " : "MS. ");
@@ -31,6 +36,8 @@
     var toPriority = Model.ToCurrency?.RatePriority ?? int.MaxValue;
     var strongCode = fromPriority <= toPriority ? fromCode : toCode;
     var weakCode = fromPriority <= toPriority ? toCode : fromCode;
+    var strongDisplayCode = strongCode == "IRR" ? "تومان" : strongCode;
+    var weakDisplayCode = weakCode == "IRR" ? "تومان" : weakCode;
 
     var statusText = Model.IsDeleted ? "حذف شده" : Model.IsFrozen ? "منجمد" : "تایید شد";
     var statusClass = Model.IsDeleted ? "is-deleted" : Model.IsFrozen ? "is-frozen" : "is-ok";
@@ -125,8 +132,7 @@
 
     .od-card {
         background: var(--od-card);
-        border: 1px solid var(--od-border);
-        border-radius: 16px;
+       
         padding: 1rem;
         margin-bottom: 0.75rem;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -174,6 +180,21 @@
     .od-customer .phone {
         font-size: 0.92rem;
         color: var(--od-muted);
+        direction: ltr;
+        unicode-bidi: plaintext;
+    }
+
+    .od-customer-meta {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.3rem 0.9rem;
+        margin-top: 0.35rem;
+        color: var(--od-muted);
+        font-size: 0.78rem;
+    }
+
+    .od-customer-meta .ltr {
         direction: ltr;
         unicode-bidi: plaintext;
     }
@@ -267,6 +288,32 @@
     .od-meta-item .v.ltr {
         direction: ltr;
         unicode-bidi: plaintext;
+    }
+
+    .od-rate {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        font-size: 0.88rem;
+    }
+
+    .od-rate .label {
+        color: var(--od-muted);
+        font-weight: 700;
+    }
+
+    .od-rate .value {
+        direction: ltr;
+        unicode-bidi: plaintext;
+        font-weight: 800;
+    }
+
+    .od-user-footer {
+        margin-top: 0.25rem;
+        text-align: center;
+        color: var(--od-muted);
+        font-size: 0.78rem;
     }
 
     .od-notes {
@@ -396,48 +443,44 @@
     </div>
 
     <div class="od-card od-customer">
-        <div class="od-card-title">اطلاعات مشتری</div>
         @if (Model.Customer != null)
         {
             <div class="name">@customerTitle @Model.Customer.FullName</div>
+            
             <div class="phone" data-ltr="true">@Model.Customer.PhoneNumber</div>
+            <div class="od-customer-meta">
+                <span class="ltr"><i class="far fa-calendar-alt"></i> @Model.CreatedAt.ToString("yyyy/MM/dd HH:mm")</span>
+            </div>
         }
         else
         {
             <div class="name">شناسه مشتری: @Model.CustomerId</div>
+            <div class="od-customer-meta">
+                <span class="ltr"><i class="far fa-calendar-alt"></i> @Model.CreatedAt.ToString("yyyy/MM/dd HH:mm")</span>
+            </div>
         }
     </div>
 
     <div class="od-card">
-        <div class="od-card-title">جزئیات تبادل</div>
         <div class="od-exchange">
             <div class="od-amount receive">
                 <span class="tag">دریافت می‌کنیم</span>
                 <span class="value">@Model.FromAmount.FormatCurrency(fromCode)</span>
-                <span class="currency">@fromLabel (@fromCode)</span>
+                <span class="currency">@fromDisplay</span>
             </div>
             <div class="od-arrow"><i class="fas fa-exchange-alt"></i></div>
             <div class="od-amount pay">
                 <span class="tag">پرداخت می‌کنیم</span>
                 <span class="value">@Model.ToAmount.FormatCurrency(toCode)</span>
-                <span class="currency">@toLabel (@toCode)</span>
+                <span class="currency">@toDisplay</span>
             </div>
         </div>
     </div>
 
     <div class="od-card">
-        <div class="od-card-title">اطلاعات معامله</div>
-        <div class="od-meta">
-           
-            <div class="od-meta-item">
-                <span class="k">نرخ تبدیل</span>
-                <span class="v ltr">1 @strongCode = @Model.Rate.FormatCurrency(weakCode) @weakCode</span>
-            </div>
-            <div class="od-meta-item">
-                <span class="k">تاریخ تراکنش</span>
-                <span class="v ltr">@Model.CreatedAt.ToString("yyyy/MM/dd HH:mm")</span>
-            </div>
-            
+        <div class="od-rate">
+            <span class="label">نرخ تبدیل</span>
+            <span class="value">1 @strongDisplayCode = @Model.Rate.FormatCurrency(weakCode) @weakDisplayCode</span>
         </div>
     </div>
 
@@ -465,6 +508,11 @@
             </div>
         </div>
     }
+
+    <div class="od-user-footer">
+        <i class="fas fa-user-cog"></i>
+        کاربر سیستم: <b>@currentUserName</b>
+    </div>
 </div>
 
 <div class="od-actions d-print-none">
