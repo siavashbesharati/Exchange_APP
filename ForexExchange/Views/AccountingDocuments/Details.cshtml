@@ -399,7 +399,12 @@
 
         <div class="document-row">
             <div class="document-label">تاریخ سند:</div>
-            <div class="document-value">@Model.DocumentDate.ToPersianDateTextify()</div>
+            <div class="document-value">@Model.DocumentDate.ToLongPersianDateTimeString()</div>
+        </div>
+
+        <div class="document-row">
+            <div class="document-label">تاریخ ایجاد:</div>
+            <div class="document-value">@Model.CreatedAt.ToLongPersianDateTimeString()</div>
         </div>
 
         <div class="document-row">
@@ -461,11 +466,6 @@
                 <div class="document-value">@Model.Description</div>
             </div>
         }
-
-        <div class="document-row">
-            <div class="document-label">تاریخ ایجاد:</div>
-            <div class="document-value">@Model.CreatedAt.ToPersianDateTextify()</div>
-        </div>
 
         @if (Model.IsVerified && Model.VerifiedAt.HasValue)
         {
