@@ -1,0 +1,236 @@
+@model IEnumerable<ForexExchange.Models.Currency>
+@{
+    var mode = (string)(ViewBag.Mode ?? "DisplayOrder");
+    var isDisplayOrder = mode == "DisplayOrder";
+    var updateAction = isDisplayOrder ? "UpdateDisplayOrder" : "UpdateRatePriority";
+    var pageTitle = isDisplayOrder ? "ترتیب نمایش داشبورد" : "قدرت ارز (اولویت نرخ)";
+    var hint = isDisplayOrder
+        ? "کارت‌ها را بکشید تا ترتیب نمایش در داشبورد را تنظیم کنید. بالا = اول نمایش."
+        : "کارت‌ها را بکشید تا قدرت ارز را تنظیم کنید. بالا = قوی‌تر (عدد اولویت کمتر). پایین = ضعیف‌تر.";
+    var topLabel = isDisplayOrder ? "اول نمایش" : "قوی‌ترین";
+    var bottomLabel = isDisplayOrder ? "آخر نمایش" : "ضعیف‌ترین";
+    ViewData["Title"] = pageTitle;
+}
+
+<style>
+    .reorder-page {
+        max-width: 560px;
+        margin: 0 auto;
+    }
+
+    .reorder-hint {
+        color: #64748b;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+
+    .reorder-edge {
+        text-align: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #94a3b8;
+        margin: 0.35rem 0;
+        letter-spacing: 0.02em;
+    }
+
+    .currency-sortable {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+        min-height: 40px;
+    }
+
+    .currency-sortable-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.75rem 0.9rem;
+        cursor: grab;
+        user-select: none;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .currency-sortable-item:active {
+        cursor: grabbing;
+    }
+
+    .currency-sortable-item.sortable-ghost {
+        opacity: 0.45;
+        background: #f1f5f9;
+    }
+
+    .currency-sortable-item.sortable-chosen {
+        border-color: #93c5fd;
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.12);
+    }
+
+    .currency-sortable-item .handle {
+        color: #94a3b8;
+        font-size: 1rem;
+    }
+
+    .currency-sortable-item .rank {
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #334155;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 800;
+        flex-shrink: 0;
+    }
+
+    .currency-sortable-item .meta {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .currency-sortable-item .code {
+        font-weight: 800;
+        color: #0f172a;
+        direction: ltr;
+        unicode-bidi: plaintext;
+    }
+
+    .currency-sortable-item .name {
+        font-size: 0.82rem;
+        color: #64748b;
+    }
+
+    .currency-sortable-item .badge-soft {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.25rem 0.5rem;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+
+    .reorder-actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+        position: sticky;
+        bottom: 0.75rem;
+        background: rgba(248, 250, 252, 0.92);
+        backdrop-filter: blur(8px);
+        padding: 0.65rem;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<div class="container reorder-page">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">@pageTitle</h1>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">بازگشت</a>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="بستن"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show py-2" role="alert">
+            @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="بستن"></button>
+        </div>
+    }
+
+    <p class="reorder-hint">@hint</p>
+
+    <form asp-action="@updateAction" method="post" id="reorderForm">
+        @Html.AntiForgeryToken()
+        <div id="orderedIdsContainer"></div>
+
+        <div class="reorder-edge"><i class="fas fa-arrow-up"></i> @topLabel</div>
+
+        <ul class="currency-sortable" id="currencySortable">
+            @{
+                var index = 1;
+            }
+            @foreach (var c in Model)
+            {
+                var currentValue = isDisplayOrder ? c.DisplayOrder : c.RatePriority;
+                <li class="currency-sortable-item" data-id="@c.Id">
+                    <span class="handle"><i class="fas fa-grip-vertical"></i></span>
+                    <span class="rank">@index</span>
+                    <div class="meta">
+                        <div class="code">@c.Code <span class="text-muted fw-normal">@c.Symbol</span></div>
+                        <div class="name">@c.PersianName</div>
+                    </div>
+                    <span class="badge-soft">@(isDisplayOrder ? $"نمایش: {currentValue}" : $"قدرت: {currentValue}")</span>
+                    @if (!c.IsActive)
+                    {
+                        <span class="badge bg-danger">غیرفعال</span>
+                    }
+                </li>
+                index++;
+            }
+        </ul>
+
+        <div class="reorder-edge"><i class="fas fa-arrow-down"></i> @bottomLabel</div>
+
+        <div class="reorder-actions">
+            <a asp-action="Index" class="btn btn-outline-secondary">انصراف</a>
+            <button type="submit" class="btn btn-primary" id="saveOrderBtn">
+                <i class="fas fa-save"></i> ذخیره ترتیب
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <script>
+        (function () {
+            const list = document.getElementById('currencySortable');
+            const form = document.getElementById('reorderForm');
+            const idsContainer = document.getElementById('orderedIdsContainer');
+            if (!list || !form || !window.Sortable) return;
+
+            function refreshRanks() {
+                list.querySelectorAll('.currency-sortable-item').forEach((item, i) => {
+                    const rank = item.querySelector('.rank');
+                    if (rank) rank.textContent = String(i + 1);
+                });
+            }
+
+            Sortable.create(list, {
+                animation: 150,
+                handle: '.handle',
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                onEnd: refreshRanks
+            });
+
+            form.addEventListener('submit', function () {
+                idsContainer.innerHTML = '';
+                list.querySelectorAll('.currency-sortable-item').forEach((item) => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'orderedIds';
+                    input.value = item.dataset.id;
+                    idsContainer.appendChild(input);
+                });
+            });
+        })();
+    </script>
+}

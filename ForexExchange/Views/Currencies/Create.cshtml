@@ -37,15 +37,12 @@
                                 <input asp-for="Symbol" class="form-control" />
                                 <span asp-validation-for="Symbol" class="text-danger"></span>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="DisplayOrder" class="form-label">ترتیب نمایش</label>
-                                <input asp-for="DisplayOrder" class="form-control" type="number" />
-                                <span asp-validation-for="DisplayOrder" class="text-danger"></span>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="RatePriority" class="form-label">اولویت نرخ (قدرت)</label>
-                                <input asp-for="RatePriority" class="form-control" type="number" />
-                                <span asp-validation-for="RatePriority" class="text-danger"></span>
+                            <div class="col-md-8 mb-3">
+                                <div class="alert alert-light border mb-0 py-2">
+                                    ترتیب نمایش و قدرت ارز بعد از ایجاد، از دکمه‌های
+                                    <strong>ترتیب نمایش داشبورد</strong> و <strong>قدرت ارز</strong>
+                                    در لیست ارزها قابل تنظیم است.
+                                </div>
                             </div>
                         </div>
 

@@ -35,6 +35,86 @@ namespace ForexExchange.Controllers
             return View(currencies);
         }
 
+        // GET: Currencies/ManageDisplayOrder
+        public async Task<IActionResult> ManageDisplayOrder()
+        {
+            var currencies = await _context.Currencies
+                .OrderBy(c => c.DisplayOrder)
+                .ThenBy(c => c.Code)
+                .ToListAsync();
+
+            ViewData["Title"] = "ترتیب نمایش داشبورد";
+            ViewBag.Mode = "DisplayOrder";
+            return View("Reorder", currencies);
+        }
+
+        // POST: Currencies/UpdateDisplayOrder
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateDisplayOrder(List<int> orderedIds)
+        {
+            if (orderedIds == null || orderedIds.Count == 0)
+            {
+                TempData["ErrorMessage"] = "لیست ارزها خالی است.";
+                return RedirectToAction(nameof(ManageDisplayOrder));
+            }
+
+            var currencies = await _context.Currencies
+                .Where(c => orderedIds.Contains(c.Id))
+                .ToListAsync();
+
+            for (var i = 0; i < orderedIds.Count; i++)
+            {
+                var currency = currencies.FirstOrDefault(c => c.Id == orderedIds[i]);
+                if (currency != null)
+                    currency.DisplayOrder = i + 1;
+            }
+
+            await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = "ترتیب نمایش داشبورد بروزرسانی شد.";
+            return RedirectToAction(nameof(ManageDisplayOrder));
+        }
+
+        // GET: Currencies/ManageRatePriority
+        public async Task<IActionResult> ManageRatePriority()
+        {
+            var currencies = await _context.Currencies
+                .OrderBy(c => c.RatePriority)
+                .ThenBy(c => c.Code)
+                .ToListAsync();
+
+            ViewData["Title"] = "قدرت ارز (اولویت نرخ)";
+            ViewBag.Mode = "RatePriority";
+            return View("Reorder", currencies);
+        }
+
+        // POST: Currencies/UpdateRatePriority
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateRatePriority(List<int> orderedIds)
+        {
+            if (orderedIds == null || orderedIds.Count == 0)
+            {
+                TempData["ErrorMessage"] = "لیست ارزها خالی است.";
+                return RedirectToAction(nameof(ManageRatePriority));
+            }
+
+            var currencies = await _context.Currencies
+                .Where(c => orderedIds.Contains(c.Id))
+                .ToListAsync();
+
+            for (var i = 0; i < orderedIds.Count; i++)
+            {
+                var currency = currencies.FirstOrDefault(c => c.Id == orderedIds[i]);
+                if (currency != null)
+                    currency.RatePriority = i + 1; // lower number = stronger
+            }
+
+            await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = "قدرت ارزها (اولویت نرخ) بروزرسانی شد.";
+            return RedirectToAction(nameof(ManageRatePriority));
+        }
+
         // GET: Currencies/Create
         public IActionResult Create()
         {
@@ -44,7 +124,7 @@ namespace ForexExchange.Controllers
         // POST: Currencies/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Code,Name,PersianName,Symbol,IsActive,DisplayOrder,RatePriority")] Currency model)
+        public async Task<IActionResult> Create([Bind("Code,Name,PersianName,Symbol,IsActive")] Currency model)
         {
             // Normalize
             model.Code = model.Code?.Trim().ToUpperInvariant() ?? string.Empty;
@@ -68,10 +148,14 @@ namespace ForexExchange.Controllers
                 return View(model);
             }
 
+            var maxDisplayOrder = await _context.Currencies.MaxAsync(c => (int?)c.DisplayOrder) ?? 0;
+            var maxRatePriority = await _context.Currencies.MaxAsync(c => (int?)c.RatePriority) ?? 0;
+            model.DisplayOrder = maxDisplayOrder + 1;
+            model.RatePriority = maxRatePriority + 1;
             model.CreatedAt = DateTime.Now;
             _context.Currencies.Add(model);
             await _context.SaveChangesAsync();
-            TempData["SuccessMessage"] = "ارز با موفقیت ایجاد شد.";
+            TempData["SuccessMessage"] = "ارز با موفقیت ایجاد شد. ترتیب نمایش و قدرت را از صفحات مربوطه تنظیم کنید.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -89,7 +173,7 @@ namespace ForexExchange.Controllers
         // POST: Currencies/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Code,Name,PersianName,Symbol,IsActive,DisplayOrder,RatePriority,CreatedAt")] Currency model)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Code,Name,PersianName,Symbol,IsActive,CreatedAt")] Currency model)
         {
             if (id != model.Id) return NotFound();
 
@@ -118,12 +202,28 @@ namespace ForexExchange.Controllers
 
             if (!ModelState.IsValid)
             {
+                var current = await _context.Currencies.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id);
+                if (current != null)
+                {
+                    model.DisplayOrder = current.DisplayOrder;
+                    model.RatePriority = current.RatePriority;
+                    model.IsActive = current.IsActive;
+                }
                 return View(model);
             }
 
             try
             {
-                _context.Entry(model).State = EntityState.Modified;
+                var existing = await _context.Currencies.FindAsync(id);
+                if (existing == null) return NotFound();
+
+                // Keep DisplayOrder / RatePriority — managed on dedicated reorder pages
+                existing.Code = model.Code;
+                existing.Name = model.Name;
+                existing.PersianName = model.PersianName;
+                existing.Symbol = model.Symbol;
+                existing.IsActive = model.IsActive;
+
                 await _context.SaveChangesAsync();
                 TempData["SuccessMessage"] = "اطلاعات ارز بروزرسانی شد.";
             }
@@ -158,3 +258,4 @@ namespace ForexExchange.Controllers
         }
     }
 }
+

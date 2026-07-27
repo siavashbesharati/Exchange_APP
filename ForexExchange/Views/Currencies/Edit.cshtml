@@ -39,15 +39,17 @@
                                 <input asp-for="Symbol" class="form-control" />
                                 <span asp-validation-for="Symbol" class="text-danger"></span>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="DisplayOrder" class="form-label">ترتیب نمایش</label>
-                                <input asp-for="DisplayOrder" class="form-control" type="number" />
-                                <span asp-validation-for="DisplayOrder" class="text-danger"></span>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="RatePriority" class="form-label">اولویت نرخ (قدرت)</label>
-                                <input asp-for="RatePriority" class="form-control" type="number" />
-                                <span asp-validation-for="RatePriority" class="text-danger"></span>
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label">ترتیب و قدرت</label>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a asp-action="ManageDisplayOrder" class="btn btn-outline-primary btn-sm">
+                                        ترتیب نمایش: @Model.DisplayOrder
+                                    </a>
+                                    <a asp-action="ManageRatePriority" class="btn btn-outline-warning btn-sm">
+                                        قدرت نرخ: @Model.RatePriority
+                                    </a>
+                                </div>
+                                <div class="form-text">برای تغییر، از صفحات کشیدن و رها کردن استفاده کنید.</div>
                             </div>
                         </div>
 
