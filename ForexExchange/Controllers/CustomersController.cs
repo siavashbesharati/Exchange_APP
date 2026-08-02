@@ -81,7 +81,7 @@ namespace ForexExchange.Controllers
                     {
                         FullName = model.FullName,
                         PhoneNumber = model.PhoneNumber,
-                        SecondaryPhoneNumber = model.SecondaryPhoneNumber,
+                        SecondaryPhoneNumber = model.SecondaryPhoneNumber ?? string.Empty,
                         Gender = model.Gender,
                         Address = model.Address ?? string.Empty,
                         IsActive = model.IsActive,
@@ -195,7 +195,7 @@ namespace ForexExchange.Controllers
 
                     customer.FullName = model.FullName;
                     customer.PhoneNumber = model.PhoneNumber;
-                    customer.SecondaryPhoneNumber = model.SecondaryPhoneNumber;
+                    customer.SecondaryPhoneNumber = model.SecondaryPhoneNumber ?? string.Empty;
                     customer.Gender = model.Gender;
                     customer.Address = model.Address ?? string.Empty;
                     customer.IsActive = model.IsActive;

@@ -80,7 +80,8 @@ namespace ForexExchange.Models
         public string PhoneNumber { get; set; } = string.Empty;
 
         [StringLength(20)]
-        public string SecondaryPhoneNumber { get; set; } = string.Empty;
+        [Display(Name = "شماره تلفن ثانویه")]
+        public string? SecondaryPhoneNumber { get; set; }
 
         [Required(ErrorMessage = "رمز عبور الزامی است")]
         [DataType(DataType.Password)]
@@ -129,7 +130,8 @@ namespace ForexExchange.Models
         public string PhoneNumber { get; set; } = string.Empty;
 
         [StringLength(20)]
-        public string SecondaryPhoneNumber { get; set; } = string.Empty;
+        [Display(Name = "شماره تلفن ثانویه")]
+        public string? SecondaryPhoneNumber { get; set; }
 
         [DataType(DataType.Password)]
         [Display(Name = "رمز عبور جدید (اختیاری)")]
