@@ -4,11 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using ForexExchange.Models;
 using ForexExchange.Services;
 using Microsoft.AspNetCore.Authorization;
+using ForexExchange.Authorization;
 using System.Text.Json;
 
 namespace ForexExchange.Controllers;
 
-[Authorize(Roles = "Admin,Operator,Programmer")]
+[Staff]
 public class HomeController : Controller
 {
     private readonly ILogger<HomeController> _logger;
@@ -30,38 +31,10 @@ public class HomeController : Controller
         _settingsService = settingsService;
     }
 
-    public async Task<IActionResult> Index()
+    public IActionResult Index()
     {
-        // Get current exchange rates (public information)
-        var exchangeRates = await _context.ExchangeRates
-            .Include(r => r.FromCurrency)
-            .Include(r => r.ToCurrency)
-            .Where(r => r.IsActive)
-            .OrderBy(r => r.FromCurrency.Code)
-            .ThenBy(r => r.ToCurrency.Code)
-            .ToListAsync();
-
-        // Get open and partially filled orders (public information for transparency)
-        var availableOrders = await _context.Orders
-            .Include(o => o.Customer)
-            .OrderByDescending(o => o.CreatedAt)
-            .Take(20)
-            .ToListAsync();
-
-        // Basic statistics (public)
-        var totalActiveOrders = await _context.Orders
-            .CountAsync();
-        var today = DateTime.Now.Date;
-        // TODO: Replace with AccountingDocument-based stats
-        var completedTransactionsToday = 0; // await _context.Transactions
-                                            // .CountAsync(t => t.Status == TransactionStatus.Completed && t.CreatedAt.Date == today);
-
-        ViewBag.ExchangeRates = exchangeRates;
-        ViewBag.AvailableOrders = availableOrders;
-        ViewBag.TotalActiveOrders = totalActiveOrders;
-        ViewBag.CompletedTransactionsToday = completedTransactionsToday;
-
-        return View();
+        // Index view was removed; dashboard is the staff landing page
+        return RedirectToAction(nameof(Dashboard));
     }
 
     public async Task<IActionResult> Dashboard()

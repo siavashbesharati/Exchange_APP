@@ -19,13 +19,13 @@ namespace ForexExchange.Authorization
 
         protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
         {
-            if (context.User == null)
+            if (context.User?.Identity?.IsAuthenticated != true)
             {
                 return;
             }
 
             var user = await _userManager.GetUserAsync(context.User);
-            if (user == null)
+            if (user == null || !user.IsActive)
             {
                 return;
             }

@@ -132,6 +132,12 @@ try
         options.SlidingExpiration = true;
     });
 
+    // Validate security stamp frequently so permission/role changes can force re-login quickly.
+    builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+    {
+        options.ValidationInterval = TimeSpan.FromMinutes(1);
+    });
+
     builder.Services.Configure<IdentityOptions>(options =>
     {
         options.ClaimsIdentity.UserIdClaimType =
@@ -144,14 +150,14 @@ try
     // Authorization - Granular Permissions
     // ------------------------------
     builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
+    builder.Services.AddScoped<IAuthorizationHandler, StaffHandler>();
     builder.Services.AddAuthorization(options =>
     {
+        options.AddPolicy(StaffAttribute.PolicyName, policy =>
+            policy.Requirements.Add(new StaffRequirement()));
+
         // Dynamically add policies for each permission
-        var allPermissions = typeof(ForexExchange.Models.Permissions)
-            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy)
-            .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string))
-            .Select(fi => fi.GetRawConstantValue()?.ToString() ?? string.Empty)
-            .ToList();
+        var allPermissions = ForexExchange.Services.PermissionService.GetAllDefinedPermissions();
 
         foreach (var permission in allPermissions)
         {
@@ -305,7 +311,7 @@ try
 
     app.MapControllerRoute(
         name: "default",
-        pattern: "{controller=ExchangeRates}/{action=Index}/{id?}");
+        pattern: "{controller=Home}/{action=Dashboard}/{id?}");
 
     app.MapHub<ForexExchange.Hubs.NotificationHub>("/notificationHub");
 

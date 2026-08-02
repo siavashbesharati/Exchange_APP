@@ -10,7 +10,7 @@ using ForexExchange.Extensions;
 
 namespace ForexExchange.Controllers
 {
-    [Authorize(Roles = "Admin,Operator,Programmer")]
+    [Staff]
     [HasPermission(Permissions.Reports)] 
 
     public class ReportsController : Controller

@@ -1,0 +1,335 @@
+@{
+    Layout = null;
+    var statusCode = ViewData["StatusCode"] as int? ?? 404;
+    var isAuthenticated = ViewData["IsAuthenticated"] as bool? == true;
+    var returnUrl = ViewData["ReturnUrl"] as string;
+    var userName = ViewData["UserName"] as string;
+    var badge = ViewData["Badge"] as string ?? $"خطا · {statusCode}";
+    var title = ViewData["Title"] as string ?? "خطا";
+    var message = ViewData["Message"] as string ?? "";
+    var hint = ViewData["Hint"] as string ?? "";
+    var theme = ViewData["Theme"] as string ?? "muted";
+    var homeUrl = "/Home/Dashboard";
+}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@badge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-0: #0b1220;
+            --bg-1: #152238;
+            --panel: rgba(255, 255, 255, 0.06);
+            --panel-border: rgba(255, 255, 255, 0.12);
+            --text: #f4f7fb;
+            --muted: #9db0c7;
+            --accent: #e8a54b;
+            --accent-2: #d97706;
+            --ok: #34d399;
+            --icon: #fb7185;
+            --icon-bg: rgba(251, 113, 133, 0.1);
+            --icon-border: rgba(251, 113, 133, 0.25);
+        }
+
+        body.theme-warn {
+            --icon: #fbbf24;
+            --icon-bg: rgba(251, 191, 36, 0.1);
+            --icon-border: rgba(251, 191, 36, 0.28);
+        }
+
+        body.theme-muted {
+            --icon: #7dd3fc;
+            --icon-bg: rgba(125, 211, 252, 0.1);
+            --icon-border: rgba(125, 211, 252, 0.28);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            min-height: 100vh;
+            font-family: "Vazirmatn", Tahoma, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(1200px 600px at 85% -10%, rgba(232, 165, 75, 0.18), transparent 55%),
+                radial-gradient(900px 500px at -10% 110%, rgba(52, 211, 153, 0.12), transparent 50%),
+                linear-gradient(160deg, var(--bg-0), var(--bg-1));
+            display: grid;
+            place-items: center;
+            padding: 1.25rem;
+            overflow-x: hidden;
+        }
+
+        .scene {
+            width: min(560px, 100%);
+            position: relative;
+        }
+
+        .card {
+            position: relative;
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 24px;
+            padding: 2rem 1.5rem 1.5rem;
+            backdrop-filter: blur(14px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+            text-align: center;
+            overflow: hidden;
+            animation: rise 0.55s ease-out both;
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--accent);
+            background: rgba(232, 165, 75, 0.12);
+            border: 1px solid rgba(232, 165, 75, 0.28);
+            border-radius: 999px;
+            padding: 0.35rem 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .icon-wrap {
+            width: 88px;
+            height: 88px;
+            margin: 0 auto 1.25rem;
+            border-radius: 22px;
+            display: grid;
+            place-items: center;
+            background: var(--icon-bg);
+            border: 1px solid var(--icon-border);
+            animation: softPulse 2.4s ease-in-out infinite;
+        }
+
+        .icon-wrap svg { width: 42px; height: 42px; }
+
+        h1 {
+            font-size: clamp(1.45rem, 4vw, 1.9rem);
+            font-weight: 800;
+            margin-bottom: 0.65rem;
+            line-height: 1.35;
+        }
+
+        .message {
+            color: var(--muted);
+            font-size: 0.98rem;
+            line-height: 1.8;
+            margin-bottom: 1.35rem;
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .chip {
+            font-size: 0.78rem;
+            color: var(--muted);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 0.4rem 0.7rem;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            direction: ltr;
+        }
+
+        .chip strong { color: var(--text); font-weight: 700; }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            justify-content: center;
+        }
+
+        .btn {
+            appearance: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 0.92rem;
+            border-radius: 14px;
+            padding: 0.85rem 1.2rem;
+            min-width: 140px;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+
+        .btn:hover { transform: translateY(-1px); }
+
+        .btn-primary {
+            color: #1a1208;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            box-shadow: 0 8px 22px rgba(217, 119, 6, 0.35);
+        }
+
+        .btn-primary:hover { box-shadow: 0 10px 26px rgba(217, 119, 6, 0.45); }
+
+        .btn-ghost {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--panel-border);
+        }
+
+        .btn-ghost:hover { background: rgba(255, 255, 255, 0.1); }
+
+        .hint {
+            margin-top: 1.25rem;
+            font-size: 0.8rem;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .glow {
+            position: absolute;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            filter: blur(50px);
+            opacity: 0.35;
+            pointer-events: none;
+            z-index: -1;
+            animation: drift 7s ease-in-out infinite alternate;
+        }
+
+        .glow-a { top: -40px; right: -30px; background: var(--accent); }
+        .glow-b { bottom: -50px; left: -40px; background: var(--ok); animation-delay: -2s; }
+
+        @@keyframes rise {
+            from { opacity: 0; transform: translateY(14px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @@keyframes softPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+        }
+
+        @@keyframes drift {
+            from { transform: translate(0, 0); }
+            to { transform: translate(12px, -10px); }
+        }
+
+        @@media (max-width: 480px) {
+            .card { padding: 1.6rem 1.1rem 1.2rem; }
+            .btn { width: 100%; }
+        }
+    </style>
+</head>
+<body class="theme-@theme">
+    <div class="scene">
+        <div class="glow glow-a"></div>
+        <div class="glow glow-b"></div>
+
+        <div class="card">
+            <div class="badge">
+                <span aria-hidden="true">●</span>
+                @badge
+            </div>
+
+            <div class="icon-wrap" aria-hidden="true">
+                @if (statusCode == 403)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 10V8a5 5 0 0 1 10 0v2" stroke="var(--icon)" stroke-width="1.8" stroke-linecap="round"/>
+                        <rect x="5" y="10" width="14" height="11" rx="2.5" stroke="var(--icon)" stroke-width="1.8"/>
+                        <circle cx="12" cy="15.5" r="1.4" fill="var(--icon)"/>
+                    </svg>
+                }
+                else if (statusCode == 500)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 8v5" stroke="var(--icon)" stroke-width="1.8" stroke-linecap="round"/>
+                        <circle cx="12" cy="16.5" r="1.2" fill="var(--icon)"/>
+                        <path d="M10.2 4.8 2.9 17.2A2 2 0 0 0 4.6 20h14.8a2 2 0 0 0 1.7-2.8L13.8 4.8a2 2 0 0 0-3.6 0Z" stroke="var(--icon)" stroke-width="1.8" stroke-linejoin="round"/>
+                    </svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="11" cy="11" r="6.5" stroke="var(--icon)" stroke-width="1.8"/>
+                        <path d="M16.2 16.2 20 20" stroke="var(--icon)" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                }
+            </div>
+
+            <h1>@title</h1>
+            <p class="message">@message</p>
+
+            <div class="meta">
+                @if (isAuthenticated && !string.IsNullOrWhiteSpace(userName))
+                {
+                    <div class="chip">کاربر: <strong>@userName</strong></div>
+                }
+                @if (!string.IsNullOrWhiteSpace(returnUrl)
+                     && returnUrl != "/"
+                     && !returnUrl.Contains("Error", StringComparison.OrdinalIgnoreCase)
+                     && !returnUrl.Contains("AccessDenied", StringComparison.OrdinalIgnoreCase))
+                {
+                    <div class="chip" title="@returnUrl">مسیر: <strong>@returnUrl</strong></div>
+                }
+            </div>
+
+            <div class="actions">
+                @if (statusCode == 500)
+                {
+                    <button type="button" class="btn btn-primary" onclick="location.reload()">تلاش مجدد</button>
+                    <a class="btn btn-ghost" href="@homeUrl">بازگشت به داشبورد</a>
+                }
+                else if (statusCode == 403 && !isAuthenticated)
+                {
+                    <a class="btn btn-primary" href="/Account/Login@(string.IsNullOrWhiteSpace(returnUrl) ? "" : $"?ReturnUrl={Uri.EscapeDataString(returnUrl)}")">ورود به سیستم</a>
+                    <a class="btn btn-ghost" href="@homeUrl">صفحه اصلی</a>
+                }
+                else if (statusCode == 403)
+                {
+                    <a class="btn btn-primary" href="@homeUrl">بازگشت به داشبورد</a>
+                    <a class="btn btn-ghost" href="/Account/Logout" onclick="event.preventDefault(); document.getElementById('logoutForm').submit();">خروج و ورود مجدد</a>
+                }
+                else
+                {
+                    <a class="btn btn-primary" href="@homeUrl">بازگشت به داشبورد</a>
+                    <button type="button" class="btn btn-ghost" onclick="history.back()">صفحه قبل</button>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(hint))
+            {
+                <p class="hint">@hint</p>
+            }
+        </div>
+    </div>
+
+    @if (isAuthenticated && statusCode == 403)
+    {
+        <form id="logoutForm" action="/Account/Logout" method="post" style="display:none;">
+            @Html.AntiForgeryToken()
+        </form>
+    }
+</body>
+</html>

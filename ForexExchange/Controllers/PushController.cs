@@ -1,3 +1,4 @@
+using ForexExchange.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -365,7 +366,7 @@ namespace ForexExchange.Controllers
         /// Get push notification statistics
         /// </summary>
         [HttpGet("stats")]
-        [Authorize(Roles = "Admin,Manager")]
+        [Staff]
         public async Task<IActionResult> GetPushStats()
         {
             if (!WebPushEnabled)

@@ -18,6 +18,7 @@ namespace ForexExchange.Services
         private readonly ILogger<DataSeedService> _logger;
         private readonly IWebScrapingService _webScrapingService;
         private readonly ICentralFinancialService _centralFinancialService;
+        private readonly IPermissionService _permissionService;
 
         public DataSeedService(
             UserManager<ApplicationUser> userManager,
@@ -25,7 +26,8 @@ namespace ForexExchange.Services
             ForexDbContext context,
             ILogger<DataSeedService> logger,
             IWebScrapingService webScrapingService,
-            ICentralFinancialService centralFinancialService
+            ICentralFinancialService centralFinancialService,
+            IPermissionService permissionService
         )
         {
             _userManager = userManager;
@@ -34,6 +36,7 @@ namespace ForexExchange.Services
             _logger = logger;
             _webScrapingService = webScrapingService;
             _centralFinancialService = centralFinancialService;
+            _permissionService = permissionService;
         }
 
         public async Task SeedDataAsync()
@@ -288,6 +291,17 @@ namespace ForexExchange.Services
                 else
                 {
                     _logger.LogInformation($"Admin user {adminData.Phone} already exists");
+
+                    // Ensure existing admins are in AspNetUserRoles (needed for [Staff])
+                    var roleName = adminData.Role.ToString();
+                    if (!await _userManager.IsInRoleAsync(adminUser, roleName)
+                        && await _roleManager.RoleExistsAsync(roleName))
+                    {
+                        await _userManager.AddToRoleAsync(adminUser, roleName);
+                        _logger.LogInformation(
+                            $"Synced Identity role '{roleName}' for existing admin {adminData.Phone}"
+                        );
+                    }
                 }
             }
         }
@@ -862,62 +876,9 @@ namespace ForexExchange.Services
         {
             _logger.LogInformation("Seeding role permissions...");
 
-            var allPermissions = new List<string>
-            {
-                // Order Management
-                Permissions.Order_View,
-                Permissions.Order_Detail,
-                Permissions.Order_Create,
-                Permissions.Order_Edit,
-                Permissions.Order_Delete,
-                // Document Management
-                Permissions.Documents_View,
-                Permissions.Documents_Detail,
-                Permissions.Documents_Create,
-                Permissions.Documents_Edit,
-                Permissions.Documents_Delete,
-                Permissions.Documents_Confirm,
-                // Reports
-                Permissions.Reports,
-                Permissions.Customer_Reports,
-                Permissions.All_Customers_Balances,
-                Permissions.Bank_Account_Reports,
-                Permissions.Admin_Reports,
-                Permissions.Pool_Reports,
-                Permissions.Order_Reports,
-                Permissions.Document_Reports,
-                Permissions.Pool_Summary_Reports,
-                Permissions.Customer_BankHistory_Report,
-                Permissions.Expenses_Report,
-                // Tasks
-                Permissions.Tasks_View,
-                Permissions.Tasks_Detail,
-                Permissions.Tasks_Create,
-                Permissions.Tasks_Edit,
-                Permissions.Tasks_Delete,
-                // Advance Management
-                Permissions.Advance_Management,
-                // Bank Accounts
-                Permissions.Bank_Accounts_View,
-                Permissions.Bank_Accounts_Detail,
-                Permissions.Bank_Accounts_Create,
-                Permissions.Bank_Accounts_Edit,
-                Permissions.Bank_Accounts_Delete,
-                // Customers
-                Permissions.Customers_View,
-                Permissions.Customers_Detail,
-                Permissions.Customers_Create,
-                Permissions.Customers_Edit,
-                Permissions.Customers_Delete,
-                // Exchange Rates
-                Permissions.Exchange_Rates_Management,
-                // Profile
-                Permissions.Profile_View,
-                // Admin Management
-                Permissions.Manage_Admins,
-                // Database Management
-                Permissions.Database_Management,
-            };
+            await _permissionService.NormalizeStoredPermissionNamesAsync();
+
+            var allPermissions = PermissionService.GetAllDefinedPermissions();
 
             var rolePermissionsMap = new Dictionary<UserRole, List<string>>
             {

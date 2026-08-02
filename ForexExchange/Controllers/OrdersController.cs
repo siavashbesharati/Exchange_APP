@@ -52,7 +52,7 @@ namespace ForexExchange.Controllers
 
         // POST: Orders/PreviewOrderEffects
         [HttpPost]
-        [Authorize(Roles = "Admin,Operator,Programmer")]
+        [Staff]
         [HasPermission(Permissions.Order_Create)]
         public async Task<IActionResult> PreviewOrderEffects([FromBody] OrderFormDataDto dto)
         {

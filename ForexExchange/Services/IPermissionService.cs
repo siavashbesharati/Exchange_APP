@@ -27,5 +27,11 @@ namespace ForexExchange.Services
         /// <param name="roleName">The name of the role to set permissions for.</param>
         /// <param name="permissionNames">The list of permission names to assign to the role.</param>
         Task SetPermissionsForRoleAsync(string roleName, List<string> permissionNames);
+
+        /// <summary>
+        /// Trims and remaps legacy permission names stored in the database
+        /// so they match the canonical Permissions constants.
+        /// </summary>
+        Task NormalizeStoredPermissionNamesAsync();
     }
 }

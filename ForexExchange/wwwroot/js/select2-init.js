@@ -100,6 +100,12 @@ function initializeSelect2() {
         if ($select.prop('multiple')) {
             config.closeOnSelect = false;
         }
+
+        // Keep dropdown above Bootstrap modal overlays
+        var $modal = $select.closest('.modal');
+        if ($modal.length) {
+            config.dropdownParent = $modal;
+        }
         
         // Initialize Select2
         try {
@@ -230,6 +236,29 @@ function addCustomSelect2Styles() {
             border: 1px solid #dee2e6 !important;
             border-radius: 0.375rem !important;
             box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+            z-index: 2000 !important;
+        }
+
+        /* Select2 inside Bootstrap modal must sit above modal (1055) and backdrop */
+        .modal {
+            overflow: visible !important;
+        }
+        .modal .modal-dialog,
+        .modal .modal-content,
+        .modal .modal-body {
+            overflow: visible !important;
+        }
+        .modal .select2-container {
+            z-index: 1065 !important;
+        }
+        .modal .select2-container--open {
+            z-index: 2000 !important;
+        }
+        .modal .select2-dropdown {
+            z-index: 2000 !important;
+        }
+        .select2-container--open {
+            z-index: 2000 !important;
         }
         
         .select2-container--default .select2-search--dropdown .select2-search__field {

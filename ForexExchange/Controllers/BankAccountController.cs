@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using ForexExchange.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ForexExchange.Models;
 using ForexExchange.Services;
@@ -12,7 +13,7 @@ namespace ForexExchange.Controllers
     /// Bank Account Management Controller
     /// کنترلر مدیریت حساب‌های بانکی
     /// </summary>
-    //[Authorize(Roles = "Admin,Operator,Programmer")] // Temporarily commented for debugging
+    //[Staff] // Temporarily commented for debugging
     public class BankAccountController : Controller
     {
         private readonly ForexDbContext _context;
@@ -238,7 +239,7 @@ namespace ForexExchange.Controllers
         /// Edit bank account
         /// ویرایش حساب بانکی
         /// </summary>
-        [Authorize(Roles = "Admin,Programmer")]
+        [HasPermission(Permissions.Bank_Accounts_Edit)]
         public async Task<IActionResult> Edit(int id)
         {
             var bankAccount = await _context.BankAccounts
@@ -269,7 +270,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,Programmer")]
+        [HasPermission(Permissions.Bank_Accounts_Edit)]
         public async Task<IActionResult> Edit(int id, BankAccount model)
         {
             if (id != model.Id)
@@ -326,7 +327,7 @@ namespace ForexExchange.Controllers
         /// Delete bank account
         /// حذف حساب بانکی
         /// </summary>
-        [Authorize(Roles = "Admin,Programmer")]
+        [HasPermission(Permissions.Bank_Accounts_Edit)]
         public async Task<IActionResult> Delete(int id)
         {
             var bankAccount = await _context.BankAccounts
@@ -359,7 +360,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,Programmer")]
+        [HasPermission(Permissions.Bank_Accounts_Edit)]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var bankAccount = await _context.BankAccounts.FindAsync(id);
@@ -393,7 +394,7 @@ namespace ForexExchange.Controllers
         /// دریافت حساب‌های بانکی یک مشتری (AJAX)
         /// </summary>
         [HttpGet]
-        [Authorize(Roles = "Admin,Programmer")]
+        [HasPermission(Permissions.Bank_Accounts_Edit)]
         public async Task<IActionResult> GetCustomerBankAccounts(int customerId)
         {
             var bankAccounts = await _context.BankAccounts

@@ -256,6 +256,7 @@ namespace ForexExchange.Controllers
                     if (isOtpValid)
                     {
                         await _userManager.ResetAccessFailedCountAsync(user);
+                        await EnsureIdentityRoleSyncedAsync(user);
                         await _signInManager.SignInAsync(user, isPersistent: model.RememberMe);
                         return RedirectToLocal(returnUrl);
                     }
@@ -357,14 +358,37 @@ namespace ForexExchange.Controllers
 
         private IActionResult RedirectToLocal(string? returnUrl)
         {
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            // Never bounce login into AccessDenied/Error pages from a previous challenge
+            if (!string.IsNullOrEmpty(returnUrl)
+                && Url.IsLocalUrl(returnUrl)
+                && !returnUrl.Contains("AccessDenied", StringComparison.OrdinalIgnoreCase)
+                && !returnUrl.StartsWith("/Error", StringComparison.OrdinalIgnoreCase))
             {
                 return Redirect(returnUrl);
             }
-            else
+
+            return RedirectToAction("Dashboard", "Home");
+        }
+
+        /// <summary>
+        /// Ensures staff users have a matching AspNetUserRoles row so [Staff] / permissions work.
+        /// </summary>
+        private async Task EnsureIdentityRoleSyncedAsync(ApplicationUser user)
+        {
+            var identityRoles = await _userManager.GetRolesAsync(user);
+            if (identityRoles.Any())
+                return;
+
+            if (user.Role == UserRole.Customer)
             {
-                return RedirectToAction("Dashboard", "Home");
+                if (await _roleManager.RoleExistsAsync("Customer"))
+                    await _userManager.AddToRoleAsync(user, "Customer");
+                return;
             }
+
+            var roleName = user.Role.ToString();
+            if (await _roleManager.RoleExistsAsync(roleName))
+                await _userManager.AddToRoleAsync(user, roleName);
         }
     }
 }

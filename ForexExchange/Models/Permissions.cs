@@ -18,16 +18,16 @@ namespace ForexExchange.Models
         public const string Documents_Confirm = "تایید سند";
 
         // Reports
-        public const string Reports = " گزارشات";
+        public const string Reports = "گزارشات";
         public const string Customer_Reports = "گزارش مشتریان";
         public const string All_Customers_Balances = "موجودی همه مشتریان";
-        public const string Bank_Account_Reports = "گزارشات حساب‌های بانکی ";
-        public const string Admin_Reports = "گزارشات ادمین  ";
+        public const string Bank_Account_Reports = "گزارشات حساب‌های بانکی";
+        public const string Admin_Reports = "گزارشات ادمین";
         public const string Pool_Reports = "گزارش داشبورد";
         public const string Order_Reports = "گزارش معاملات";
         public const string Document_Reports = "گزارش اسناد";
         public const string Pool_Summary_Reports = "خلاصه سود/زیان روزانه";
-        public const string Customer_BankHistory_Report = " تراز کلی ";
+        public const string Customer_BankHistory_Report = "تراز کلی";
         public const string Expenses_Report = "گزارش هزینه‌ها";
 
         //Tasks

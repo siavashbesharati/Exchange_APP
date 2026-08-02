@@ -58,11 +58,8 @@ namespace ForexExchange.Controllers
             }
 
             var roles = _roleManager.Roles.ToList();
-            var allPermissions = typeof(Permissions)
-                .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy)
-                .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string))
-                .Select(fi => fi.GetRawConstantValue()?.ToString() ?? string.Empty)
-                .ToList();
+            await _permissionService.NormalizeStoredPermissionNamesAsync();
+            var allPermissions = PermissionService.GetAllDefinedPermissions();
 
             string effectiveRoleName = roleName ?? UserRole.Admin.ToString(); // Default to "Admin" if not specified
 
@@ -96,30 +93,85 @@ namespace ForexExchange.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
+            if (string.IsNullOrWhiteSpace(selectedRoleName))
+            {
+                TempData["Error"] = "نقش انتخاب نشده است.";
+                return RedirectToAction("ManageRolePermissions");
+            }
+
+            if (selectedRoleName == UserRole.Programmer.ToString())
+            {
+                TempData["Error"] = "دسترسی نقش Programmer همیشه کامل است و قابل ویرایش نیست.";
+                return RedirectToAction("ManageRolePermissions", new { roleName = selectedRoleName });
+            }
+
             try
             {
-                await _permissionService.SetPermissionsForRoleAsync(selectedRoleName, permissionNames ?? new List<string>());
+                var normalizedPermissions = (permissionNames ?? new List<string>())
+                    .Select(PermissionService.NormalizePermissionName)
+                    .Where(p => !string.IsNullOrWhiteSpace(p))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                await _permissionService.SetPermissionsForRoleAsync(selectedRoleName, normalizedPermissions);
+
+                // Force users in this role to re-authenticate so role claims / sessions refresh.
+                var signedOutCount = await ForceSignOutUsersInRoleAsync(selectedRoleName);
 
                 await _adminActivityService.LogActivityAsync(
                     currentUser.Id,
                     currentUser.UserName ?? "Unknown",
                     AdminActivityType.RolePermissionsUpdated,
-                    $"دسترسی‌های نقش {selectedRoleName} بروزرسانی شد.",
-                    entityType: "IdentityRole", // Changed from UserRole to IdentityRole
-                    entityId: null, // Use the role name string
-                    oldValue: null, // Could fetch old permissions if needed for detailed logging
-                    newValue: string.Join(", ", permissionNames ?? new List<string>())
+                    $"دسترسی‌های نقش {selectedRoleName} بروزرسانی شد. ({signedOutCount} کاربر از سیستم خارج شدند)",
+                    entityType: "IdentityRole",
+                    entityId: null,
+                    oldValue: null,
+                    newValue: string.Join(", ", normalizedPermissions)
                 );
 
-                TempData["Success"] = $"دسترسی‌های نقش {selectedRoleName} با موفقیت بروزرسانی شد.";
+                TempData["Success"] = $"دسترسی‌های نقش {selectedRoleName} ذخیره شد. کاربران این نقش در درخواست بعدی از سیستم خارج می‌شوند.";
             }
             catch (Exception ex)
             {
-                // Log.Error(ex, "Error updating permissions for role {Role}", selectedRoleName);
                 TempData["Error"] = $"خطا در بروزرسانی دسترسی‌های نقش {selectedRoleName}: {ex.Message}";
             }
 
             return RedirectToAction("ManageRolePermissions", new { roleName = selectedRoleName });
+        }
+
+        private async Task<int> ForceSignOutUsersInRoleAsync(string roleName)
+        {
+            var users = await _userManager.GetUsersInRoleAsync(roleName);
+
+            // Also include users whose ApplicationUser.Role matches, in case Identity roles drifted.
+            if (Enum.TryParse<UserRole>(roleName, out var parsedRole))
+            {
+                var usersByAppRole = await _userManager.Users
+                    .Where(u => u.Role == parsedRole)
+                    .ToListAsync();
+
+                users = users
+                    .Concat(usersByAppRole)
+                    .GroupBy(u => u.Id)
+                    .Select(g => g.First())
+                    .ToList();
+            }
+
+            var count = 0;
+            foreach (var user in users)
+            {
+                // Skip signing out the current admin making the change.
+                if (User.Identity?.Name != null &&
+                    (user.UserName == User.Identity.Name || user.Id == _userManager.GetUserId(User)))
+                {
+                    continue;
+                }
+
+                await _userManager.UpdateSecurityStampAsync(user);
+                count++;
+            }
+
+            return count;
         }
 
         /// <summary>
@@ -331,15 +383,25 @@ namespace ForexExchange.Controllers
         /// </summary>
         public async Task<IActionResult> ManageAdmins()
         {
+            var users = await _userManager.Users.Where(c => c.CustomerId == null).ToListAsync();
 
-            var users = await _userManager.Users.Where(c=>c.CustomerId==null).ToListAsync();
-
-            // Dynamically fetch roles from DB instead of Enum.GetValues
-            var roles = _context.Roles
+            var roles = _roleManager.Roles
                 .OrderBy(r => r.Name)
                 .ToList();
 
+            // Prefer Identity role name (supports custom panel roles), fallback to enum Role
+            var userRoleMap = new Dictionary<string, string>();
+            foreach (var user in users)
+            {
+                var identityRoles = await _userManager.GetRolesAsync(user);
+                var primaryRole = identityRoles.FirstOrDefault(r =>
+                                     !string.Equals(r, UserRole.Customer.ToString(), StringComparison.OrdinalIgnoreCase))
+                                 ?? user.Role.ToString();
+                userRoleMap[user.Id] = primaryRole;
+            }
+
             ViewBag.Roles = roles;
+            ViewBag.UserRoleMap = userRoleMap;
 
             var currentUser = await _userManager.GetUserAsync(User);
             ViewBag.CurrentUserRole = currentUser?.Role;
@@ -399,7 +461,7 @@ namespace ForexExchange.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Programmer")]
+        [HasPermission(Permissions.Database_Management)]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResetAllSessions()
         {
@@ -436,11 +498,31 @@ namespace ForexExchange.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [HasPermission(Permissions.Manage_Admins)]
-        public async Task<IActionResult> CreateAdmin(string userName, string email, string password, UserRole role, string fullName)
+        public async Task<IActionResult> CreateAdmin(string userName, string email, string password, string role, string fullName)
         {
             if (string.IsNullOrEmpty(userName) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(fullName))
             {
                 TempData["Error"] = "نام و نام خانوادگی، شماره تلفن و رمز عبور الزامی هستند.";
+                return RedirectToAction("ManageAdmins");
+            }
+
+            if (string.IsNullOrWhiteSpace(role) || role == UserRole.Customer.ToString())
+            {
+                TempData["Error"] = "نقش انتخاب‌شده معتبر نیست.";
+                return RedirectToAction("ManageAdmins");
+            }
+
+            if (!await _roleManager.RoleExistsAsync(role))
+            {
+                TempData["Error"] = $"نقش '{role}' وجود ندارد.";
+                return RedirectToAction("ManageAdmins");
+            }
+
+            var currentUserCheck = await _userManager.GetUserAsync(User);
+            if (role == UserRole.Programmer.ToString()
+                && currentUserCheck?.Role != UserRole.Programmer)
+            {
+                TempData["Error"] = "فقط Programmer می‌تواند نقش Programmer را تنظیم کند.";
                 return RedirectToAction("ManageAdmins");
             }
 
@@ -463,14 +545,20 @@ namespace ForexExchange.Controllers
                 return RedirectToAction("ManageAdmins");
             }
 
+            // Enum field kept for legacy UI only — authorization uses Identity roles + RolePermissions.
+            var appRole = Enum.TryParse<UserRole>(role, ignoreCase: true, out var parsedRole)
+                && parsedRole != UserRole.Customer
+                ? parsedRole
+                : UserRole.Operator;
+
             var user = new ApplicationUser
             {
-                UserName = normalizedPhoneNumber, // Use normalized phone number as username
-                PhoneNumber = normalizedPhoneNumber, // Set normalized phone number
+                UserName = normalizedPhoneNumber,
+                PhoneNumber = normalizedPhoneNumber,
                 Email = email,
-                FullName = fullName, // Set the full name
+                FullName = fullName,
                 EmailConfirmed = true,
-                Role = role,
+                Role = appRole,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 LockoutEnabled = false
@@ -479,10 +567,9 @@ namespace ForexExchange.Controllers
             var result = await _userManager.CreateAsync(user, password);
             if (result.Succeeded)
             {
-                // Add to the appropriate Identity role based on the provided UserRole
-                await _userManager.AddToRoleAsync(user, role.ToString());
+                // Identity role is the source of truth for dynamic permissions
+                await _userManager.AddToRoleAsync(user, role);
 
-                // Log activity
                 var currentUser = await _userManager.GetUserAsync(User);
                 if (currentUser != null)
                 {
@@ -565,6 +652,9 @@ namespace ForexExchange.Controllers
                 {
                     await _userManager.AddToRoleAsync(user, newRoleName);
                 }
+
+                // Invalidate existing sessions so role claims refresh on next request.
+                await _userManager.UpdateSecurityStampAsync(user);
                 // Log activity
                 var currentUser = await _userManager.GetUserAsync(User);
                 if (currentUser != null)
@@ -747,53 +837,128 @@ namespace ForexExchange.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [HasPermission(Permissions.Manage_Admins)]
-        public async Task<IActionResult> EditAdmin(string userId, string email, string fullName)
+        public async Task<IActionResult> EditAdmin(
+            string userId,
+            string email,
+            string fullName,
+            string? role = null,
+            bool changePassword = false,
+            string? newPassword = null,
+            string? confirmPassword = null)
         {
-            try
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
             {
-                var user = await _userManager.FindByIdAsync(userId);
-                if (user == null)
+                TempData["Error"] = "کاربر یافت نشد.";
+                return RedirectToAction("ManageAdmins");
+            }
+
+            var currentUser = await _userManager.GetUserAsync(User);
+            var isSelf = currentUser != null && currentUser.Id == userId;
+            var oldAppRole = user.Role;
+            var oldEmail = user.Email;
+            var oldFullName = user.FullName;
+            var oldIdentityRoles = await _userManager.GetRolesAsync(user);
+            var oldPrimaryRole = oldIdentityRoles.FirstOrDefault(r =>
+                                    !string.Equals(r, UserRole.Customer.ToString(), StringComparison.OrdinalIgnoreCase))
+                                ?? oldAppRole.ToString();
+
+            user.Email = email?.Trim();
+            user.FullName = fullName?.Trim() ?? user.FullName;
+
+            var roleChanged = false;
+            var newPrimaryRole = oldPrimaryRole;
+
+            // Role can only be changed for other users (supports seeded + custom panel roles)
+            if (!isSelf && !string.IsNullOrWhiteSpace(role)
+                && !string.Equals(role, UserRole.Customer.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(role, UserRole.Programmer.ToString(), StringComparison.OrdinalIgnoreCase)
+                    && currentUser?.Role != UserRole.Programmer)
                 {
-                    return Json(new { success = false, message = "کاربر یافت نشد" });
+                    TempData["Error"] = "فقط Programmer می‌تواند نقش Programmer را تنظیم کند.";
+                    return RedirectToAction("ManageAdmins");
                 }
 
-                // Allow editing self - no restriction for basic info updates
-                var currentUser = await _userManager.GetUserAsync(User);
-
-                var oldEmail = user.Email;
-                var oldFullName = user.FullName;
-
-                // Update user information
-                user.Email = email;
-                user.FullName = fullName;
-
-                var result = await _userManager.UpdateAsync(user);
-                if (result.Succeeded)
+                if (!await _roleManager.RoleExistsAsync(role))
                 {
-                    // Log the activity
-                    if (currentUser != null)
-                    {
-                        await _adminActivityService.LogUserEditAsync(
-                            currentUser.Id,
-                            currentUser.UserName ?? "Unknown",
-                            user.Id,
-                            user.UserName ?? "Unknown",
-                            $"Email: {oldEmail} → {email}, FullName: {oldFullName} → {fullName}"
-                        );
-                    }
+                    TempData["Error"] = $"نقش '{role}' وجود ندارد.";
+                    return RedirectToAction("ManageAdmins");
+                }
 
-                    return Json(new { success = true, message = "اطلاعات کاربر با موفقیت بروزرسانی شد" });
+                var rolesToRemove = oldIdentityRoles
+                    .Where(r => !string.Equals(r, UserRole.Customer.ToString(), StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (rolesToRemove.Count > 0)
+                    await _userManager.RemoveFromRolesAsync(user, rolesToRemove);
+
+                if (!await _userManager.IsInRoleAsync(user, role))
+                    await _userManager.AddToRoleAsync(user, role);
+
+                // Legacy enum column only — authorization uses Identity role + RolePermissions
+                if (Enum.TryParse<UserRole>(role, ignoreCase: true, out var parsedRole)
+                    && parsedRole != UserRole.Customer)
+                {
+                    user.Role = parsedRole;
                 }
                 else
                 {
-                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                    return Json(new { success = false, message = $"خطا در بروزرسانی: {errors}" });
+                    user.Role = UserRole.Operator;
                 }
+
+                newPrimaryRole = role;
+                roleChanged = !string.Equals(oldPrimaryRole, role, StringComparison.OrdinalIgnoreCase);
             }
-            catch (Exception)
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
             {
-                return Json(new { success = false, message = "خطا در بروزرسانی اطلاعات کاربر" });
+                TempData["Error"] = string.Join(", ", result.Errors.Select(e => e.Description));
+                return RedirectToAction("ManageAdmins");
             }
+
+            if (roleChanged)
+                await _userManager.UpdateSecurityStampAsync(user);
+
+            if (changePassword)
+            {
+                if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
+                {
+                    TempData["Error"] = "رمز عبور باید حداقل ۶ کاراکتر باشد.";
+                    return RedirectToAction("ManageAdmins");
+                }
+
+                if (newPassword != confirmPassword)
+                {
+                    TempData["Error"] = "رمز عبور و تکرار آن باید یکسان باشند.";
+                    return RedirectToAction("ManageAdmins");
+                }
+
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var passwordResult = await _userManager.ResetPasswordAsync(user, token, newPassword);
+                if (!passwordResult.Succeeded)
+                {
+                    TempData["Error"] = string.Join(", ", passwordResult.Errors.Select(e => e.Description));
+                    return RedirectToAction("ManageAdmins");
+                }
+
+                await _userManager.UpdateSecurityStampAsync(user);
+            }
+
+            if (currentUser != null)
+            {
+                await _adminActivityService.LogUserEditAsync(
+                    currentUser.Id,
+                    currentUser.UserName ?? "Unknown",
+                    user.Id,
+                    user.UserName ?? "Unknown",
+                    $"Email: {oldEmail} → {email}, FullName: {oldFullName} → {fullName}, Role: {oldPrimaryRole} → {newPrimaryRole}"
+                );
+            }
+
+            TempData["Success"] = "اطلاعات کاربر با موفقیت بروزرسانی شد.";
+            return RedirectToAction("ManageAdmins");
         }
 
         /// <summary>

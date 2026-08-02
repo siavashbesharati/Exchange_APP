@@ -7,9 +7,36 @@
     ViewData["Title"] = "مدیریت ادمین‌ها";
 }
 
+<style>
+    /* Role dropdown must appear above edit popup */
+    #editAdminModal,
+    #createAdminModal {
+        overflow: visible !important;
+    }
+    #editAdminModal .modal-dialog,
+    #editAdminModal .modal-content,
+    #editAdminModal .modal-body,
+    #createAdminModal .modal-dialog,
+    #createAdminModal .modal-content,
+    #createAdminModal .modal-body {
+        overflow: visible !important;
+    }
+    #editAdminModal .select2-container,
+    #createAdminModal .select2-container {
+        z-index: 1065 !important;
+    }
+    #editAdminModal .select2-container--open,
+    #createAdminModal .select2-container--open,
+    #editAdminModal .select2-dropdown,
+    #createAdminModal .select2-dropdown {
+        z-index: 3000 !important;
+    }
+</style>
+
 
 
 <div class="container-fluid">
+    @Html.AntiForgeryToken()
     <!-- Header -->
     <div class="row mb-4">
         <div class="col-12">
@@ -87,47 +114,30 @@
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    @{
+                                        var userRoleMap = ViewBag.UserRoleMap as Dictionary<string, string>
+                                            ?? new Dictionary<string, string>();
+                                    }
                                     @foreach (ApplicationUser user in Model)
                                     {
+                                        var primaryRole = userRoleMap.TryGetValue(user.Id, out string? mappedRole)
+                                            ? mappedRole
+                                            : user.Role.ToString();
+                                        string roleDisplay = Enum.TryParse<ForexExchange.Models.UserRole>(primaryRole, out var parsedDisplayRole)
+                                            ? parsedDisplayRole.GetDisplayName()
+                                            : primaryRole;
+                                        var isSelf = user.Id == User.FindFirst("sub")?.Value
+                                            || user.Id == User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                                         <tr class="text-center">
                                             <td>@user.FullName</td>
                                             <td dir="ltr">@(string.IsNullOrEmpty(user.PhoneNumber) ? user.UserName :
                                                                                                                                         PhoneNumberService.GetFormattedDisplayFormat(user.PhoneNumber))</td>
                                                 <td>@user.Email</td>
                                                 <td>
-                                                    @if (user.Id == User.FindFirst("sub")?.Value)
+                                                    <span class="badge bg-primary">@roleDisplay</span>
+                                                    @if (isSelf)
                                                     {
-                                                        <span class="badge bg-primary">@user.Role.GetDisplayName()</span>
                                                         <small class="text-muted d-block">(شما)</small>
-                                                    }
-                                                    else
-                                                    {
-                                                        <select class="form-select form-select-sm"
-                                                                onchange="changeUserRole('@user.Id', this.value)">
-                                                            @foreach (IdentityRole role in (List<IdentityRole>)ViewBag.Roles)
-                                                            {
-                                                                @if (role.Name != ForexExchange.Models.UserRole.Customer.ToString())
-                                                                {
-                                                                    @if (role.Name == ForexExchange.Models.UserRole.Programmer.ToString()
-                                                                         && ViewBag.CurrentUserRole?.ToString() !=
-                                                                                                    ForexExchange.Models.UserRole.Programmer.ToString())
-                                                                    {
-                                                                        @* Skip Programmer role for non-Programmer viewers *@
-                                                                    }
-                                                                    else
-                                                                    {
-                                                                        string displayName = !string.IsNullOrWhiteSpace(role.Name) &&
-                                                                            Enum.TryParse<ForexExchange.Models.UserRole>(role.Name, out var parsedRole)
-                                                                            ? parsedRole.GetDisplayName()
-                                                                            : role.Name ?? string.Empty;
-
-                                                                        <option value="@role.Name" selected="@(user.Role.ToString() == role.Name)">
-                                                                            @displayName
-                                                                        </option>
-                                                                    }
-                                                                }
-                                                            }
-                                                        </select>
                                                     }
                                                 </td>
                                                 <td>@user.CreatedAt.ToString("yyyy/MM/dd")</td>
@@ -175,22 +185,14 @@
                                                     </td>
                                                     <td>
                                                         <div class="btn-group btn-group-sm">
-                                                            @if (user.Id == User.FindFirst("sub")?.Value)
+                                                            <button type="button" class="btn btn-primary btn-sm"
+                                                                    onclick="editAdmin('@user.Id', '@user.Email', '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(user.FullName ?? ""))', '@primaryRole', @(isSelf ? "true" : "false"))">
+                                                                <i class="fas fa-edit me-1"></i>
+                                                                @(isSelf ? "ویرایش پروفایل" : "ویرایش")
+                                                            </button>
+                                                            @if (!isSelf)
                                                             {
-                                                                <button type="button" class="btn btn-primary btn-sm"
-                                                                        onclick="editAdmin('@user.Id', '@user.Email', '@user.FullName', true)">
-                                                                    <i class="fas fa-edit me-1"></i>
-                                                                    ویرایش پروفایل
-                                                                </button>
-                                                            }
-                                                            else
-                                                            {
-                                                                <button type="button" class="btn  btn-sm"
-                                                                        onclick="editAdmin('@user.Id', '@user.Email', '@user.FullName', false)">
-                                                                    <i class="fas fa-edit me-1"></i>
-                                                                    ویرایش
-                                                                </button>
-                                                                <button type="button" class="btn  btn-sm"
+                                                                <button type="button" class="btn btn-sm"
                                                                         onclick="deleteAdmin('@user.Id', '@user.UserName')">
                                                                     <i class="fas fa-trash me-1"></i>
                                                                     حذف
@@ -319,63 +321,81 @@
             <div class="modal fade" id="editAdminModal" tabindex="-1">
                 <div class="modal-dialog">
                     <div class="modal-content">
-                        <div class="modal-header bg-primary text-white">
-                            <h5 class="modal-title">
-                                <i class="fas fa-edit me-2"></i>
-                                ویرایش ادمین
-                            </h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
+                        <form asp-action="EditAdmin" method="post" id="editAdminForm">
                             @Html.AntiForgeryToken()
-                            <input type="hidden" id="editUserId" />
-                            <div class="mb-3">
-                                <label class="form-label">نام و نام خانوادگی</label>
-                                <input type="text" class="form-control" id="editFullName" required />
-                                <div class="form-text">نام کامل کاربر ادمین</div>
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-edit me-2"></i>
+                                    ویرایش ادمین
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">ایمیل</label>
-                                <input type="email" class="form-control" id="editEmail" required />
-                                <div class="form-text">آدرس ایمیل کاربر</div>
-                            </div>
-                            <div class="alert alert-info">
-                                <i class="fas fa-info-circle me-2"></i>
-                                شماره تلفن (نام کاربری) قابل تغییر نیست
-                            </div>
-
-                            <!-- Password Change Section -->
-                            <div class="border-top pt-3 mt-3">
-                                <div class="form-check mb-3">
-                                    <input class="form-check-input" type="checkbox" id="changePasswordCheck"
-                                           onchange="togglePasswordFields()">
-                                    <label class="form-check-label" for="changePasswordCheck">
-                                        <i class="fas fa-key me-2"></i>
-                                        تغییر رمز عبور
-                                    </label>
+                            <div class="modal-body">
+                                <input type="hidden" name="userId" id="editUserId" />
+                                <div class="mb-3">
+                                    <label class="form-label">نام و نام خانوادگی</label>
+                                    <input type="text" class="form-control" name="fullName" id="editFullName" required />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">ایمیل</label>
+                                    <input type="email" class="form-control" name="email" id="editEmail" required />
+                                </div>
+                                <div class="mb-3" id="editRoleGroup">
+                                    <label class="form-label">نقش</label>
+                                    <select class="form-select" name="role" id="editRole" required>
+                                        @foreach (IdentityRole role in (List<IdentityRole>)ViewBag.Roles)
+                                        {
+                                            @if (role.Name != ForexExchange.Models.UserRole.Customer.ToString())
+                                            {
+                                                @if (role.Name == ForexExchange.Models.UserRole.Programmer.ToString()
+                                                     && ViewBag.CurrentUserRole?.ToString() !=
+                                                                ForexExchange.Models.UserRole.Programmer.ToString())
+                                                {
+                                                    @* Skip Programmer role for non-Programmer viewers *@
+                                                }
+                                                else
+                                                {
+                                                    string displayName = !string.IsNullOrWhiteSpace(role.Name) &&
+                                                    Enum.TryParse<ForexExchange.Models.UserRole>(role.Name, out var parsedRole)
+                                                        ? parsedRole.GetDisplayName()
+                                                        : role.Name ?? string.Empty;
+                                                    <option value="@role.Name">@displayName</option>
+                                                }
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="alert alert-info py-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    شماره تلفن (نام کاربری) قابل تغییر نیست
                                 </div>
 
-                                <div id="passwordFields" style="display: none;">
-                                    <div class="mb-3">
-                                        <label class="form-label">رمز عبور جدید</label>
-                                        <input type="password" class="form-control" id="newPassword" minlength="6" />
-                                        <div class="form-text">حداقل ۶ کاراکتر</div>
+                                <div class="border-top pt-3 mt-3">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="changePasswordCheck"
+                                               name="changePassword" value="true" onchange="togglePasswordFields()">
+                                        <label class="form-check-label" for="changePasswordCheck">
+                                            <i class="fas fa-key me-1"></i>
+                                            تغییر رمز عبور
+                                        </label>
                                     </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">تکرار رمز عبور جدید</label>
-                                        <input type="password" class="form-control" id="confirmPassword" minlength="6" />
-                                    </div>
-                                    <div class="alert alert-warning">
-                                        <i class="fas fa-exclamation-triangle me-2"></i>
-                                        با تغییر رمز عبور، کاربر مجبور به ورود مجدد خواهد بود
+                                    <div id="passwordFields" style="display: none;">
+                                        <div class="mb-3">
+                                            <label class="form-label">رمز عبور جدید</label>
+                                            <input type="password" class="form-control" name="newPassword" id="newPassword" minlength="6" />
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">تکرار رمز عبور جدید</label>
+                                            <input type="password" class="form-control" name="confirmPassword" id="confirmPassword" minlength="6" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
-                            <button type="button" class="btn btn-primary" onclick="saveAdminChanges()">ذخیره تغییرات</button>
-                        </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
+                                <button type="submit" class="btn btn-primary">ذخیره تغییرات</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -385,20 +405,14 @@
                     function copyTotpSecret(userId) {
                         const input = document.getElementById(`totp-${userId}`);
                         const button = document.getElementById(`copy-btn-${userId}`);
-                        if (!input || !input.value) {
-                            return;
-                        }
+                        if (!input || !input.value) return;
 
                         const setSuccessState = () => {
-                            if (!button) {
-                                return;
-                            }
-
+                            if (!button) return;
                             const originalHtml = button.innerHTML;
                             button.innerHTML = '<i class="fas fa-check"></i>';
                             button.classList.remove('btn-outline-secondary');
                             button.classList.add('btn-success');
-
                             setTimeout(() => {
                                 button.innerHTML = originalHtml;
                                 button.classList.add('btn-outline-secondary');
@@ -414,85 +428,70 @@
                         };
 
                         if (navigator.clipboard && navigator.clipboard.writeText) {
-                            navigator.clipboard.writeText(input.value)
-                                .then(setSuccessState)
-                                .catch(fallbackCopy);
+                            navigator.clipboard.writeText(input.value).then(setSuccessState).catch(fallbackCopy);
                         } else {
                             fallbackCopy();
                         }
                     }
 
-                    function changeUserRole(userId, newRole) {
-                        if (confirm('آیا از تغییر نقش این کاربر اطمینان دارید؟')) {
-                            fetch(`/AdminManagement/ChangeAdminRole?userId=${userId}&newRole=${newRole}`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
-                                }
-                            })
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (data.success) {
-                                        location.reload();
-                                    } else {
-                                        alert('خطا: ' + data.message);
-                                    }
-                                })
-                                .catch(error => {
-                                    alert('خطا در تغییر نقش کاربر');
-                                });
-                        }
+                    function getAntiForgeryToken() {
+                        const tokenInput = document.querySelector('#editAdminForm input[name="__RequestVerificationToken"]')
+                            || document.querySelector('input[name="__RequestVerificationToken"]');
+                        return tokenInput ? tokenInput.value : '';
                     }
 
                     function deleteAdmin(userId, userName) {
-                        if (confirm(`آیا از حذف کاربر "${userName}" اطمینان دارید؟ این عمل قابل برگرداندن نیست.`)) {
-                            fetch(`/AdminManagement/DeleteAdmin?userId=${userId}`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
-                                }
-                            })
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (data.success) {
-                                        location.reload();
-                                    } else {
-                                        alert('خطا: ' + data.message);
-                                    }
-                                })
-                                .catch(error => {
-                                    alert('خطا در حذف کاربر');
-                                });
+                        if (!confirm(`آیا از حذف کاربر "${userName}" اطمینان دارید؟ این عمل قابل برگرداندن نیست.`)) {
+                            return;
                         }
+
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '/AdminManagement/DeleteAdmin';
+                        form.style.display = 'none';
+
+                        [
+                            ['userId', userId],
+                            ['__RequestVerificationToken', getAntiForgeryToken()]
+                        ].forEach(([name, value]) => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = name;
+                            input.value = value;
+                            form.appendChild(input);
+                        });
+
+                        document.body.appendChild(form);
+                        form.submit();
                     }
 
-                    function editAdmin(userId, email, fullName, isSelf = false) {
-                        // Set values in edit modal
+                    function editAdmin(userId, email, fullName, role, isSelf = false) {
                         document.getElementById('editUserId').value = userId;
-                        document.getElementById('editEmail').value = email;
-                        document.getElementById('editFullName').value = fullName;
+                        document.getElementById('editEmail').value = email || '';
+                        document.getElementById('editFullName').value = fullName || '';
 
-                        // Reset password fields
+                        const roleGroup = document.getElementById('editRoleGroup');
+                        const roleSelect = $('#editRole');
+                        if (isSelf) {
+                            roleGroup.style.display = 'none';
+                            roleSelect.prop('disabled', true);
+                        } else {
+                            roleGroup.style.display = 'block';
+                            roleSelect.prop('disabled', false);
+                        }
+                        roleSelect.val(role || '').trigger('change');
+
                         document.getElementById('changePasswordCheck').checked = false;
                         document.getElementById('newPassword').value = '';
                         document.getElementById('confirmPassword').value = '';
                         togglePasswordFields();
 
-                        // Update modal title based on whether it's self-editing
                         const modalTitle = document.querySelector('#editAdminModal .modal-title');
-                        if (isSelf) {
-                            modalTitle.innerHTML = '<i class="fas fa-user-edit me-2"></i>ویرایش پروفایل شخصی';
-                        } else {
-                            modalTitle.innerHTML = '<i class="fas fa-edit me-2"></i>ویرایش ادمین';
-                        }
+                        modalTitle.innerHTML = isSelf
+                            ? '<i class="fas fa-user-edit me-2"></i>ویرایش پروفایل شخصی'
+                            : '<i class="fas fa-edit me-2"></i>ویرایش ادمین';
 
-                        // Show modal
-                        var editModal = new bootstrap.Modal(document.getElementById('editAdminModal'));
-                        editModal.show();
+                        new bootstrap.Modal(document.getElementById('editAdminModal')).show();
                     }
 
                     function togglePasswordFields() {
@@ -514,96 +513,21 @@
                         }
                     }
 
-                    function saveAdminChanges() {
-                        const userId = document.getElementById('editUserId').value;
-                        const email = document.getElementById('editEmail').value;
-                        const fullName = document.getElementById('editFullName').value;
+                    document.getElementById('editAdminForm').addEventListener('submit', function (e) {
                         const changePassword = document.getElementById('changePasswordCheck').checked;
+                        if (!changePassword) return;
+
                         const newPassword = document.getElementById('newPassword').value;
                         const confirmPassword = document.getElementById('confirmPassword').value;
-
-                        // Validate basic fields
-                        if (!email || !fullName) {
-                            alert('لطفاً تمام فیلدها را پر کنید');
+                        if (!newPassword || newPassword.length < 6) {
+                            e.preventDefault();
+                            alert('رمز عبور باید حداقل ۶ کاراکتر باشد');
                             return;
                         }
-
-                        // Validate password if changing
-                        if (changePassword) {
-                            if (!newPassword || !confirmPassword) {
-                                alert('لطفاً رمز عبور جدید و تکرار آن را وارد کنید');
-                                return;
-                            }
-
-                            if (newPassword.length < 6) {
-                                alert('رمز عبور باید حداقل ۶ کاراکتر باشد');
-                                return;
-                            }
-
-                            if (newPassword !== confirmPassword) {
-                                alert('رمز عبور و تکرار آن باید یکسان باشند');
-                                return;
-                            }
+                        if (newPassword !== confirmPassword) {
+                            e.preventDefault();
+                            alert('رمز عبور و تکرار آن باید یکسان باشند');
                         }
-
-                        // First update basic info
-                        fetch('/AdminManagement/EditAdmin', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
-                            },
-                            body: `userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}&fullName=${encodeURIComponent(fullName)}`
-                        })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.success) {
-                                    // If password change is requested, call password change API
-                                    if (changePassword) {
-                                        return fetch('/AdminManagement/ChangeAdminPassword', {
-                                            method: 'POST',
-                                            headers: {
-                                                'Content-Type': 'application/x-www-form-urlencoded',
-                                                'X-Requested-With': 'XMLHttpRequest',
-                                                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
-                                            },
-                                            body: `userId=${encodeURIComponent(userId)}&newPassword=${encodeURIComponent(newPassword)}&confirmPassword=${encodeURIComponent(confirmPassword)}`
-                                        });
-                                    }
-                                    return { ok: true, json: () => Promise.resolve({ success: true }) };
-                                } else {
-                                    throw new Error(data.message);
-                                }
-                            })
-                            .then(response => {
-                                if (response.ok) {
-                                    return response.json();
-                                }
-                                throw new Error('Network response was not ok');
-                            })
-                            .then(data => {
-                                if (data.success) {
-                                    // Hide modal
-                                    var editModal = bootstrap.Modal.getInstance(document.getElementById('editAdminModal'));
-                                    editModal.hide();
-
-                                    // Show success message
-                                    if (changePassword) {
-                                        alert('اطلاعات کاربر و رمز عبور با موفقیت بروزرسانی شد');
-                                    } else {
-                                        alert('اطلاعات کاربر با موفقیت بروزرسانی شد');
-                                    }
-
-                                    // Reload page to show changes
-                                    location.reload();
-                                } else {
-                                    alert('خطا: ' + data.message);
-                                }
-                            })
-                            .catch(error => {
-                                alert('خطا در بروزرسانی اطلاعات: ' + error.message);
-                            });
-                    }
+                    });
                 </script>
             }

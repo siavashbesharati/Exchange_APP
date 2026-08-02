@@ -4,13 +4,12 @@
 
 @{
     ViewData["Title"] = "ویرایش دسترسی نقش ها";
+    var isProgrammerRole = Model.SelectedRole == UserRole.Programmer.ToString();
 }
 
 <h1>@ViewData["Title"]</h1>
+
 @if (TempData["Success"] != null)
-
-
-
 {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         @TempData["Success"]
@@ -19,40 +18,25 @@
 }
 
 @if (TempData["Error"] is string errorMessage)
-
 {
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         @errorMessage
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 }
+
 <div class="row">
-    <div class="col-md-8">
+    <div class="col-md-10">
         <form asp-action="UpdateRolePermissions" method="post">
             <div asp-validation-summary="All" class="text-danger"></div>
 
             <div class="form-group mb-3">
-                <label for="selectedRole" class="form-label"> انتخاب نقش:</label>
-
+                <label for="selectedRole" class="form-label">انتخاب نقش:</label>
                 <select id="selectedRole" name="selectedRoleName" class="form-control"
-                    onchange="window.location.href = '/AdminManagement/ManageRolePermissions?roleName=' + this.value;">
+                    onchange="window.location.href = '/AdminManagement/ManageRolePermissions?roleName=' + encodeURIComponent(this.value);">
                     @foreach (var role in Model.Roles)
-
-
-
-
-
-
-
                     {
-
-
-
-
-
-
-
-                        var isSelected = Model.SelectedRole?.ToString() == role.Name;
+                        var isSelected = Model.SelectedRole == role.Name;
                         <option value="@role.Name" selected="@(isSelected ? "selected" : null)">
                             @role.Name
                         </option>
@@ -60,31 +44,48 @@
                 </select>
             </div>
 
-            <h3> دسترسی ها برای : @Model.SelectedRole?.ToString()</h3>
+            <h3>دسترسی‌ها برای: @Model.SelectedRole</h3>
+
+            @if (isProgrammerRole)
+            {
+                <div class="alert alert-info">
+                    نقش Programmer همیشه همه دسترسی‌ها را دارد و قابل ویرایش نیست.
+                </div>
+            }
+
             <div class="row">
+                @{
+                    var permissionIndex = 0;
+                }
                 @foreach (var permission in Model.AllPermissions)
-
-
-
-
-
-
-
                 {
-                    <div class="col-md-4">
+                    var inputId = $"permission_{permissionIndex}";
+                    var isChecked = Model.CurrentRolePermissions.Contains(permission);
+                    <div class="col-md-4 mb-2">
                         <div class="form-check">
-                            <input type="checkbox" name="permissionNames" value="@permission" class="form-check-input"
-                                id="permission_@permission.Replace(".", "_")"
-                            @(Model.CurrentRolePermissions.Contains(permission) ? "checked" : "")>
-                            <label class="form-check-label" for="permission_@permission.Replace(".", "_")">
+                            <input type="checkbox"
+                                   name="permissionNames"
+                                   value="@permission"
+                                   class="form-check-input"
+                                   id="@inputId"
+                                   @(isChecked ? "checked" : null)
+                                   disabled="@(isProgrammerRole ? "disabled" : null)" />
+                            <label class="form-check-label" for="@inputId">
                                 @permission
                             </label>
                         </div>
                     </div>
+                    permissionIndex++;
                 }
             </div>
 
-            <button type="submit" class="btn btn-primary mt-3"> ذخیره دسترسی ها</button>
+            @if (!isProgrammerRole)
+            {
+                <button type="submit" class="btn btn-primary mt-3">ذخیره دسترسی‌ها</button>
+                <div class="form-text mt-2">
+                    پس از ذخیره، کاربران این نقش در درخواست بعدی از سیستم خارج می‌شوند و باید دوباره وارد شوند.
+                </div>
+            }
         </form>
     </div>
 </div>

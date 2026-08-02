@@ -1303,7 +1303,7 @@ namespace ForexExchange.Controllers
         // POST: AccountingDocuments/ConfirmAll
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,Programmer")]
+        [HasPermission(Permissions.Documents_Confirm)]
         public async Task<IActionResult> ConfirmAll()
         {
             try

@@ -1,3 +1,4 @@
+using ForexExchange.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -6,7 +7,7 @@ using ForexExchange.Services;
 
 namespace ForexExchange.Controllers
 {
-    [Authorize(Roles = "Admin,Programmer")]
+    [HasPermission(Permissions.Pool_Reports)]
     public class PoolManagementController : Controller
     {
         private readonly ICurrencyPoolService _poolService;

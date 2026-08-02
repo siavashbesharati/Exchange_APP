@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using ForexExchange.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using ForexExchange.Models;
@@ -9,7 +10,7 @@ using System.Globalization;
 
 namespace ForexExchange.Controllers
 {
-    [Authorize(Roles = "Admin,Operator,Programmer")]
+    [Staff]
     public class CustomersController : Controller
     {
         private readonly ForexDbContext _context;

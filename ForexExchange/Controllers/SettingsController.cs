@@ -1,3 +1,4 @@
+using ForexExchange.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using ForexExchange.Models;
@@ -7,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ForexExchange.Controllers
 {
-    [Authorize(Roles = "Programmer")]
+    [HasPermission(Permissions.Database_Management)]
     public class SettingsController : Controller
     {
         private readonly ISettingsService _settingsService;

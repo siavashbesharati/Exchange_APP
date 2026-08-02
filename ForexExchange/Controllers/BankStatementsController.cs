@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using ForexExchange.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ForexExchange.Models;
 using ForexExchange.Services;
@@ -7,7 +8,7 @@ using Newtonsoft.Json;
 
 namespace ForexExchange.Controllers
 {
-    [Authorize(Roles = "Admin,Operator,Programmer")]
+    [Staff]
     public class BankStatementsController : Controller
     {
         private readonly ForexDbContext _context;
