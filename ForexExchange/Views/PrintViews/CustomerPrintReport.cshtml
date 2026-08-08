@@ -193,6 +193,27 @@
             direction: ltr;
         }
 
+        .balance-status-badge {
+            display: inline-block;
+            margin-top: 6px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .balance-status-badge.credit {
+            background: #d5f5e3;
+            color: #1e8449;
+            border: 1px solid #27ae60;
+        }
+
+        .balance-status-badge.debt {
+            background: #fadbd8;
+            color: #c0392b;
+            border: 1px solid #e74c3c;
+        }
+
         .positive {
             color: #27ae60;
         }
@@ -584,6 +605,14 @@
                             <div class="balance-amount @(balance.Value >= 0 ? "positive" : "negative")">
                                 @balance.Value.FormatCurrency(balance.Key)
                             </div>
+                            @if (balance.Value >= 0)
+                            {
+                                <span class="balance-status-badge credit">بستانکار</span>
+                            }
+                            else
+                            {
+                                <span class="balance-status-badge debt">بدهکار</span>
+                            }
                         </div>
                     }
                 </div>
