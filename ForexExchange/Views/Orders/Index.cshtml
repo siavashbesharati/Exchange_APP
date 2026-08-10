@@ -321,7 +321,7 @@
                                         }
                                     </td>
                                     <td>
-                                        <span class="text-monospace">@item.FromCurrency?.Code / @item.ToCurrency?.Code</span>
+                                        <span class="text-monospace">@Html.CurrencyCodeWithSymbol(item.FromCurrency?.Code, item.FromCurrency?.Symbol) / @Html.CurrencyCodeWithSymbol(item.ToCurrency?.Code, item.ToCurrency?.Symbol)</span>
                                     </td>
                                     <td>@(item.FromCurrency?.Code == "IRR" ? item.FromAmount.ToString("N0") :
                                                                         item.FromAmount.ToString("N2")) @item.FromCurrency?.Code</td>

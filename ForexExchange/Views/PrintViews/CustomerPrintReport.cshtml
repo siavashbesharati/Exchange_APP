@@ -642,7 +642,7 @@
                                 <div class="company-name">@companyName</div>
                                 <div class="company-website">@companyWebsite</div>
                             </div>
-                            <div class="report-title">@Model.ReportTitle - @currencyGroup.First().CurrencyCode</div>
+                            <div class="report-title">@Model.ReportTitle - @Html.CurrencyCodeWithSymbol(currencyGroup.First().CurrencyCode)</div>
                         </div>
 
                         <table class="transaction-table">
@@ -699,7 +699,7 @@
                                             <span class="@typeClass">@transaction.TransactionType</span>
                                         </td>
 
-                                        <td style="text-align: center;">@transaction.CurrencyCode</td>
+                                        <td style="text-align: center;">@Html.CurrencyCodeWithSymbol(transaction.CurrencyCode)</td>
                                         <td style="text-align: center;">@(transaction.TransactionNumber ?? (transaction.ReferenceId.HasValue ? transaction.ReferenceId.Value.ToString() : "-"))</td>
 
 

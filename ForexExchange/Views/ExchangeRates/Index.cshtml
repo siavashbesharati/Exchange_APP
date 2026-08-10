@@ -102,7 +102,7 @@
                                         {
                                             var toCode = item.ToCurrency?.Code?.ToUpper() ?? "?";
                                             var toName = item.ToCurrency?.PersianName ?? item.ToCurrency?.Name ?? toCode;
-                                            var toSymbol = item.ToCurrency?.Symbol ?? toCode;
+                                            var toSymbol = item.ToCurrency?.Symbol;
                                             string badgeClass = toCode switch
                                             {
                                                 "USD" => "bg-primary",
@@ -115,21 +115,11 @@
                                             };
                                             <tr>
                                                 <td>
-                                                    <span class="badge @badgeClass me-2">@toCode</span>
+                                                    <span class="badge @badgeClass me-2">@Html.CurrencyCodeWithSymbol(toCode, toSymbol, 14)</span>
                                                     <span class="fw-medium">@toName</span>
                                                 </td>
                                                 <td class="text-center">
                                                     <span class="fw-bold text-primary">@item.Rate.ToString("N2")</span>
-                                                    <small class="text-muted ms-1">
-                                                        @if (CurrencyHelper.IsImageSymbol(toSymbol))
-                                                        {
-                                                            <img src="@toSymbol" alt="@toCode" style="height:16px;width:auto;vertical-align:middle;" />
-                                                        }
-                                                        else
-                                                        {
-                                                            @toSymbol
-                                                        }
-                                                    </small>
                                                 </td>
                                                 <td class="text-center">
                                                     <small class="text-muted">@item.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</small>

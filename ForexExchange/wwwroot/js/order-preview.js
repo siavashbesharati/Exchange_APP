@@ -53,10 +53,10 @@ function showPreviewModal(order, effects) {
         <div class="col-md-6">
             <div class="mb-2"><strong>مشتری:</strong> <span class="text-primary">${customerName}</span></div>
             <div class="mb-2"><strong>نوع معامله:</strong> <span class="badge bg-info">خرید/فروش ارز</span></div>
-            <div class="mb-2"><strong>دریافت می کنیم : </strong> <span class="text-success fw-bold" dir="ltr">${formatCurrency(displayFromAmount, fromCurrencyCode)} ${fromCurrencyCode}</span></div>
+            <div class="mb-2"><strong>دریافت می کنیم : </strong> <span class="text-success fw-bold" dir="ltr">${formatCurrency(displayFromAmount, fromCurrencyCode)} ${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(fromCurrencyCode) : fromCurrencyCode}</span></div>
         </div>
         <div class="col-md-6">
-            <div class="mb-2"><strong> پرداخت می کنیم : </strong> <span class="text-primary fw-bold" dir="ltr">${formatCurrency(displayToAmount, toCurrencyCode)} ${toCurrencyCode}</span></div>
+            <div class="mb-2"><strong> پرداخت می کنیم : </strong> <span class="text-primary fw-bold" dir="ltr">${formatCurrency(displayToAmount, toCurrencyCode)} ${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(toCurrencyCode) : toCurrencyCode}</span></div>
             <div class="mb-2"><strong>نرخ تبدیل:</strong> <span class="text-warning fw-bold" dir="ltr">${displayRate}</span></div>
             <div class="mb-2"><strong>تاریخ:</strong> <span>${formattedDate}</span></div>
         </div>
@@ -82,13 +82,13 @@ function showPreviewModal(order, effects) {
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="text-center fw-bold">${fromCurrencyCode}</td>
+                                <td class="text-center fw-bold">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(fromCurrencyCode) : fromCurrencyCode}</td>
                                 <td class="text-center" dir="ltr">${formatCurrency(getProp(eff, 'OldCustomerBalanceFrom'), fromCurrencyCode)}</td>
                                 <td class="text-center fw-bold text-${getProp(eff, 'NewCustomerBalanceFrom') >= 0 ? 'success' : 'danger'}" dir="ltr">${formatCurrency(getProp(eff, 'NewCustomerBalanceFrom'), fromCurrencyCode)}</td>
                                 <td class="text-center text-danger" dir="ltr">-${formatCurrency(displayFromAmount, fromCurrencyCode)}</td>
                             </tr>
                             <tr>
-                                <td class="text-center fw-bold">${toCurrencyCode}</td>
+                                <td class="text-center fw-bold">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(toCurrencyCode) : toCurrencyCode}</td>
                                 <td class="text-center" dir="ltr">${formatCurrency(getProp(eff, 'OldCustomerBalanceTo'), toCurrencyCode)}</td>
                                 <td class="text-center fw-bold text-success" dir="ltr">${formatCurrency(getProp(eff, 'NewCustomerBalanceTo'), toCurrencyCode)}</td>
                                 <td class="text-center text-success" dir="ltr">+${formatCurrency(displayToAmount, toCurrencyCode)}</td>
@@ -117,13 +117,13 @@ function showPreviewModal(order, effects) {
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="text-center fw-bold">${fromCurrencyCode}</td>
+                                <td class="text-center fw-bold">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(fromCurrencyCode) : fromCurrencyCode}</td>
                                 <td class="text-center" dir="ltr">${formatCurrency(getProp(eff, 'OldPoolBalanceFrom'), fromCurrencyCode)}</td>
                                 <td class="text-center fw-bold text-success" dir="ltr">${formatCurrency(getProp(eff, 'NewPoolBalanceFrom'), fromCurrencyCode)}</td>
                                 <td class="text-center text-success" dir="ltr">+${formatCurrency(displayFromAmount, fromCurrencyCode)}</td>
                             </tr>
                             <tr>
-                                <td class="text-center fw-bold">${toCurrencyCode}</td>
+                                <td class="text-center fw-bold">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(toCurrencyCode) : toCurrencyCode}</td>
                                 <td class="text-center" dir="ltr">${formatCurrency(getProp(eff, 'OldPoolBalanceTo'), toCurrencyCode)}</td>
                                 <td class="text-center fw-bold text-${getProp(eff, 'NewPoolBalanceTo') >= 0 ? 'success' : 'danger'}" dir="ltr">${formatCurrency(getProp(eff, 'NewPoolBalanceTo'), toCurrencyCode)}</td>
                                 <td class="text-center text-danger" dir="ltr">-${formatCurrency(displayToAmount, toCurrencyCode)}</td>

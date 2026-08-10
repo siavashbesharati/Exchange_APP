@@ -63,7 +63,7 @@
                             <div class="mb-3">
                                 <label class="form-label fw-bold">ارز حساب</label>
                                 <p class="form-control-plaintext">
-                                    <span class="badge bg-info">@Model.CurrencyCode</span>
+                                    <span class="badge bg-info">@Html.CurrencyCodeWithSymbol(Model.CurrencyCode)</span>
                                     @if (Model.IsDefault)
                                     {
                                         <span class="badge bg-warning ms-1">حساب پیش‌فرض</span>
@@ -75,7 +75,7 @@
                             <div class="mb-3">
                                 <label class="form-label fw-bold">موجودی حساب</label>
                                 <p class="form-control-plaintext" dir="ltr">
-                                    <strong>@(Model.CurrencyCode == "IRR" ? Model.AccountBalance.ToString("N0") : Model.AccountBalance.ToString("N2")) @Model.CurrencyCode</strong>
+                                    <strong>@(Model.CurrencyCode == "IRR" ? Model.AccountBalance.ToString("N0") : Model.AccountBalance.ToString("N2")) @Html.CurrencyCodeWithSymbol(Model.CurrencyCode)</strong>
                                 </p>
                             </div>
                         </div>

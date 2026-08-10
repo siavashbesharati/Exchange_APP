@@ -56,7 +56,7 @@
                     {
                         <tr>
                             <td>@c.Id</td>
-                            <td><span class="badge @(c.Code == "IRR" ? "bg-secondary" : "bg-primary")">@c.Code</span></td>
+                            <td><span class="badge @(c.Code == "IRR" ? "bg-secondary" : "bg-primary")">@Html.CurrencyCodeWithSymbol(c.Code, c.Symbol, 16)</span></td>
                             <td>@c.Name</td>
                             <td>@c.PersianName</td>
                             <td>

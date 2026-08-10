@@ -305,6 +305,65 @@ namespace ForexExchange.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        /// <summary>
+        /// Serves currency Symbol as an image (data-URI logos) or SVG (legacy text symbols like $, €).
+        /// Used app-wide next to currency codes without embedding base64 in every page.
+        /// Route: /Currencies/Logo/{id}  (id = currency code, conventional routing)
+        /// </summary>
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> Logo(string id)
+        {
+            var code = id;
+            if (string.IsNullOrWhiteSpace(code))
+                return NotFound();
+
+            var normalized = code.Trim().ToUpperInvariant();
+            var currency = await _context.Currencies
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Code == normalized);
+
+            if (currency == null || string.IsNullOrWhiteSpace(currency.Symbol))
+                return NotFound();
+
+            var symbol = currency.Symbol.Trim();
+
+            if (CurrencyHelper.IsImageSymbol(symbol))
+            {
+                var commaIndex = symbol.IndexOf(',');
+                if (commaIndex <= 0 || commaIndex >= symbol.Length - 1)
+                    return NotFound();
+
+                var meta = symbol[..commaIndex]; // data:image/png;base64
+                var base64 = symbol[(commaIndex + 1)..];
+                var mime = "image/png";
+                if (meta.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var mimePart = meta[5..].Split(';')[0];
+                    if (!string.IsNullOrWhiteSpace(mimePart))
+                        mime = mimePart;
+                }
+
+                try
+                {
+                    var bytes = Convert.FromBase64String(base64);
+                    return File(bytes, mime);
+                }
+                catch
+                {
+                    return NotFound();
+                }
+            }
+
+            // Legacy text symbol → tiny SVG so <img> works everywhere
+            var encoded = System.Net.WebUtility.HtmlEncode(symbol);
+            var svg =
+                $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"16\" viewBox=\"0 0 28 16\">" +
+                $"<text x=\"0\" y=\"13\" font-size=\"13\" font-family=\"Segoe UI, Tahoma, sans-serif\">{encoded}</text>" +
+                $"</svg>";
+            return Content(svg, "image/svg+xml");
+        }
+
         private static async Task<(bool ok, string? dataUri, string? error)> TryReadLogoAsDataUriAsync(IFormFile? file)
         {
             if (file == null || file.Length == 0)

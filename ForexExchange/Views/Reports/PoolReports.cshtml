@@ -406,7 +406,7 @@
                     `<span class="badge bg-info">${typeText}</span>`
                 }
                 </td>
-                <td class="text-center">${item.currencyCode}</td>
+                <td class="text-center">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(item.currencyCode) : item.currencyCode}</td>
                 <td class="text-center ltr-direction ${item.amount >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(item.amount)}</td>
                 <td class="text-center ltr-direction fw-bold">${formatNumber(item.balance)}</td>
                 <td class="text-start">${item.customerName || '-'}</td>
@@ -459,7 +459,7 @@
                     </div>
                     <div class="flex-grow-1">
                         <div class="text-center">
-                            <span class="badge bg-primary mb-1">${currency}</span>
+                            <span class="badge bg-primary mb-1">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(currency) : currency}</span>
                         </div>
                         <h6 class="mb-0 text-${colorClass} text-center ltr-direction">
                             ${formatCurrency(amount, currency)}

@@ -505,8 +505,8 @@
                         <tr>
                             <td>#@order.Id</td>
                             <td>@order.CreatedAt.ToString("yyyy/MM/dd")</td>
-                            <td>@order.FromCurrency?.Code</td>
-                            <td>@order.ToCurrency?.Code</td>
+                            <td>@Html.CurrencyCodeWithSymbol(order.FromCurrency?.Code, order.FromCurrency?.Symbol)</td>
+                            <td>@Html.CurrencyCodeWithSymbol(order.ToCurrency?.Code, order.ToCurrency?.Symbol)</td>
                             <td>@(order.FromCurrency?.Code == "IRR" ? order.FromAmount.ToString("N0") : order.FromAmount.ToString("N2"))</td>
                             <td>@(order.ToCurrency?.Code == "IRR" ? order.Rate.ToString("N0") : order.Rate.ToString("N4"))</td>
                             <td>@(order.ToCurrency?.Code == "IRR" ? (order.FromAmount * order.Rate).ToString("N0") : (order.FromAmount * order.Rate).ToString("N2"))</td>

@@ -171,3 +171,17 @@ input[data-currency-formatter="true"]:focus {
         transition: none !important;
     }
 }
+
+/* Currency Code + Symbol (logo) display */
+.currency-code-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.currency-code-display .currency-logo {
+    display: inline-block;
+    vertical-align: middle;
+    object-fit: contain;
+}

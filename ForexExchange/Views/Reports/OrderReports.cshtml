@@ -245,9 +245,9 @@ function renderOrdersTable(orders) {
                     ${order.customerName}
                 </div>
             </td>
-            <td><span class="badge bg-primary">${order.fromCurrency}</span></td>
+            <td><span class="badge bg-primary">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(order.fromCurrency) : order.fromCurrency}</span></td>
             <td data-no-format="true" data-skip-format="true" class="skip-auto-format">${formatCurrency(order.amount, order.fromCurrency)}</td>
-            <td><span class="badge bg-info">${order.toCurrency}</span></td>
+            <td><span class="badge bg-info">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(order.toCurrency) : order.toCurrency}</span></td>
             <td>${order.rate}</td>
             <td data-no-format="true" data-skip-format="true" class="skip-auto-format">${formatCurrency(order.totalValue, order.toCurrency)}</td>
             <td>

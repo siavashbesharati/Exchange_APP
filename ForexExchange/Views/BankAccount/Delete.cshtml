@@ -66,7 +66,7 @@
                             <h6 class="text-muted mb-3">اطلاعات حساب</h6>
                             <p class="mb-2"><strong>بانک:</strong> @Model.BankName</p>
                             <p class="mb-2"><strong>شماره حساب:</strong> <code>@Model.AccountNumber</code></p>
-                            <p class="mb-2"><strong>ارز:</strong> <span class="badge bg-info">@Model.CurrencyCode</span></p>
+                            <p class="mb-2"><strong>ارز:</strong> <span class="badge bg-info">@Html.CurrencyCodeWithSymbol(Model.CurrencyCode)</span></p>
                             <p class="mb-2"><strong>موجودی اولیه:</strong> @(Model.CurrencyCode == "IRR" ? Model.AccountBalance.ToString("N0") : Model.AccountBalance.ToString("N2"))</p>
                         </div>
                     </div>

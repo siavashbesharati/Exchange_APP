@@ -68,7 +68,7 @@
                                             </td>
 
                                             <td>
-                                                <span class="badge bg-info">@account.CurrencyCode</span>
+                                                <span class="badge bg-info">@Html.CurrencyCodeWithSymbol(account.CurrencyCode)</span>
                                                 @if (account.IsDefault)
                                                 {
                                                     <span class="badge bg-warning ms-1">پیش‌فرض</span>

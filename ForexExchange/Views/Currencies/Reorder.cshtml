@@ -174,17 +174,7 @@
                     <span class="rank">@index</span>
                     <div class="meta">
                         <div class="code">
-                            @c.Code
-                            <span class="text-muted fw-normal">
-                                @if (CurrencyHelper.IsImageSymbol(c.Symbol))
-                                {
-                                    <img src="@c.Symbol" alt="@c.Code" style="height:18px;width:auto;vertical-align:middle;" />
-                                }
-                                else
-                                {
-                                    @c.Symbol
-                                }
-                            </span>
+                            @Html.CurrencyCodeWithSymbol(c.Code, c.Symbol, 18)
                         </div>
                         <div class="name">@c.PersianName</div>
                     </div>

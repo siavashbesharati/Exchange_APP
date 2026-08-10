@@ -468,6 +468,7 @@
 
                     <!-- Universal Currency Formatter -->
                     <script src="~/js/currency-formatter.js" asp-append-version="true"></script>
+                    <script src="~/js/currency-display.js" asp-append-version="true"></script>
 
                     <!-- Currency Amount Formatter -->
                     <script src="~/js/persian-number-converter.js" asp-append-version="true"></script>
@@ -505,7 +506,7 @@
                                 });
                             }
 
-                            // Currency to flag emoji mapping
+                            // Currency to flag emoji mapping (fallback when logo endpoint has nothing)
                             function getCurrencyFlag(currencyCode) {
                                 const currencyFlags = {
                                     'USD': '🇺🇸', // United States Dollar
@@ -728,11 +729,12 @@
                                 // Generate Desktop HTML
                                 const desktopPoolsHtml = pools.map(function (pool, index) {
                                     const firstItemClass = index === 0 && offsetClass ? offsetClass : '';
-                                    const flagEmoji = getCurrencyFlag(pool.currencyCode);
+                                    const codeHtml = window.renderCurrencyCode
+                                        ? window.renderCurrencyCode(pool.currencyCode, { height: 20 })
+                                        : (getCurrencyFlag(pool.currencyCode) + ' ' + pool.currencyCode);
                                     return `
                                                             <div class="${colClass} ${firstItemClass} text-center border-end currency-pool-item">
-                                                                <div class="currency-pool-flag" style="font-size: 1.5rem; margin-bottom: 2px;" title="${pool.currencyCode}">${flagEmoji}</div>
-                                                                <div class="currency-pool-code text-muted small">${pool.currencyCode}</div>
+                                                                <div class="currency-pool-flag" style="margin-bottom: 2px;" title="${pool.currencyCode}">${codeHtml}</div>
                                                                 <div class="currency-pool-balance ${pool.balance >= 0 ? 'text-success' : 'text-danger'}" data-no-format="true" data-skip-format="true" class="skip-auto-format">
                                                                     ${formatCurrency(pool.balance, pool.currencyCode)}
                                                                 </div>
@@ -742,11 +744,12 @@
 
                                 // Generate Mobile Horizontal Scroll HTML
                                 const mobileScrollHtml = pools.map(function (pool) {
-                                    const flagEmoji = getCurrencyFlag(pool.currencyCode);
+                                    const codeHtml = window.renderCurrencyCode
+                                        ? window.renderCurrencyCode(pool.currencyCode, { height: 18 })
+                                        : (getCurrencyFlag(pool.currencyCode) + ' ' + pool.currencyCode);
                                     return `
                                                             <div class="currency-pool-mobile-item text-center">
-                                                                <div class="currency-pool-flag" title="${pool.currencyCode}">${flagEmoji}</div>
-                                                                <div class="currency-pool-code text-muted">${pool.currencyCode}</div>
+                                                                <div class="currency-pool-flag" title="${pool.currencyCode}">${codeHtml}</div>
                                                                 <div class="currency-pool-balance ${pool.balance >= 0 ? 'text-success' : 'text-danger'}" data-no-format="true" data-skip-format="true" class="skip-auto-format">
                                                                     ${formatCurrency(pool.balance, pool.currencyCode)}
                                                                 </div>
@@ -760,11 +763,12 @@
                                     const rowPools = pools.slice(i, i + 3);
                                     mobileRowsHtml += '<div class="row mb-2">';
                                     rowPools.forEach(function (pool) {
-                                        const flagEmoji = getCurrencyFlag(pool.currencyCode);
+                                        const codeHtml = window.renderCurrencyCode
+                                            ? window.renderCurrencyCode(pool.currencyCode, { height: 16 })
+                                            : (getCurrencyFlag(pool.currencyCode) + ' ' + pool.currencyCode);
                                         mobileRowsHtml += `
                                                                 <div class="col-4 text-center border-end currency-pool-item">
-                                                                    <div class="currency-pool-flag" style="font-size: 1.2rem; margin-bottom: 2px;" title="${pool.currencyCode}">${flagEmoji}</div>
-                                                                    <div class="currency-pool-code text-muted small">${pool.currencyCode}</div>
+                                                                    <div class="currency-pool-flag" style="margin-bottom: 2px;" title="${pool.currencyCode}">${codeHtml}</div>
                                                                     <div class="currency-pool-balance ${pool.balance >= 0 ? 'text-success' : 'text-danger'}" style="font-size: 0.8rem;" data-no-format="true" data-skip-format="true" class="skip-auto-format">
                                                                         ${formatCurrency(pool.balance, pool.currencyCode)}
                                                                     </div>

@@ -39,7 +39,7 @@
                         </div>
                         <div class="col-md-6">
                             <h6 class="text-muted mb-2">وضعیت حساب</h6>
-                            <p class="mb-1"><strong>ارز:</strong> <span class="badge bg-info">@Model.CurrencyCode</span>
+                            <p class="mb-1"><strong>ارز:</strong> <span class="badge bg-info">@Html.CurrencyCodeWithSymbol(Model.CurrencyCode)</span>
                             </p>
                             <p class="mb-1"><strong>وضعیت:</strong>
                                 @if (Model.IsActive)

@@ -527,7 +527,7 @@
                         `<a href="#" class="text-decoration-none">${typeText} #${transactionId}</a>`
                     }
                     </td>
-                    <td class="text-center">${currency}</td>
+                    <td class="text-center">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(currency) : currency}</td>
                     <td class="text-center ltr-direction skip-auto-format ${transaction.amount >= 0 ? 'text-success' : 'text-danger'}" data-debug-amount="${transaction.amount}" data-debug-formatted="${formattedAmount}" data-no-format="true" data-skip-format="true">${formattedAmount}</td>
                     <td class="text-center ltr-direction skip-auto-format fw-bold" data-debug-balance="${transaction.runningBalance}" data-debug-formatted="${formattedBalance}" data-no-format="true" data-skip-format="true">${formattedBalance}</td>
                     <td class="text-start">
@@ -600,7 +600,7 @@
                     </div>
                     <div class="flex-grow-1">
                         <div class="text-center">
-                            <span class="badge bg-primary mb-1">${currency}</span>
+                            <span class="badge bg-primary mb-1">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(currency) : currency}</span>
                         </div>
                         <h6 class="mb-0 text-${colorClass} text-center ltr-direction">
                             ${formatCurrency(amount, currency)}

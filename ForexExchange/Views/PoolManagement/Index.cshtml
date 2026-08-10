@@ -65,7 +65,7 @@
                                     </span>
                                     <div>
                                         <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
-                                        <small class="opacity-75">@pool.Currency?.Code</small>
+                                        <small class="opacity-75">@Html.CurrencyCodeWithSymbol(pool.Currency?.Code, pool.Currency?.Symbol)</small>
                                     </div>
                                 </div>
                                 <span class="badge bg-@riskColorClass">

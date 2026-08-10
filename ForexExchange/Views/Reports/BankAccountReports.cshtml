@@ -439,7 +439,7 @@
                     </div>
                     <div class="flex-grow-1">
                         <div class="text-center">
-                            <span class="badge bg-primary mb-1">${currency}</span>
+                            <span class="badge bg-primary mb-1">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(currency) : currency}</span>
                         </div>
                         <h6 class="mb-0 text-${colorClass} text-center ltr-direction">
                             ${formatCurrency(amount, currency)}

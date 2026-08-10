@@ -149,7 +149,7 @@
                                     <div class="col-6">
                                         <div class="card bg-light border-0">
                                             <div class="card-body p-2 text-center">
-                                                <div class="small text-muted mb-1">@b.CurrencyCode</div>
+                                                <div class="small text-muted mb-1">@Html.CurrencyCodeWithSymbol(b.CurrencyCode)</div>
                                                 <div class="fw-bold" dir="ltr">
                                                     @(b.CurrencyCode == "IRR" ? b.Balance.ToString("N0") : b.Balance.ToString("N2"))
                                                 </div>

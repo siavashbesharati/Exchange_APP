@@ -163,6 +163,7 @@ namespace ForexExchange.Controllers
                 var poolData = pools.Select(p => new {
                     currencyId = p.CurrencyId,
                     currencyCode = p.Currency?.Code ?? p.CurrencyCode, // Display from navigation
+                    currencySymbol = p.Currency?.Symbol,
                     balance = p.Balance
                 }).ToList();
 

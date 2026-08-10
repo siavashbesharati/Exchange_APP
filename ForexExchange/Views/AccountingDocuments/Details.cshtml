@@ -393,7 +393,7 @@
         <div class="document-row">
             <div class="document-label">مبلغ:</div>
             <div class="document-value">
-                <strong>@(Model.CurrencyCode == "IRR" ? Model.Amount.ToString("N0") : Model.Amount.ToString("N2")) @Model.CurrencyCode</strong>
+                <strong>@(Model.CurrencyCode == "IRR" ? Model.Amount.ToString("N0") : Model.Amount.ToString("N2")) @Html.CurrencyCodeWithSymbol(Model.CurrencyCode)</strong>
             </div>
         </div>
 

@@ -71,7 +71,11 @@ window.ForexCurrencyFormatter = (function() {
      */
     function formatCurrencyWithCode(amount, currencyCode = '') {
         const formattedAmount = formatCurrency(amount, currencyCode);
-        return currencyCode ? `${formattedAmount} ${currencyCode}` : formattedAmount;
+        if (!currencyCode) return formattedAmount;
+        if (typeof window.renderCurrencyCode === 'function') {
+            return `${formattedAmount} ${window.renderCurrencyCode(currencyCode, { height: 14 })}`;
+        }
+        return `${formattedAmount} <span data-currency-code="${String(currencyCode).replace(/"/g, '')}">${currencyCode}</span>`;
     }
 
     /**
