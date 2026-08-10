@@ -275,97 +275,86 @@
 
 @Html.Partial("_LoadingOverlay")
 
-<!-- Transaction Confirmation Modal -->
-<div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title" id="confirmationModalLabel">
-                    <i class="fas fa-eye"></i> پیش‌نمایش تاثیر سند حسابداری
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="بستن"></button>
+<!-- Document Preview Panel (custom overlay — not Bootstrap modal) -->
+<div id="confirmationModal" class="fx-preview-overlay" hidden aria-hidden="true" role="dialog" aria-labelledby="confirmationModalLabel">
+    <div class="fx-preview-panel">
+        <div class="fx-preview-header">
+            <h5 id="confirmationModalLabel">
+                <i class="fas fa-eye"></i> پیش‌نمایش تاثیر سند حسابداری
+            </h5>
+            <button type="button" class="fx-preview-close" data-fx-close aria-label="بستن">&times;</button>
+        </div>
+        <div class="fx-preview-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> لطفاً جزئیات سند و تأثیرات آن را بررسی کنید.
             </div>
-            <div class="modal-body">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> لطفاً جزئیات سند و تأثیرات آن را بررسی کنید.
-                </div>
-                
-                <!-- Transaction Summary -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6 class="mb-0"><i class="fas fa-file-invoice"></i> خلاصه سند</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-2"><strong>نوع سند:</strong> <span id="preview-type" class="badge bg-info"></span></div>
-                                <div class="mb-2"><strong>عنوان:</strong> <span id="preview-title" class="text-primary"></span></div>
-                                <div class="mb-2"><strong>مبلغ:</strong> <span id="preview-amount" class="text-success fw-bold" dir="ltr"></span></div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-2"><strong>پرداخت‌کننده:</strong> <span id="preview-payer" class="text-primary"></span></div>
-                                <div class="mb-2"><strong>دریافت‌کننده:</strong> <span id="preview-receiver" class="text-primary"></span></div>
-                                <div class="mb-2"><strong>تاریخ:</strong> <span id="preview-date"></span></div>
-                            </div>
-                        </div>
-                     
-                        <div id="preview-reference" class="mt-2" style="display: none;">
-                            <strong> شناسه رهگیری:</strong> <span id="preview-reference-number" class="no-format-number protected-reference" data-no-format="true" data-protected="true" data-no-comma="true"></span>
-                        </div>
-                        <div id="preview-reference-warning" class="mt-2 alert alert-warning py-2 px-3" style="display: none;">
-                            <i class="fas fa-exclamation-triangle"></i> <strong>شناسه رهگیری:</strong> بهتر است تکمیل شود
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Balance Effects -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6 class="mb-0"><i class="fas fa-balance-scale"></i> تأثیرات بر ترازها</h6>
-                    </div>
-                    <div class="card-body">
-                        <div id="balance-effects-loading" class="text-center py-3">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">در حال بارگذاری...</span>
-                            </div>
-                            <div class="mt-2">در حال محاسبه تأثیرات...</div>
-                        </div>
-                        <div id="balance-effects-content" style="display: none;">
-                            <!-- Customer Balance Effects -->
-                            <div id="customer-effects" style="display: none;">
-                                <!-- Will be populated with beautiful table style -->
-                            </div>
-                            
-                            <!-- Bank Account Effects -->
-                            <div id="bank-effects" style="display: none;">
-                                <!-- Will be populated with beautiful table style -->
-                            </div>
-                        </div>
-                    </div>
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-file-invoice"></i> خلاصه سند</h6>
                 </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-2"><strong>نوع سند:</strong> <span id="preview-type" class="badge bg-info"></span></div>
+                            <div class="mb-2"><strong>عنوان:</strong> <span id="preview-title" class="text-primary"></span></div>
+                            <div class="mb-2"><strong>مبلغ:</strong> <span id="preview-amount" class="text-success fw-bold" dir="ltr"></span></div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-2"><strong>پرداخت‌کننده:</strong> <span id="preview-payer" class="text-primary"></span></div>
+                            <div class="mb-2"><strong>دریافت‌کننده:</strong> <span id="preview-receiver" class="text-primary"></span></div>
+                            <div class="mb-2"><strong>تاریخ:</strong> <span id="preview-date"></span></div>
+                        </div>
+                    </div>
 
-                <!-- Warning Messages -->
-                <div id="confirmation-warnings" style="display: none;">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <div id="warnings-list"></div>
+                    <div id="preview-reference" class="mt-2" style="display: none;">
+                        <strong> شناسه رهگیری:</strong> <span id="preview-reference-number" class="no-format-number protected-reference" data-no-format="true" data-protected="true" data-no-comma="true"></span>
+                    </div>
+                    <div id="preview-reference-warning" class="mt-2 alert alert-warning py-2 px-3" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i> <strong>شناسه رهگیری:</strong> بهتر است تکمیل شود
                     </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times"></i> انصراف
-                </button>
-                <button type="button" id="confirmSubmitBtn" class="btn btn-primary">
-                    <i class="fas fa-check"></i> تایید و ثبت نهایی
-                </button>
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-balance-scale"></i> تأثیرات بر ترازها</h6>
+                </div>
+                <div class="card-body">
+                    <div id="balance-effects-loading" class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">در حال بارگذاری...</span>
+                        </div>
+                        <div class="mt-2">در حال محاسبه تأثیرات...</div>
+                    </div>
+                    <div id="balance-effects-content" style="display: none;">
+                        <div id="customer-effects" style="display: none;"></div>
+                        <div id="bank-effects" style="display: none;"></div>
+                    </div>
+                </div>
             </div>
+
+            <div id="confirmation-warnings" style="display: none;">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div id="warnings-list"></div>
+                </div>
+            </div>
+        </div>
+        <div class="fx-preview-footer">
+            <button type="button" class="btn btn-secondary" data-fx-close>
+                <i class="fas fa-times"></i> انصراف
+            </button>
+            <button type="button" id="confirmSubmitBtn" class="btn btn-primary">
+                <i class="fas fa-check"></i> تایید و ثبت نهایی
+            </button>
         </div>
     </div>
 </div>
 
 <style>
     /* Additional protection for modal reference numbers */
+    .fx-preview-overlay .no-format-number,
     .modal .no-format-number {
         position: relative !important;
         font-family: 'Courier New', monospace !important;
@@ -374,6 +363,7 @@
         letter-spacing: 0.5px !important;
     }
     
+    .fx-preview-overlay .protected-reference,
     .modal .protected-reference {
         background-color: #f8f9fa !important;
         padding: 2px 4px !important;
@@ -942,8 +932,7 @@
             document.getElementById('balance-effects-content').style.display = 'none';
             
             // Show modal
-            const modal = new bootstrap.Modal(document.getElementById('confirmationModal'));
-            modal.show();
+            if (typeof openFxPreview === 'function') openFxPreview('confirmationModal');
             
             // Fetch balance effects
             fetchBalanceEffects();
@@ -1746,8 +1735,7 @@
                 hideLoadingOverlay();
                 
                 // Hide modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('confirmationModal'));
-                modal.hide();
+                if (typeof closeFxPreview === 'function') closeFxPreview('confirmationModal');
                 
                 if (data.isHtml) {
                     // Handle HTML response (fallback)
@@ -1808,8 +1796,7 @@
                 hideLoadingOverlay();
                 
                 // Hide modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('confirmationModal'));
-                modal.hide();
+                if (typeof closeFxPreview === 'function') closeFxPreview('confirmationModal');
                 
                 showErrorMessage('خطا در ارسال اطلاعات:', [error.message]);
             })

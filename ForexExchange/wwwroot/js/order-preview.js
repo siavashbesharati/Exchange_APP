@@ -141,8 +141,11 @@ function showPreviewModal(order, effects) {
     }
     document.getElementById('previewOrderEffects').innerHTML = allEffectsHtml;
 
-    var modal = new bootstrap.Modal(document.getElementById('previewModal'));
-    modal.show();
+    if (typeof openFxPreview === 'function') {
+        openFxPreview('previewModal');
+    } else {
+        document.getElementById('previewModal')?.classList.add('is-open');
+    }
 }
 
 // --- Preview button ---
@@ -163,7 +166,7 @@ document.getElementById('previewEffectsBtn').addEventListener('click', function(
             try { msg += ': ' + await res.text(); } catch {}
             document.getElementById('previewOrderDetails').innerHTML = '';
             document.getElementById('previewOrderEffects').innerHTML = `<div class='alert alert-danger'>${msg}</div>`;
-            new bootstrap.Modal(document.getElementById('previewModal')).show();
+            if (typeof openFxPreview === 'function') openFxPreview('previewModal');
             return;
         }
         return res.json();
@@ -172,7 +175,7 @@ document.getElementById('previewEffectsBtn').addEventListener('click', function(
     .catch(err => {
         document.getElementById('previewOrderDetails').innerHTML = '';
         document.getElementById('previewOrderEffects').innerHTML = `<div class='alert alert-danger'>خطای ارتباط با سرور: ${err}</div>`;
-        new bootstrap.Modal(document.getElementById('previewModal')).show();
+        if (typeof openFxPreview === 'function') openFxPreview('previewModal');
     });
 });
 

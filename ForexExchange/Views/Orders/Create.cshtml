@@ -157,79 +157,65 @@
                             <button type="button" class="btn btn-info" id="previewEffectsBtn">پیش‌نمایش تاثیر</button>
                         </div>
 
-                        <!-- Order Preview Modal - Beautiful Styling -->
-                        <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel"
-                            aria-hidden="true">
-                            <div class="modal-dialog modal-lg">
-                                <div class="modal-content">
-                                    <div class="modal-header bg-info text-white">
-                                        <h5 class="modal-title" id="previewModalLabel">
-                                            <i class="fas fa-eye"></i> پیش‌نمایش تاثیر معامله
-                                        </h5>
-                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                                            aria-label="بستن"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <div class="alert alert-info">
-                                            <i class="fas fa-info-circle"></i> لطفاً جزئیات معامله و تأثیرات آن را بررسی
-                                            کنید.
-                                        </div>
-
-                                        <!-- Order Summary -->
-                                        <div class="card mb-3">
-                                            <div class="card-header">
-                                                <h6 class="mb-0"><i class="fas fa-exchange-alt"></i> خلاصه معامله</h6>
-                                            </div>
-                                            <div class="card-body">
-                                                <div id="previewOrderDetails" class="row">
-                                                    <!-- Order details will be populated here -->
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <!-- Balance Effects -->
-                                        <div class="card mb-3">
-                                            <div class="card-header">
-                                                <h6 class="mb-0"><i class="fas fa-balance-scale"></i> تأثیرات بر ترازها
-                                                </h6>
-                                            </div>
-                                            <div class="card-body">
-                                                <div id="balance-effects-loading" class="text-center py-3"
-                                                    style="display: none;">
-                                                    <div class="spinner-border text-primary" role="status">
-                                                        <span class="visually-hidden">در حال بارگذاری...</span>
-                                                    </div>
-                                                    <div class="mt-2">در حال محاسبه تأثیرات...</div>
-                                                </div>
-                                                <div id="previewOrderEffects">
-                                                    <!-- Balance effects will be populated here -->
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <!-- Warning Messages -->
-                                        <div id="order-warnings" style="display: none;">
-                                            <div class="alert alert-warning">
-                                                <i class="fas fa-exclamation-triangle"></i>
-                                                <div id="warning-messages"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                            <i class="fas fa-times"></i> انصراف
-                                        </button>
-                                        <button type="button" id="finalSubmitBtn" class="btn btn-primary">
-                                            <i class="fas fa-check"></i> تایید و ثبت نهایی
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                     </form>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order Preview Panel (custom overlay — not Bootstrap modal) -->
+<div id="previewModal" class="fx-preview-overlay" hidden aria-hidden="true" role="dialog" aria-labelledby="previewModalLabel">
+    <div class="fx-preview-panel">
+        <div class="fx-preview-header">
+            <h5 id="previewModalLabel">
+                <i class="fas fa-eye"></i> پیش‌نمایش تاثیر معامله
+            </h5>
+            <button type="button" class="fx-preview-close" data-fx-close aria-label="بستن">&times;</button>
+        </div>
+        <div class="fx-preview-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> لطفاً جزئیات معامله و تأثیرات آن را بررسی کنید.
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-exchange-alt"></i> خلاصه معامله</h6>
+                </div>
+                <div class="card-body">
+                    <div id="previewOrderDetails" class="row"></div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-balance-scale"></i> تأثیرات بر ترازها</h6>
+                </div>
+                <div class="card-body">
+                    <div id="balance-effects-loading" class="text-center py-3" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">در حال بارگذاری...</span>
+                        </div>
+                        <div class="mt-2">در حال محاسبه تأثیرات...</div>
+                    </div>
+                    <div id="previewOrderEffects"></div>
+                </div>
+            </div>
+
+            <div id="order-warnings" style="display: none;">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div id="warning-messages"></div>
+                </div>
+            </div>
+        </div>
+        <div class="fx-preview-footer">
+            <button type="button" class="btn btn-secondary" data-fx-close>
+                <i class="fas fa-times"></i> انصراف
+            </button>
+            <button type="button" id="finalSubmitBtn" class="btn btn-primary">
+                <i class="fas fa-check"></i> تایید و ثبت نهایی
+            </button>
         </div>
     </div>
 </div>
@@ -393,6 +379,8 @@
                 e.preventDefault();
                 const btn = e.target;
                 const originalText = btn.innerHTML;
+
+                if (typeof closeFxPreview === 'function') closeFxPreview('previewModal');
 
                 // Show beautiful loading overlay
                 showLoadingWithMessage('CREATING_ORDER');
