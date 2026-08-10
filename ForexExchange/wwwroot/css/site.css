@@ -50,39 +50,67 @@ body {
 }
 
 .currency-pool-item {
-    padding: 0.5rem 0.25rem;
+    padding: 0.35rem 0.2rem;
     transition: background-color 0.2s ease;
     border-radius: 4px;
 }
 
 .currency-pool-item:hover {
-    background-color: rgba(0, 123, 255, 0.1);
-    transform: translateY(-1px);
+    background-color: rgba(0, 123, 255, 0.06);
 }
 
 .currency-pool-balance {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #2c3e50;
+    font-weight: 500;
+    font-size: 0.72rem;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.2;
 }
 
 .currency-pool-code {
-    font-size: 0.75rem;
-    opacity: 0.8;
+    font-size: 0.65rem;
+    opacity: 0.75;
     color: #6c757d;
 }
 
-/* Currency flag emoji styling */
+/* Code + logo row — minimal ticker typography */
 .currency-pool-flag {
-    font-size: 1.5rem !important;
-    margin-bottom: 2px !important;
+    font-size: inherit !important;
+    margin-bottom: 1px !important;
+    line-height: 1.15;
+    filter: none;
+    transition: none;
+}
+
+.currency-pool-flag .currency-code-display {
+    gap: 3px;
+    justify-content: center;
+}
+
+.currency-pool-flag .currency-code-text {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #495057;
     line-height: 1;
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
-    transition: transform 0.2s ease;
+}
+
+.currency-pool-flag .currency-logo,
+.currency-pool-flag .currency-symbol-text {
+    height: 12px !important;
+    max-height: 12px;
+    width: auto !important;
+    opacity: 0.9;
 }
 
 .currency-pool-item:hover .currency-pool-flag {
-    transform: scale(1.1);
+    transform: none;
+}
+
+.currency-pool-item:hover .currency-code-text {
+    color: #212529;
 }
 
 /* Footer separator styling */
@@ -190,11 +218,20 @@ body {
     }
     
     .currency-pool-balance {
-        font-size: 0.8rem;
+        font-size: 0.68rem;
     }
     
     .currency-pool-code {
-        font-size: 0.7rem;
+        font-size: 0.6rem;
+    }
+
+    .currency-pool-flag .currency-code-text {
+        font-size: 0.58rem;
+    }
+
+    .currency-pool-flag .currency-logo {
+        height: 11px !important;
+        max-height: 11px;
     }
     
     .currency-pool-header {

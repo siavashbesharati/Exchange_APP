@@ -229,18 +229,29 @@
                             }
 
                             .currency-pool-mobile-item .currency-pool-flag {
-                                font-size: 1.2rem !important;
+                                font-size: inherit !important;
                                 margin-bottom: 2px;
                             }
 
+                            .currency-pool-mobile-item .currency-pool-flag .currency-code-text {
+                                font-size: 0.6rem !important;
+                                font-weight: 600;
+                                letter-spacing: 0.05em;
+                            }
+
+                            .currency-pool-mobile-item .currency-pool-flag .currency-logo {
+                                height: 11px !important;
+                            }
+
                             .currency-pool-mobile-item .currency-pool-code {
-                                font-size: 0.7rem !important;
+                                font-size: 0.65rem !important;
                             }
 
                             .currency-pool-mobile-item .currency-pool-balance {
-                                font-size: 0.75rem !important;
-                                font-weight: 600;
+                                font-size: 0.7rem !important;
+                                font-weight: 500;
                                 direction: ltr !important;
+                                font-variant-numeric: tabular-nums;
                             }
 
                             /* Ensure all currency pool balance elements use LTR direction */
@@ -730,11 +741,11 @@
                                 const desktopPoolsHtml = pools.map(function (pool, index) {
                                     const firstItemClass = index === 0 && offsetClass ? offsetClass : '';
                                     const codeHtml = window.renderCurrencyCode
-                                        ? window.renderCurrencyCode(pool.currencyCode, { height: 20 })
+                                        ? window.renderCurrencyCode(pool.currencyCode, { height: 12 })
                                         : (getCurrencyFlag(pool.currencyCode) + ' ' + pool.currencyCode);
                                     return `
                                                             <div class="${colClass} ${firstItemClass} text-center border-end currency-pool-item">
-                                                                <div class="currency-pool-flag" style="margin-bottom: 2px;" title="${pool.currencyCode}">${codeHtml}</div>
+                                                                <div class="currency-pool-flag" title="${pool.currencyCode}">${codeHtml}</div>
                                                                 <div class="currency-pool-balance ${pool.balance >= 0 ? 'text-success' : 'text-danger'}" data-no-format="true" data-skip-format="true" class="skip-auto-format">
                                                                     ${formatCurrency(pool.balance, pool.currencyCode)}
                                                                 </div>
@@ -745,7 +756,7 @@
                                 // Generate Mobile Horizontal Scroll HTML
                                 const mobileScrollHtml = pools.map(function (pool) {
                                     const codeHtml = window.renderCurrencyCode
-                                        ? window.renderCurrencyCode(pool.currencyCode, { height: 18 })
+                                        ? window.renderCurrencyCode(pool.currencyCode, { height: 11 })
                                         : (getCurrencyFlag(pool.currencyCode) + ' ' + pool.currencyCode);
                                     return `
                                                             <div class="currency-pool-mobile-item text-center">
@@ -764,12 +775,12 @@
                                     mobileRowsHtml += '<div class="row mb-2">';
                                     rowPools.forEach(function (pool) {
                                         const codeHtml = window.renderCurrencyCode
-                                            ? window.renderCurrencyCode(pool.currencyCode, { height: 16 })
+                                            ? window.renderCurrencyCode(pool.currencyCode, { height: 11 })
                                             : (getCurrencyFlag(pool.currencyCode) + ' ' + pool.currencyCode);
                                         mobileRowsHtml += `
                                                                 <div class="col-4 text-center border-end currency-pool-item">
-                                                                    <div class="currency-pool-flag" style="margin-bottom: 2px;" title="${pool.currencyCode}">${codeHtml}</div>
-                                                                    <div class="currency-pool-balance ${pool.balance >= 0 ? 'text-success' : 'text-danger'}" style="font-size: 0.8rem;" data-no-format="true" data-skip-format="true" class="skip-auto-format">
+                                                                    <div class="currency-pool-flag" title="${pool.currencyCode}">${codeHtml}</div>
+                                                                    <div class="currency-pool-balance ${pool.balance >= 0 ? 'text-success' : 'text-danger'}" data-no-format="true" data-skip-format="true" class="skip-auto-format">
                                                                         ${formatCurrency(pool.balance, pool.currencyCode)}
                                                                     </div>
                                                                 </div>
