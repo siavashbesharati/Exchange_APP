@@ -165,7 +165,7 @@ namespace ForexExchange.Models
                         entity.Property(e => e.Code).IsRequired().HasMaxLength(3);
                         entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
                         entity.Property(e => e.PersianName).IsRequired().HasMaxLength(50);
-                        entity.Property(e => e.Symbol).HasMaxLength(5);
+                        entity.Property(e => e.Symbol).HasMaxLength(100000);
                         entity.HasIndex(e => new { e.IsActive, e.DisplayOrder });
                         // Ignore legacy navigation not mapped on ExchangeRate
                         entity.Ignore(e => e.LegacyRates);

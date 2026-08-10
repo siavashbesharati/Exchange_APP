@@ -120,7 +120,16 @@
                                                 </td>
                                                 <td class="text-center">
                                                     <span class="fw-bold text-primary">@item.Rate.ToString("N2")</span>
-                                                    <small class="text-muted ms-1">@toSymbol</small>
+                                                    <small class="text-muted ms-1">
+                                                        @if (CurrencyHelper.IsImageSymbol(toSymbol))
+                                                        {
+                                                            <img src="@toSymbol" alt="@toCode" style="height:16px;width:auto;vertical-align:middle;" />
+                                                        }
+                                                        else
+                                                        {
+                                                            @toSymbol
+                                                        }
+                                                    </small>
                                                 </td>
                                                 <td class="text-center">
                                                     <small class="text-muted">@item.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</small>

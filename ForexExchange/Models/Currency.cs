@@ -18,8 +18,11 @@ namespace ForexExchange.Models
         [StringLength(50)]
         public string PersianName { get; set; } = string.Empty; // دلار آمریکا, یورو, etc.
         
-        [StringLength(5)]
-        public string Symbol { get; set; } = string.Empty; // $, €, etc.
+        /// <summary>
+        /// Legacy text symbol ($, €) or logo as data URI (data:image/...;base64,...).
+        /// </summary>
+        [StringLength(100000)]
+        public string Symbol { get; set; } = string.Empty;
         
         public bool IsActive { get; set; } = true;
         

@@ -1,6 +1,7 @@
 @model ForexExchange.Models.Currency
 @{
     ViewData["Title"] = "ویرایش ارز";
+    var hasLogo = CurrencyHelper.IsImageSymbol(Model.Symbol);
 }
 
 <div class="container">
@@ -12,7 +13,7 @@
                     <a asp-action="Index" class="btn btn-secondary">بازگشت</a>
                 </div>
                 <div class="card-body">
-                    <form asp-action="Edit" method="post">
+                    <form asp-action="Edit" method="post" enctype="multipart/form-data">
                         <input type="hidden" asp-for="Id" />
                         <input type="hidden" asp-for="CreatedAt" />
                         <div class="row">
@@ -34,12 +35,30 @@
                         </div>
 
                         <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="Symbol" class="form-label">نماد</label>
-                                <input asp-for="Symbol" class="form-control" />
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">لوگو / نماد</label>
+                                <input type="file" name="logoFile" id="logoFile" class="form-control" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" />
                                 <span asp-validation-for="Symbol" class="text-danger"></span>
+                                <div class="form-text">حداکثر ۱۰۰ کیلوبایت — در صورت عدم انتخاب، لوگوی فعلی حفظ می‌شود.</div>
+                                <div class="mt-2 d-flex align-items-center gap-3">
+                                    <img id="logoPreview"
+                                         src="@(hasLogo ? Model.Symbol : "")"
+                                         alt="@Model.Code"
+                                         style="height:40px;width:auto;@(hasLogo ? "" : "display:none;")" />
+                                    @if (!hasLogo && !string.IsNullOrWhiteSpace(Model.Symbol))
+                                    {
+                                        <span class="text-muted">نماد فعلی: @Model.Symbol</span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(Model.Symbol))
+                                {
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" name="clearLogo" value="true" id="clearLogo" />
+                                        <label class="form-check-label" for="clearLogo">حذف لوگو / نماد</label>
+                                    </div>
+                                }
                             </div>
-                            <div class="col-md-8 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">ترتیب و قدرت</label>
                                 <div class="d-flex flex-wrap gap-2">
                                     <a asp-action="ManageDisplayOrder" class="btn btn-outline-primary btn-sm">
@@ -66,4 +85,17 @@
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        document.getElementById('logoFile')?.addEventListener('change', function (e) {
+            const file = e.target.files?.[0];
+            const preview = document.getElementById('logoPreview');
+            if (!file || !preview) return;
+            const reader = new FileReader();
+            reader.onload = function (ev) {
+                preview.src = ev.target.result;
+                preview.style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+        });
+    </script>
 }

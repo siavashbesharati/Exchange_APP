@@ -59,7 +59,16 @@
                             <td><span class="badge @(c.Code == "IRR" ? "bg-secondary" : "bg-primary")">@c.Code</span></td>
                             <td>@c.Name</td>
                             <td>@c.PersianName</td>
-                            <td>@c.Symbol</td>
+                            <td>
+                                @if (CurrencyHelper.IsImageSymbol(c.Symbol))
+                                {
+                                    <img src="@c.Symbol" alt="@c.Code" style="height:24px;width:auto;vertical-align:middle;" />
+                                }
+                                else
+                                {
+                                    @c.Symbol
+                                }
+                            </td>
                             <td>@c.DisplayOrder</td>
                             <td>@c.RatePriority</td>
                             <td>

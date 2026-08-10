@@ -106,4 +106,13 @@ public static class CurrencyHelper
     {
         return NormalizeCurrencyCode(currencyCode) ?? string.Empty;
     }
+
+    /// <summary>
+    /// True when Symbol stores an uploaded logo as a data URI (data:image/...;base64,...).
+    /// </summary>
+    public static bool IsImageSymbol(string? symbol)
+    {
+        return !string.IsNullOrWhiteSpace(symbol)
+            && symbol.StartsWith("data:image", StringComparison.OrdinalIgnoreCase);
+    }
 }

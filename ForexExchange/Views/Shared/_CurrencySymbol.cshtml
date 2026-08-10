@@ -1,0 +1,14 @@
+@model string?
+@{
+    var symbol = Model ?? string.Empty;
+    var alt = ViewData["Alt"] as string ?? "";
+    var height = ViewData["Height"] as string ?? "24";
+}
+@if (CurrencyHelper.IsImageSymbol(symbol))
+{
+    <img src="@symbol" alt="@alt" title="@alt" style="height:@(height)px;width:auto;vertical-align:middle;" />
+}
+else if (!string.IsNullOrWhiteSpace(symbol))
+{
+    <span>@symbol</span>
+}

@@ -3,12 +3,24 @@ using ForexExchange.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ForexExchange.Models;
+using ForexExchange.Helpers;
 
 namespace ForexExchange.Controllers
 {
     [Staff]
     public class CurrenciesController : Controller
     {
+        private const int MaxLogoBytes = 100 * 1024; // 100 KB
+        private static readonly HashSet<string> AllowedLogoContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/png",
+            "image/jpeg",
+            "image/jpg",
+            "image/webp",
+            "image/svg+xml",
+            "image/gif"
+        };
+
         private readonly ForexDbContext _context;
         private readonly ILogger<CurrenciesController> _logger;
 
@@ -125,13 +137,31 @@ namespace ForexExchange.Controllers
         // POST: Currencies/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Code,Name,PersianName,Symbol,IsActive")] Currency model)
+        [RequestSizeLimit(MaxLogoBytes + 1024 * 50)]
+        public async Task<IActionResult> Create([Bind("Code,Name,PersianName,Symbol,IsActive")] Currency model, IFormFile? logoFile)
         {
             // Normalize
             model.Code = model.Code?.Trim().ToUpperInvariant() ?? string.Empty;
             model.Name = model.Name?.Trim() ?? string.Empty;
             model.PersianName = model.PersianName?.Trim() ?? string.Empty;
-            model.Symbol = model.Symbol?.Trim() ?? string.Empty;
+
+            var (logoOk, logoDataUri, logoError) = await TryReadLogoAsDataUriAsync(logoFile);
+            if (!logoOk)
+            {
+                ModelState.AddModelError("Symbol", logoError!);
+            }
+            else if (!string.IsNullOrEmpty(logoDataUri))
+            {
+                model.Symbol = logoDataUri;
+            }
+            else
+            {
+                model.Symbol = model.Symbol?.Trim() ?? string.Empty;
+                if (model.Symbol.Length > 5 && !CurrencyHelper.IsImageSymbol(model.Symbol))
+                {
+                    ModelState.AddModelError("Symbol", "نماد متنی حداکثر ۵ کاراکتر است یا یک لوگو آپلود کنید.");
+                }
+            }
 
             if (await _context.Currencies.AnyAsync(c => c.Code == model.Code))
             {
@@ -174,7 +204,8 @@ namespace ForexExchange.Controllers
         // POST: Currencies/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Code,Name,PersianName,Symbol,IsActive,CreatedAt")] Currency model)
+        [RequestSizeLimit(MaxLogoBytes + 1024 * 50)]
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Code,Name,PersianName,Symbol,IsActive,CreatedAt")] Currency model, IFormFile? logoFile, bool clearLogo = false)
         {
             if (id != model.Id) return NotFound();
 
@@ -182,7 +213,6 @@ namespace ForexExchange.Controllers
             model.Code = model.Code?.Trim().ToUpperInvariant() ?? string.Empty;
             model.Name = model.Name?.Trim() ?? string.Empty;
             model.PersianName = model.PersianName?.Trim() ?? string.Empty;
-            model.Symbol = model.Symbol?.Trim() ?? string.Empty;
 
             if (await _context.Currencies.AnyAsync(c => c.Code == model.Code && c.Id != model.Id))
             {
@@ -201,6 +231,12 @@ namespace ForexExchange.Controllers
                 ModelState.AddModelError("IsActive", "غیرفعال کردن ارز IRR مجاز نیست.");
             }
 
+            var (logoOk, logoDataUri, logoError) = await TryReadLogoAsDataUriAsync(logoFile);
+            if (!logoOk)
+            {
+                ModelState.AddModelError("Symbol", logoError!);
+            }
+
             if (!ModelState.IsValid)
             {
                 var current = await _context.Currencies.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id);
@@ -209,6 +245,8 @@ namespace ForexExchange.Controllers
                     model.DisplayOrder = current.DisplayOrder;
                     model.RatePriority = current.RatePriority;
                     model.IsActive = current.IsActive;
+                    if (string.IsNullOrEmpty(model.Symbol))
+                        model.Symbol = current.Symbol;
                 }
                 return View(model);
             }
@@ -222,8 +260,17 @@ namespace ForexExchange.Controllers
                 existing.Code = model.Code;
                 existing.Name = model.Name;
                 existing.PersianName = model.PersianName;
-                existing.Symbol = model.Symbol;
                 existing.IsActive = model.IsActive;
+
+                if (clearLogo)
+                {
+                    existing.Symbol = string.Empty;
+                }
+                else if (!string.IsNullOrEmpty(logoDataUri))
+                {
+                    existing.Symbol = logoDataUri;
+                }
+                // else keep existing.Symbol unchanged
 
                 await _context.SaveChangesAsync();
                 TempData["SuccessMessage"] = "اطلاعات ارز بروزرسانی شد.";
@@ -257,6 +304,26 @@ namespace ForexExchange.Controllers
             TempData["SuccessMessage"] = currency.IsActive ? "ارز فعال شد." : "ارز غیرفعال شد.";
             return RedirectToAction(nameof(Index));
         }
+
+        private static async Task<(bool ok, string? dataUri, string? error)> TryReadLogoAsDataUriAsync(IFormFile? file)
+        {
+            if (file == null || file.Length == 0)
+                return (true, null, null);
+
+            if (file.Length > MaxLogoBytes)
+                return (false, null, "حجم فایل لوگو نباید بیشتر از ۱۰۰ کیلوبایت باشد.");
+
+            var contentType = file.ContentType?.Trim() ?? string.Empty;
+            if (string.Equals(contentType, "image/jpg", StringComparison.OrdinalIgnoreCase))
+                contentType = "image/jpeg";
+
+            if (!AllowedLogoContentTypes.Contains(contentType))
+                return (false, null, "فرمت فایل مجاز نیست. فقط PNG، JPG، WEBP، GIF یا SVG.");
+
+            await using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            var base64 = Convert.ToBase64String(ms.ToArray());
+            return (true, $"data:{contentType};base64,{base64}", null);
+        }
     }
 }
-

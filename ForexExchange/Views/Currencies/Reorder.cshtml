@@ -173,7 +173,19 @@
                     <span class="handle"><i class="fas fa-grip-vertical"></i></span>
                     <span class="rank">@index</span>
                     <div class="meta">
-                        <div class="code">@c.Code <span class="text-muted fw-normal">@c.Symbol</span></div>
+                        <div class="code">
+                            @c.Code
+                            <span class="text-muted fw-normal">
+                                @if (CurrencyHelper.IsImageSymbol(c.Symbol))
+                                {
+                                    <img src="@c.Symbol" alt="@c.Code" style="height:18px;width:auto;vertical-align:middle;" />
+                                }
+                                else
+                                {
+                                    @c.Symbol
+                                }
+                            </span>
+                        </div>
                         <div class="name">@c.PersianName</div>
                     </div>
                     <span class="badge-soft">@(isDisplayOrder ? $"نمایش: {currentValue}" : $"قدرت: {currentValue}")</span>
