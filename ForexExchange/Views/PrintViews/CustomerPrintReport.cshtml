@@ -222,6 +222,10 @@
             color: #e74c3c;
         }
 
+        .zero {
+            color: #95a5a6;
+        }
+
         .transactions-section {
             padding: 20px;
         }
@@ -602,16 +606,16 @@
                     {
                         <div class="balance-item">
                             <div class="balance-currency">@balance.Key</div>
-                            <div class="balance-amount @(balance.Value >= 0 ? "positive" : "negative")">
+                            <div class="balance-amount @(balance.Value > 0 ? "positive" : balance.Value < 0 ? "negative" : "zero")">
                                 @balance.Value.FormatCurrency(balance.Key)
                             </div>
-                            @if (balance.Value >= 0)
+                            @if (balance.Value > 0)
                             {
-                                <span class="balance-status-badge credit">بستانکار</span>
+                                <span class="balance-status-badge credit">بس</span>
                             }
-                            else
+                            else if (balance.Value < 0)
                             {
-                                <span class="balance-status-badge debt">بدهکار</span>
+                                <span class="balance-status-badge debt">بد</span>
                             }
                         </div>
                     }

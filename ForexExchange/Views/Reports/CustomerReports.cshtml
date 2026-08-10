@@ -586,10 +586,11 @@
 
         let balanceHtml = '';
         Object.entries(balances).forEach(([currency, amount]) => {
-            const isPositive = amount >= 0;
-            const colorClass = isPositive ? 'success' : 'danger';
-            const iconClass = isPositive ? 'fa-arrow-up' : 'fa-arrow-down';
-            const sign = isPositive ? '+' : '-';
+            const isZero = amount === 0;
+            const isPositive = amount > 0;
+            const colorClass = isZero ? 'secondary' : (isPositive ? 'success' : 'danger');
+            const iconClass = isZero ? 'fa-minus' : (isPositive ? 'fa-arrow-up' : 'fa-arrow-down');
+            const statusLabel = isZero ? '' : `<small class="text-muted d-block text-center">${isPositive ? 'بس' : 'بد'}</small>`;
 
             balanceHtml += `
             <div class="col-md-3 mb-2">
@@ -604,7 +605,7 @@
                         <h6 class="mb-0 text-${colorClass} text-center ltr-direction">
                             ${formatCurrency(amount, currency)}
                         </h6>
-                        <small class="text-muted d-block text-center">${isPositive ? 'بستانکار' : 'بدهکار'}</small>
+                        ${statusLabel}
                     </div>
                 </div>
             </div>
