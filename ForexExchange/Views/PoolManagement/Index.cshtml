@@ -47,25 +47,9 @@
                             <!-- Currency Header -->
                             <div class="card-header bg-gradient-primary text-white d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
-                                    <span class="currency-flag me-2" style="font-size: 1.2em;">
-                                        @{
-                                            var flagEmoji = pool.Currency?.Code switch
-                                            {
-                                                "IRR" => "🇮🇷",
-                                                "USD" => "🇺🇸",
-                                                "EUR" => "🇪🇺",
-                                                "AED" => "🇦🇪",
-                                                "OMR" => "🇴🇲",
-                                                "TRY" => "🇹🇷",
-                                                "CNY" => "🇨🇳",
-                                                _ => "💱"
-                                            };
-                                        }
-                                        @flagEmoji
-                                    </span>
                                     <div>
-                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
-                                        <small class="opacity-75">@Html.CurrencyCodeWithSymbol(pool.Currency?.Code, pool.Currency?.Symbol)</small>
+                                        <h6 class="mb-0 fw-bold">@Html.CurrencyCodeWithSymbol(pool.Currency?.Code, pool.Currency?.Symbol, 22)</h6>
+                                        <small class="opacity-75">@pool.Currency?.PersianName</small>
                                     </div>
                                 </div>
                                 <span class="badge bg-@riskColorClass">

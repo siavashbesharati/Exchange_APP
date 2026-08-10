@@ -66,11 +66,8 @@
                             <!-- Currency Header -->
                             <div class="card-header bg-light d-flex justify-content-center align-items-center">
                                 <div class="d-flex align-items-center">
-                                    <span class="currency-flag me-2" style="font-size: 1.5em;">
-                                        @pool.Currency?.Name
-                                    </span>
                                     <div class="text-center">
-                                        <h6 class="mb-0 fw-bold">@pool.Currency?.PersianName</h6>
+                                        <h6 class="mb-0 fw-bold">@Html.CurrencyCodeWithSymbol(pool.Currency?.Code, pool.Currency?.Symbol, 24)</h6>
                                     </div>
                                 </div>
                                 <span class="badge bg-@riskColorClass risk-badge position-absolute"
