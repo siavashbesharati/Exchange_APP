@@ -515,7 +515,8 @@
 
                 // DEBUGGING: Log formatted values
                 const formattedAmount = formatCurrency(transaction.amount, currency);
-                const formattedBalance = formatCurrency(transaction.runningBalance, currency);
+                const balanceSignClass = transaction.runningBalance > 0 ? 'text-success' : transaction.runningBalance < 0 ? 'text-danger' : 'text-secondary';
+                const formattedBalance = formatCurrency(Math.abs(transaction.runningBalance), currency);
 
                 const rowType = isManualTransaction ? 'manual' : (isOrderTransaction ? 'order' : 'document');
                 timelineHtml += `
@@ -529,7 +530,7 @@
                     </td>
                     <td class="text-center">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(currency) : currency}</td>
                     <td class="text-center ltr-direction skip-auto-format ${transaction.amount >= 0 ? 'text-success' : 'text-danger'}" data-debug-amount="${transaction.amount}" data-debug-formatted="${formattedAmount}" data-no-format="true" data-skip-format="true">${formattedAmount}</td>
-                    <td class="text-center ltr-direction skip-auto-format fw-bold" data-debug-balance="${transaction.runningBalance}" data-debug-formatted="${formattedBalance}" data-no-format="true" data-skip-format="true">${formattedBalance}</td>
+                    <td class="text-center ltr-direction skip-auto-format fw-bold ${balanceSignClass}" data-debug-balance="${transaction.runningBalance}" data-debug-formatted="${formattedBalance}" data-no-format="true" data-skip-format="true">${formattedBalance}</td>
                     <td class="text-start">
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">${transaction.description || '-'}</small>
@@ -586,11 +587,16 @@
 
         let balanceHtml = '';
         Object.entries(balances).forEach(([currency, amount]) => {
-            const isZero = amount === 0;
-            const isPositive = amount > 0;
+            const numericAmount = Number(amount);
+            const isZero = numericAmount === 0;
+            const isPositive = numericAmount > 0;
             const colorClass = isZero ? 'secondary' : (isPositive ? 'success' : 'danger');
             const iconClass = isZero ? 'fa-minus' : (isPositive ? 'fa-arrow-up' : 'fa-arrow-down');
             const statusLabel = isZero ? '' : `<small class="text-muted d-block text-center">${isPositive ? 'بس' : 'بد'}</small>`;
+            const displayAmount = Math.abs(numericAmount);
+            const formattedAmount = typeof window.formatCurrency === 'function'
+                ? window.formatCurrency(displayAmount, currency)
+                : formatNumber(displayAmount);
 
             balanceHtml += `
             <div class="col-md-3 mb-2">
@@ -603,7 +609,7 @@
                             <span class="badge bg-primary mb-1">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(currency) : currency}</span>
                         </div>
                         <h6 class="mb-0 text-${colorClass} text-center ltr-direction">
-                            ${formatCurrency(amount, currency)}
+                            ${formattedAmount}
                         </h6>
                         ${statusLabel}
                     </div>

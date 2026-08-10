@@ -605,9 +605,9 @@
                     @foreach (var balance in Model.FinalBalances)
                     {
                         <div class="balance-item">
-                            <div class="balance-currency">@balance.Key</div>
+                            <div class="balance-currency">@Html.CurrencyCodeWithSymbol(balance.Key)</div>
                             <div class="balance-amount @(balance.Value > 0 ? "positive" : balance.Value < 0 ? "negative" : "zero")">
-                                @balance.Value.FormatCurrency(balance.Key)
+                                @Math.Abs(balance.Value).FormatCurrency(balance.Key)
                             </div>
                             @if (balance.Value > 0)
                             {
@@ -710,7 +710,9 @@
                                             </span>
                                         </td>
                                         <td class="amount-cell">
-                                            @transaction.RunningBalance.FormatCurrency(transaction.CurrencyCode)
+                                            <span class="@(transaction.RunningBalance > 0 ? "positive" : transaction.RunningBalance < 0 ? "negative" : "zero")">
+                                                @Math.Abs(transaction.RunningBalance).FormatCurrency(transaction.CurrencyCode)
+                                            </span>
                                         </td>
                                     </tr>
                                 }
