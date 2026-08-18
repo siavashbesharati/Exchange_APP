@@ -57,7 +57,9 @@ namespace ForexExchange.Controllers
                 return StatusCode(StatusCodes.Status403Forbidden);
             }
 
-            var command = NormalizeCommand(request.Command);
+            var command = TelegramSettings.ParseCommand(
+                request.Command?.StartsWith('/') == true ? request.Command : "/" + request.Command
+            );
             IReadOnlyList<string> messages = command switch
             {
                 "rates" => await _commandService.BuildRatesMessagesAsync(cancellationToken),
@@ -66,20 +68,6 @@ namespace ForexExchange.Controllers
             };
 
             return Ok(new { messages });
-        }
-
-        private static string NormalizeCommand(string? command)
-        {
-            if (string.IsNullOrWhiteSpace(command))
-                return string.Empty;
-
-            var token = command.Trim().Split(' ', 2)[0];
-            var slash = token.StartsWith('/') ? token[1..] : token;
-            var at = slash.IndexOf('@');
-            if (at >= 0)
-                slash = slash[..at];
-
-            return slash.ToLowerInvariant();
         }
     }
 }

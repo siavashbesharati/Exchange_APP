@@ -185,6 +185,13 @@ try
     // ------------------------------
 
     builder.Services.AddHttpClient();
+    builder.Services.AddHttpClient(
+        "TelegramCommands",
+        client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(70);
+        }
+    );
     builder.Services.AddHttpContextAccessor();
 
     builder.Services.AddScoped<IOcrService, OpenRouterOcrService>();
@@ -223,6 +230,7 @@ try
     builder.Services.AddScoped<SignalRNotificationProvider>();
     builder.Services.AddScoped<TelegramNotificationProvider>();
     builder.Services.AddScoped<TelegramBotCommandService>();
+    builder.Services.AddHostedService<TelegramCommandPollingService>();
 
     builder.Services.AddScoped<INotificationHub>(sp =>
     {

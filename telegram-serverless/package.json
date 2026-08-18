@@ -1,0 +1,14 @@
+{
+  "name": "forex-exchange-telegram-bot",
+  "private": true,
+  "description": "Telegram Serverless handlers for Exchange_APP staff commands (/rates).",
+  "scripts": {
+    "login": "tgcloud login",
+    "status": "tgcloud status",
+    "deploy": "tgcloud push",
+    "run": "tgcloud run"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "latest"
+  }
+}

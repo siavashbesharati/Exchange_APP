@@ -32,6 +32,16 @@ namespace ForexExchange.Services.Notifications.Helpers
                 ?? string.Empty;
         }
 
+        public static bool IsPollingEnabled(IConfiguration configuration)
+        {
+            if (configuration.GetValue<bool?>("Notifications:Telegram:Enabled") != true)
+                return false;
+
+            // Default on so /rates works locally and on Plesk without Serverless.
+            return configuration.GetValue<bool?>("Notifications:Telegram:Commands:PollingEnabled")
+                != false;
+        }
+
         public static bool IsAllowedChat(IConfiguration configuration, string? chatId)
         {
             if (string.IsNullOrWhiteSpace(chatId))
@@ -40,6 +50,23 @@ namespace ForexExchange.Services.Notifications.Helpers
             var allowed = GetTargetChatIds(configuration);
             var normalized = chatId.Trim();
             return allowed.Contains(normalized, StringComparer.Ordinal);
+        }
+
+        public static string? ParseCommand(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
+            var token = text.Trim().Split(' ', 2)[0];
+            if (!token.StartsWith('/'))
+                return null;
+
+            var slash = token[1..];
+            var at = slash.IndexOf('@');
+            if (at >= 0)
+                slash = slash[..at];
+
+            return string.IsNullOrWhiteSpace(slash) ? null : slash.ToLowerInvariant();
         }
 
         public static bool IsValidApiToken(IConfiguration configuration, string? providedToken)

@@ -275,6 +275,10 @@ typings/
 # Serverless directories
 .serverless
 
+# Telegram Serverless CLI state (credentials + cloud snapshot)
+telegram-serverless/.tgcloud/
+telegram-serverless/lib/config.js
+
 # FuseBox cache
 .fusebox/
 
