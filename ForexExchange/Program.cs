@@ -222,6 +222,7 @@ try
     // ------------------------------
     builder.Services.AddScoped<SignalRNotificationProvider>();
     builder.Services.AddScoped<TelegramNotificationProvider>();
+    builder.Services.AddScoped<TelegramBotCommandService>();
 
     builder.Services.AddScoped<INotificationHub>(sp =>
     {

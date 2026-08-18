@@ -227,11 +227,19 @@ builder.Services.AddScoped<INotificationHub>(serviceProvider =>
       "Enabled": false
     },
     "Telegram": {
-      "Enabled": false
+      "Enabled": false,
+      "ProxyBaseUrl": "",
+      "BotToken": "",
+      "TargetChatIds": [],
+      "Commands": {
+        "ApiToken": ""
+      }
     }
   }
 }
 ```
+
+`TargetChatIds` is the allowlist for both outbound alerts and inbound commands (`/rates`). `Commands:ApiToken` is a shared secret for `POST /api/telegram/command`, used by the Telegram Serverless handler. Setup: `telegram-serverless/README.md`.
 
 ### 3. Client-Side Setup (_Layout.cshtml)
 ```javascript

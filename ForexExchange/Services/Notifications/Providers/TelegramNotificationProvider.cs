@@ -40,7 +40,7 @@ namespace ForexExchange.Services.Notifications.Providers
             _proxyBaseUrl =
                 _configuration["Notifications:Telegram:ProxyBaseUrl"]?.Trim() ?? string.Empty;
             _botToken = _configuration["Notifications:Telegram:BotToken"]?.Trim() ?? string.Empty;
-            _targetChatIds = LoadTargetChatIds(_configuration);
+            _targetChatIds = TelegramSettings.GetTargetChatIds(_configuration);
 
             if (string.IsNullOrWhiteSpace(_proxyBaseUrl))
             {
@@ -67,21 +67,6 @@ namespace ForexExchange.Services.Notifications.Providers
                 !string.IsNullOrWhiteSpace(_proxyBaseUrl),
                 string.Join(", ", _targetChatIds)
             );
-        }
-
-        private static IReadOnlyList<string> LoadTargetChatIds(IConfiguration configuration)
-        {
-            var chatIds =
-                configuration
-                    .GetSection("Notifications:Telegram:TargetChatIds")
-                    .Get<string[]>()
-                ?? Array.Empty<string>();
-
-            return chatIds
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Select(id => id.Trim())
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
         }
 
         private async Task SendTelegramMessageInternalAsync(NotificationContext context)
