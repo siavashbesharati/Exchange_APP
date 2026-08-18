@@ -57,7 +57,7 @@ function showPreviewModal(order, effects) {
         </div>
         <div class="col-md-6">
             <div class="mb-2"><strong> پرداخت می کنیم : </strong> <span class="text-primary fw-bold" dir="ltr">${formatCurrency(displayToAmount, toCurrencyCode)} ${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(toCurrencyCode) : toCurrencyCode}</span></div>
-            <div class="mb-2"><strong>نرخ تبدیل:</strong> <span class="text-warning fw-bold" dir="ltr">${displayRate}</span></div>
+            <div class="mb-2"><strong>نرخ تبدیل:</strong> <span class="text-warning fw-bold" dir="ltr">${typeof formatRate === 'function' ? formatRate(displayRate) : displayRate}</span></div>
             <div class="mb-2"><strong>تاریخ:</strong> <span>${formattedDate}</span></div>
         </div>
     `;

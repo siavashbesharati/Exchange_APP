@@ -459,11 +459,11 @@
                                 <div class="pair-stat-label">مجموع دریافتی</div>
                             </div>
                             <div class="pair-stat">
-                                <div class="pair-stat-value">@(pair.ToCurrency == "IRR" ? pair.AverageRate.ToString("N0") : pair.AverageRate.ToString("N4"))</div>
+                                <div class="pair-stat-value">@pair.AverageRate.FormatRate()</div>
                                 <div class="pair-stat-label">میانگین نرخ</div>
                             </div>
                             <div class="pair-stat">
-                                <div class="pair-stat-value">@(pair.ToCurrency == "IRR" ? pair.MinRate.ToString("N0") : pair.MinRate.ToString("N4")) - @(pair.ToCurrency == "IRR" ? pair.MaxRate.ToString("N0") : pair.MaxRate.ToString("N4"))</div>
+                                <div class="pair-stat-value">@pair.MinRate.FormatRate() - @pair.MaxRate.FormatRate()</div>
                                 <div class="pair-stat-label">بازه نرخ</div>
                             </div>
                         </div>
@@ -508,7 +508,7 @@
                             <td>@Html.CurrencyCodeWithSymbol(order.FromCurrency?.Code, order.FromCurrency?.Symbol)</td>
                             <td>@Html.CurrencyCodeWithSymbol(order.ToCurrency?.Code, order.ToCurrency?.Symbol)</td>
                             <td>@(order.FromCurrency?.Code == "IRR" ? order.FromAmount.ToString("N0") : order.FromAmount.ToString("N2"))</td>
-                            <td>@(order.ToCurrency?.Code == "IRR" ? order.Rate.ToString("N0") : order.Rate.ToString("N4"))</td>
+                            <td>@order.Rate.FormatRate()</td>
                             <td>@(order.ToCurrency?.Code == "IRR" ? (order.FromAmount * order.Rate).ToString("N0") : (order.FromAmount * order.Rate).ToString("N2"))</td>
                             
                         </tr>

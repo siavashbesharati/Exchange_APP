@@ -47,12 +47,12 @@ window.ForexCurrencyFormatter = (function() {
                 maximumFractionDigits: 0
             }).format(truncatedValue);
         } else {
-            // Non-IRR: truncate to exactly 2 decimal places (no rounding)
-            const truncatedToTwoDecimals = Math.trunc(numAmount * 100) / 100;
+            // Non-IRR: round to 2 decimal places (standard rounding: 1.569 → 1.57, 1.564 → 1.56)
+            const rounded = Math.round(numAmount * 100) / 100;
             result = new Intl.NumberFormat('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-            }).format(truncatedToTwoDecimals);
+            }).format(rounded);
             
             // Remove trailing zeros after decimal point: 23.60 → 23.6, 23.00 → 23
             if (result.includes('.')) {
@@ -96,9 +96,9 @@ window.ForexCurrencyFormatter = (function() {
             // IRR: truncate all decimal places
             return Math.trunc(numAmount).toString();
         } else {
-            // Non-IRR: truncate to exactly 2 decimal places
-            const truncated = Math.trunc(numAmount * 100) / 100;
-            return truncated.toString();
+            // Non-IRR: round to 2 decimal places
+            const rounded = Math.round(numAmount * 100) / 100;
+            return rounded.toString();
         }
     }
 
@@ -155,3 +155,37 @@ window.ForexCurrencyFormatter = (function() {
 // Global convenience function
 window.formatCurrency = window.ForexCurrencyFormatter.format;
 window.formatCurrencyWithCode = window.ForexCurrencyFormatter.formatWithCode;
+
+/**
+ * Format an exchange rate value.
+ * Preserves ALL stored decimal places — never rounds or truncates.
+ * Only adds thousand separators and removes trailing zeros.
+ * Use everywhere an Order.Rate or ExchangeRate.Rate is displayed.
+ *
+ * Examples:
+ *   formatRate(55000)        → "55,000"
+ *   formatRate(1.2340)       → "1,234"  ← NO, stored as 1.234, → "1.234"
+ *   formatRate(1234567.89)   → "1,234,567.89"
+ *   formatRate(0.00450)      → "0.0045"
+ *
+ * @param {number|string} rate - The rate value
+ * @returns {string} Formatted rate string with thousand separators
+ */
+window.formatRate = function(rate) {
+    if (rate === null || rate === undefined || rate === '') return '';
+    const num = parseFloat(rate);
+    if (isNaN(num)) return '';
+
+    // Convert to string without scientific notation, preserving full precision
+    // Use toPrecision with enough digits (15 max for JS floats) then strip trailing zeros
+    let str = num.toPrecision(15);           // e.g. "55000.000000000"
+    // Remove trailing zeros after decimal point
+    if (str.includes('.')) {
+        str = str.replace(/\.?0+$/, '');     // "55000"
+    }
+
+    const parts = str.split('.');
+    // Add thousand separators to integer part
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+};

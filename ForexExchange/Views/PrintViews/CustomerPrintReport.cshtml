@@ -604,16 +604,18 @@
                 <div class="balance-grid">
                     @foreach (var balance in Model.FinalBalances)
                     {
+                        var rawValue = balance.Value;
+                        var effectiveValue = (rawValue > -1m && rawValue < 1m) ? 0m : rawValue;
                         <div class="balance-item">
                             <div class="balance-currency">@Html.CurrencyCodeWithSymbol(balance.Key)</div>
-                            <div class="balance-amount @(balance.Value > 0 ? "positive" : balance.Value < 0 ? "negative" : "zero")">
-                                @Math.Abs(balance.Value).FormatCurrency(balance.Key)
+                            <div class="balance-amount @(effectiveValue > 0 ? "positive" : effectiveValue < 0 ? "negative" : "zero")">
+                                @Math.Abs(effectiveValue).FormatCurrency(balance.Key)
                             </div>
-                            @if (balance.Value > 0)
+                            @if (effectiveValue > 0)
                             {
                                 <span class="balance-status-badge credit">بس</span>
                             }
-                            else if (balance.Value < 0)
+                            else if (effectiveValue < 0)
                             {
                                 <span class="balance-status-badge debt">بد</span>
                             }
@@ -710,8 +712,9 @@
                                             </span>
                                         </td>
                                         <td class="amount-cell">
-                                            <span class="@(transaction.RunningBalance > 0 ? "positive" : transaction.RunningBalance < 0 ? "negative" : "zero")">
-                                                @Math.Abs(transaction.RunningBalance).FormatCurrency(transaction.CurrencyCode)
+                                            @{ var effBal = (transaction.RunningBalance > -1m && transaction.RunningBalance < 1m) ? 0m : transaction.RunningBalance; }
+                                            <span class="@(effBal > 0 ? "positive" : effBal < 0 ? "negative" : "zero")">
+                                                @Math.Abs(effBal).FormatCurrency(transaction.CurrencyCode)
                                             </span>
                                         </td>
                                     </tr>

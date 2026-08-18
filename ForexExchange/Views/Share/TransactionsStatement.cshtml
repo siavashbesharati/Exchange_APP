@@ -418,7 +418,7 @@
                                         <td>@string.Format("{0:N2}", order.FromAmount)</td>
                                         <td>@Html.CurrencyCodeWithSymbol(order.ToCurrency.Code, order.ToCurrency.Symbol)</td>
                                         <td>@string.Format("{0:N2}", order.ToAmount)</td>
-                                        <td>@string.Format("{0:N4}", order.Rate)</td>
+                                        <td>@order.Rate.FormatRate()</td>
                                     </tr>
                                 }
                             </tbody>

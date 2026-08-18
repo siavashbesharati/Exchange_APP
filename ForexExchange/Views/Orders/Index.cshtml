@@ -326,14 +326,7 @@
                                     <td>@(item.FromCurrency?.Code == "IRR" ? item.FromAmount.ToString("N0") :
                                                                         item.FromAmount.ToString("N2")) @item.FromCurrency?.Code</td>
                                     <td>
-                                        @if (item.ToCurrency?.Code == "IRR")
-                                        {
-                                            @item.Rate.ToString("N0")
-                                        }
-                                        else
-                                        {
-                                            @item.Rate.ToString("N2")
-                                        }
+                                        @item.Rate.FormatRate()
                                     </td>
                                     <td>@item.CreatedAt.ToString("yyyy/MM/dd HH:mm:ss")</td>
                                     <td>

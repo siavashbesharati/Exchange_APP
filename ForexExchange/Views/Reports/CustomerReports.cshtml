@@ -515,8 +515,9 @@
 
                 // DEBUGGING: Log formatted values
                 const formattedAmount = formatCurrency(transaction.amount, currency);
-                const balanceSignClass = transaction.runningBalance > 0 ? 'text-success' : transaction.runningBalance < 0 ? 'text-danger' : 'text-secondary';
-                const formattedBalance = formatCurrency(Math.abs(transaction.runningBalance), currency);
+                const effectiveBalance = (transaction.runningBalance > -1 && transaction.runningBalance < 1) ? 0 : transaction.runningBalance;
+                const balanceSignClass = effectiveBalance > 0 ? 'text-success' : effectiveBalance < 0 ? 'text-danger' : 'text-secondary';
+                const formattedBalance = formatCurrency(Math.abs(effectiveBalance), currency);
 
                 const rowType = isManualTransaction ? 'manual' : (isOrderTransaction ? 'order' : 'document');
                 timelineHtml += `
@@ -588,12 +589,14 @@
         let balanceHtml = '';
         Object.entries(balances).forEach(([currency, amount]) => {
             const numericAmount = Number(amount);
-            const isZero = numericAmount === 0;
-            const isPositive = numericAmount > 0;
+            // Treat anything between -1 and 1 as zero — no بس/بد badge
+            const effectiveAmount = (numericAmount > -1 && numericAmount < 1) ? 0 : numericAmount;
+            const isZero = effectiveAmount === 0;
+            const isPositive = effectiveAmount > 0;
             const colorClass = isZero ? 'secondary' : (isPositive ? 'success' : 'danger');
             const iconClass = isZero ? 'fa-minus' : (isPositive ? 'fa-arrow-up' : 'fa-arrow-down');
             const statusLabel = isZero ? '' : `<small class="text-muted d-block text-center">${isPositive ? 'بس' : 'بد'}</small>`;
-            const displayAmount = Math.abs(numericAmount);
+            const displayAmount = Math.abs(effectiveAmount);
             const formattedAmount = typeof window.formatCurrency === 'function'
                 ? window.formatCurrency(displayAmount, currency)
                 : formatNumber(displayAmount);
@@ -1077,7 +1080,7 @@
                     <div class="col-6"><small class="text-muted"> پرداخت می کنیم :</small><div class="fw-bold text-success">${data.toCurrencyName}</div></div>
                     <div class="col-6"><small class="text-muted">مبلغ دربافتی :</small><div>${formatCurrency(data.fromAmount, data.toCurrency)}</div></div>
                     <div class="col-6"><small class="text-muted">مبلغ پردختی :</small><div>${formatCurrency(data.toAmount, data.toCurrency)}</div></div>
-                    <div class="col-6"><small class="text-muted">نرخ :</small><div class="ltr-direction">${formatNumber(data.exchangeRate)}</div></div>
+                    <div class="col-6"><small class="text-muted">نرخ :</small><div class="ltr-direction">${formatRate(data.exchangeRate)}</div></div>
                     ${data.updatedAt ? `<div class="col-6"><small class="text-muted">تاریخ بروزرسانی:</small><div>${new Date(data.updatedAt)}</div></div>` : '<div class="col-6"></div>'}
                     ${data.notes ? `<div class="col-12"><small class="text-muted">یادداشت:</small><div class="text-truncate" title="${data.notes}">${data.notes}</div></div>` : ''}
                 </div>

@@ -577,7 +577,7 @@
                                     <td>@Html.CurrencyCodeWithSymbol(order.FromCurrency?.Code, order.FromCurrency?.Symbol)</td>
                                     <td>@Html.CurrencyCodeWithSymbol(order.ToCurrency?.Code, order.ToCurrency?.Symbol)</td>
                                     <td>@order.FromAmount.FormatCurrency(order.FromCurrency?.Code)</td>
-                                    <td>@order.Rate.FormatCurrency(order.ToCurrency?.Code)</td>
+                                    <td>@order.Rate.FormatRate()</td>
                                     <td>@order.CreatedAt.ToString("yy/MM/dd")</td>
                                 </tr>
                             }

@@ -297,7 +297,7 @@ function renderTimeline(timeline) {
                                     <small class="text-muted">
                                         <i class="fas fa-exchange-alt me-1"></i>
                                         ${transaction.fromCurrency} → ${transaction.toCurrency} 
-                                        (نرخ: ${transaction.exchangeRate})
+                                        (نرخ: ${typeof formatRate === 'function' ? formatRate(transaction.exchangeRate) : transaction.exchangeRate})
                                     </small>
                                 </div>
                             ` : ''}

@@ -426,14 +426,7 @@
                                 OMR - @rate.toCurrency
                             </div>
                             <div style="font-size: 14px; color: #0d2f66; font-weight: 700; direction: ltr; font-family: 'Courier New', monospace;">
-                                @{
-                                    var rateValue = (decimal)rate.rate;
-                                    var currencyCode = (string)rate.toCurrency;
-                                    var formattedRate = currencyCode.ToUpper() == "IRR" 
-                                        ? rateValue.ToString("N0")
-                                        : rateValue.ToString("N2");
-                                }
-                                @formattedRate
+                                @((decimal)rate.rate).FormatRate()
                             </div>
                         </div>
                     }
