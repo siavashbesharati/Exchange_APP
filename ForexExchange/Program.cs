@@ -304,7 +304,13 @@ try
         app.UseStatusCodePagesWithReExecute("/Error/{0}");
     }
 
-    app.UseHttpsRedirection();
+    // Local HTTP (localhost:5063) must stay reachable for Telegram command tests.
+    app.UseWhen(
+        context =>
+            !string.Equals(context.Request.Host.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(context.Request.Host.Host, "127.0.0.1", StringComparison.OrdinalIgnoreCase),
+        branch => branch.UseHttpsRedirection()
+    );
     app.UseStaticFiles();
     app.UseRouting();
     app.UseAuthentication();
