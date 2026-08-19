@@ -69,8 +69,9 @@
                                 <div class="mb-3">
                                     <label asp-for="Title" class="form-label">عنوان سند <span
                                             class="text-danger">*</span></label>
-                                    <input asp-for="Title" class="form-control" />
+                                    <input asp-for="Title" class="form-control" id="documentTitle" />
                                     <span asp-validation-for="Title" class="text-danger"></span>
+                                    <div class="form-text">کاراکترهای مجاز: بدون نقل‌قول ('), backslash (\\), خط جدید، یا تگ HTML</div>
                                 </div>
                             </div>
                         </div>

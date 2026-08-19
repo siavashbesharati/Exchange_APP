@@ -198,6 +198,7 @@
                             <label asp-for="Title" class="form-label">عنوان سند <span class="text-danger">*</span></label>
                             <input asp-for="Title" class="form-control" id="documentTitle" placeholder="عنوان خودکار تولید می‌شود..." required />
                             <span asp-validation-for="Title" class="text-danger"></span>
+                            <div class="form-text">کاراکترهای مجاز: بدون نقل‌قول ('), backslash (\\), خط جدید، یا تگ HTML</div>
                             <div class="form-text">عنوان بر اساس اطلاعات وارد شده خودکار تولید می‌شود. می‌توانید آن را تغییر دهید.</div>
                         </div>
 
@@ -392,6 +393,7 @@
 @section Scripts {
     <link rel="stylesheet" href="~/css/loading-overlay.css" />
     <script src="~/js/loading-overlay.js"></script>
+    <script src="~/js/safe-plain-text.js"></script>
     <script>
         // Wait for Select2 to initialize before running page-specific scripts
         $(document).ready(function() {
@@ -611,7 +613,14 @@
                 title = `${docTypeName} - ${payerName} به ${receiverName}`;
             }
             
-            document.getElementById('documentTitle').value = title;
+            document.getElementById('documentTitle').value = SafePlainText.sanitize(title);
+        }
+
+        const documentTitleInput = document.getElementById('documentTitle');
+        if (documentTitleInput) {
+            documentTitleInput.addEventListener('input', function () {
+                SafePlainText.validateInput(this);
+            });
         }
 
         // Auto-generate title on field changes - now fully automatic

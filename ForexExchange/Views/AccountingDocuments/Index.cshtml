@@ -245,7 +245,7 @@
                                             @if (User.IsInRole("Admin"))
                                             {
                                                 <button type="button" class="btn btn-sm btn-outline-danger" title="حذف سند (ادمین)"
-                                                        onclick="confirmDocumentDelete(@item.Id, '@item.Title', @item.IsVerified.ToString().ToLower())">
+                                                        onclick="confirmDocumentDelete(@item.Id, @Html.Raw(System.Text.Json.JsonSerializer.Serialize(item.Title)), @item.IsVerified.ToString().ToLower())">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             }
