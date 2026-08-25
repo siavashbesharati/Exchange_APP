@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using ForexExchange.Helpers;
 
 namespace ForexExchange.Models
 {
@@ -72,6 +73,8 @@ namespace ForexExchange.Models
 
         [Required]
         [StringLength(100)]
+        [SafePlainText]
+        [RegularExpression(SafePlainTextHelper.AllowedPattern, ErrorMessage = SafePlainTextHelper.ValidationErrorMessage)]
         [Display(Name = "Document Title - عنوان سند")]
         public string Title { get; set; } = string.Empty;
 
@@ -307,6 +310,12 @@ namespace ForexExchange.Models
                 results.Add(new ValidationResult(
                     "لطفاً ارز را انتخاب کنید.",
                     new[] { nameof(CurrencyId) }));
+            }
+
+            var titleError = SafePlainTextHelper.GetValidationError(Title);
+            if (titleError != null)
+            {
+                results.Add(new ValidationResult(titleError, new[] { nameof(Title) }));
             }
 
             return results;
