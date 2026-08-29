@@ -144,10 +144,26 @@ namespace ForexExchange.Controllers
             var users = await _userManager.GetUsersInRoleAsync(roleName);
 
             // Also include users whose ApplicationUser.Role matches, in case Identity roles drifted.
-            if (Enum.TryParse<UserRole>(roleName, out var parsedRole))
+            // This handles both enum-based roles (Admin, Operator, Customer) and custom panel roles.
+            if (Enum.TryParse<UserRole>(roleName, out var parsedRole) && parsedRole != UserRole.Customer)
             {
                 var usersByAppRole = await _userManager.Users
                     .Where(u => u.Role == parsedRole)
+                    .ToListAsync();
+
+                users = users
+                    .Concat(usersByAppRole)
+                    .GroupBy(u => u.Id)
+                    .Select(g => g.First())
+                    .ToList();
+            }
+            // For custom roles that aren't in the UserRole enum, also check users
+            // whose role name matches the roleName string (case-insensitive) in the ApplicationUser.Role property
+            else if (!Enum.TryParse<UserRole>(roleName, out _))
+            {
+                var usersByAppRole = await _userManager.Users
+                    .Where(u => u.Role != UserRole.Customer &&
+                                u.Role.ToString().Equals(roleName, StringComparison.OrdinalIgnoreCase))
                     .ToListAsync();
 
                 users = users
@@ -211,6 +227,11 @@ namespace ForexExchange.Controllers
 
             if (result.Succeeded)
             {
+                // Assign default Staff_Access permission to newly created roles
+                // so that any new role gets at least basic staff access by default
+                await _permissionService.SetPermissionsForRoleAsync(roleName,
+                    new List<string> { Permissions.Staff_Access });
+
                 var currentUser = await _userManager.GetUserAsync(User);
                 if (currentUser != null)
                 {
