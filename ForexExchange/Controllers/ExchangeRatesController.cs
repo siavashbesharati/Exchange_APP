@@ -144,7 +144,8 @@ namespace ForexExchange.Controllers
                     continue;
 
                 var newRate = rates[currencyKey];
-                var adjustedRate = ApplyCurrencyTruncation(newRate, currency, baseCurrency);
+                // Removed currency truncation to preserve exact user-entered values
+                var adjustedRate = newRate;
                 // X → OMR
                 var direct = await _context.ExchangeRates
                     .FirstOrDefaultAsync(r => r.FromCurrencyId == currency.Id && r.ToCurrencyId == baseCurrency.Id && r.IsActive);
@@ -232,7 +233,8 @@ namespace ForexExchange.Controllers
                         continue;
 
                     var crossRate = bigger / smaller;
-                    var normalizedRate = ApplyCurrencyTruncation(crossRate, fromCurrency, toCurrency);
+                    // Removed currency truncation to preserve exact calculated values
+                    var normalizedRate = crossRate;
 
                     UpsertCrossRate(existingCrossRates, fromCurrency.Id, toCurrency.Id, normalizedRate);
                     UpsertCrossRate(existingCrossRates, toCurrency.Id, fromCurrency.Id, normalizedRate);
