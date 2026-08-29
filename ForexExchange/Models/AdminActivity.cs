@@ -258,6 +258,20 @@ namespace ForexExchange.Models
         RoleCreated = 18,
 
         /// <summary>
+        /// Role updated
+        /// نقش تغییر یافت
+        /// </summary>
+        [Display(Name = "Role Updated - نقش تغییر یافت")]
+        RoleUpdated = 19,
+
+        /// <summary>
+        /// Role deleted
+        /// نقش حذف شد
+        /// </summary>
+        [Display(Name = "Role Deleted - نقش حذف شد")]
+        RoleDeleted = 20,
+
+        /// <summary>
         /// Other administrative activities
         /// سایر فعالیت‌های مدیریتی
         /// </summary>

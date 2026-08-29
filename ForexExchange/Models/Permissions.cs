@@ -66,5 +66,8 @@ namespace ForexExchange.Models
         //DatabaseManaggment
         public const string Database_Management = "مدیریت پایگاه داده";
 
+        //Staff Access - Base permission for all staff members
+        public const string Staff_Access = "دسترسی کارمند";
+
     }
 }

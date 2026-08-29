@@ -887,6 +887,7 @@ namespace ForexExchange.Services
                     UserRole.Admin,
                     new List<string>
                     {
+                        Permissions.Staff_Access,
                         Permissions.Documents_View,
                         Permissions.Documents_Create,
                         Permissions.Documents_Edit,
@@ -898,6 +899,7 @@ namespace ForexExchange.Services
                     UserRole.Operator,
                     new List<string>
                     {
+                        Permissions.Staff_Access,
                         Permissions.Documents_View,
                         Permissions.Documents_Create,
                         // Operators can create documents but not edit or delete them initially

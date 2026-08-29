@@ -150,11 +150,11 @@ try
     // Authorization - Granular Permissions
     // ------------------------------
     builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
-    builder.Services.AddScoped<IAuthorizationHandler, StaffHandler>();
     builder.Services.AddAuthorization(options =>
     {
+        // StaffAccess policy - allows any active non-Customer user
         options.AddPolicy(StaffAttribute.PolicyName, policy =>
-            policy.Requirements.Add(new StaffRequirement()));
+            policy.Requirements.Add(new PermissionRequirement(Permissions.Staff_Access)));
 
         // Dynamically add policies for each permission
         var allPermissions = ForexExchange.Services.PermissionService.GetAllDefinedPermissions();

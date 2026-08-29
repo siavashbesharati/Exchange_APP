@@ -233,7 +233,143 @@ namespace ForexExchange.Controllers
             return RedirectToAction("ManageRoles");
         }
 
+        /// <summary>
+        /// Edit Role Name
+        /// تغییر نام نقش
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Manage_Admins)]
+        public async Task<IActionResult> EditRole(string roleId, string roleName)
+        {
+            if (string.IsNullOrWhiteSpace(roleId))
+            {
+                TempData["Error"] = "شناسه نقش نامعتبر است.";
+                return RedirectToAction("ManageRoles");
+            }
 
+            if (string.IsNullOrWhiteSpace(roleName))
+            {
+                TempData["Error"] = "نام نقش نمی‌تواند خالی باشد.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            var role = await _roleManager.FindByIdAsync(roleId);
+            if (role == null)
+            {
+                TempData["Error"] = $"نقش با شناسه {roleId} یافت نشد.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            // Prevent editing protected roles
+            if (role.Name == "Programmer" || role.Name == "Admin" || role.Name == "Customer")
+            {
+                TempData["Error"] = "نقش‌های محافظت شده (Programmer, Admin, Customer) قابل ویرایش نیستند.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            if (await _roleManager.RoleExistsAsync(roleName))
+            {
+                TempData["Error"] = $"نقش '{roleName}' قبلاً وجود دارد.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            var oldName = role.Name;
+            var result = await _roleManager.SetRoleNameAsync(role, roleName);
+
+            if (result.Succeeded)
+            {
+                await _adminActivityService.LogActivityAsync(
+                    (await _userManager.GetUserAsync(User))?.Id ?? "",
+                    User.Identity?.Name ?? "Unknown",
+                    AdminActivityType.RoleUpdated,
+                    $"نقش '{oldName}' به '{roleName}' تغییر یافت.",
+                    entityType: "IdentityRole",
+                    oldValue: oldName,
+                    newValue: roleName
+                );
+                TempData["Success"] = $"نقش '{oldName}' با موفقیت به '{roleName}' تغییر یافت.";
+            }
+            else
+            {
+                TempData["Error"] = $"خطا در تغییر نام نقش: {string.Join(", ", result.Errors.Select(e => e.Description))}";
+            }
+
+            return RedirectToAction("ManageRoles");
+        }
+
+        /// <summary>
+        /// Delete Role
+        /// حذف نقش
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Manage_Admins)]
+        public async Task<IActionResult> DeleteRole(string roleId)
+        {
+            if (string.IsNullOrWhiteSpace(roleId))
+            {
+                TempData["Error"] = "شناسه نقش نامعتبر است.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            var role = await _roleManager.FindByIdAsync(roleId);
+            if (role == null)
+            {
+                TempData["Error"] = "نقش یافت نشد.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            // Prevent deleting protected roles
+            if (role.Name == "Programmer" || role.Name == "Admin" || role.Name == "Customer")
+            {
+                TempData["Error"] = "نقش‌های محافظت شده (Programmer, Admin, Customer) قابل حذف نیستند.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            // Check if role has any users assigned
+            var usersInRole = await _userManager.GetUsersInRoleAsync(role.Name);
+            if (usersInRole.Count > 0)
+            {
+                TempData["Error"] = $"امکان حذف نقش '{role.Name}' وجود ندارد. {usersInRole.Count} کاربر در این نقش عضو هستند. ابتدا دسترسی‌های آنها را تغییر دهید.";
+                return RedirectToAction("ManageRoles");
+            }
+
+            var result = await _roleManager.DeleteAsync(role);
+
+            if (result.Succeeded)
+            {
+                await _adminActivityService.LogActivityAsync(
+                    (await _userManager.GetUserAsync(User))?.Id ?? "",
+                    User.Identity?.Name ?? "Unknown",
+                    AdminActivityType.RoleDeleted,
+                                        $"نقش '{role.Name}' حذف شد.",
+                    entityType: "IdentityRole",
+                    oldValue: role.Name
+                );
+                TempData["Success"] = $"نقش '{role.Name}' با موفقیت حذف شد.";
+            }
+            else
+            {
+                TempData["Error"] = $"خطا در حذف نقش: {string.Join(", ", result.Errors.Select(e => e.Description))}";
+            }
+
+            return RedirectToAction("ManageRoles");
+        }
+
+        /// <summary>
+        /// Get user count for a role
+        /// دریافت تعداد کاربران یک نقش
+        /// </summary>
+        [HttpGet]
+        public async Task<JsonResult> GetRoleUserCount(string roleName)
+        {
+            if (string.IsNullOrWhiteSpace(roleName))
+                return Json(0);
+
+            var users = await _userManager.GetUsersInRoleAsync(roleName);
+            return Json(users.Count);
+        }
 
         /// <summary>
         /// Admin Activity Log Index
