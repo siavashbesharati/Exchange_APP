@@ -15,7 +15,7 @@ using ForexExchange.Authorization; // Add for custom permissions
 namespace ForexExchange.Controllers
 {
     [Authorize]
-    [HasPermission(Permissions.Documents_View)] // Or a new specific permission for managing role permissions
+    
     public class AccountingDocumentsController : Controller
     {
         private readonly ForexDbContext _context;

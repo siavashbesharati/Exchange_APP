@@ -14,7 +14,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ForexExchange.Controllers
 {
-    [HasPermission(Permissions.Order_View)]
     public class OrdersController : Controller
     {
         private readonly ForexDbContext _context;

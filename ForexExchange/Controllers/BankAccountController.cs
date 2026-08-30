@@ -116,6 +116,7 @@ namespace ForexExchange.Controllers
         /// Create new bank account
         /// ایجاد حساب بانکی جدید
         /// </summary>
+        [HasPermission(Permissions.Bank_Accounts_Create)]
 
         public async Task<IActionResult> Create()
         {
@@ -152,6 +153,8 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Bank_Accounts_Create)]
+
         public async Task<IActionResult> Create(BankAccount model)
         {
 
@@ -327,7 +330,7 @@ namespace ForexExchange.Controllers
         /// Delete bank account
         /// حذف حساب بانکی
         /// </summary>
-        [HasPermission(Permissions.Bank_Accounts_Edit)]
+        [HasPermission(Permissions.Bank_Accounts_Delete)]
         public async Task<IActionResult> Delete(int id)
         {
             var bankAccount = await _context.BankAccounts
@@ -360,7 +363,7 @@ namespace ForexExchange.Controllers
         /// </summary>
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Bank_Accounts_Edit)]
+        [HasPermission(Permissions.Bank_Accounts_Delete)]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var bankAccount = await _context.BankAccounts.FindAsync(id);
@@ -394,7 +397,7 @@ namespace ForexExchange.Controllers
         /// دریافت حساب‌های بانکی یک مشتری (AJAX)
         /// </summary>
         [HttpGet]
-        [HasPermission(Permissions.Bank_Accounts_Edit)]
+        [HasPermission(Permissions.Bank_Accounts_View)]
         public async Task<IActionResult> GetCustomerBankAccounts(int customerId)
         {
             var bankAccounts = await _context.BankAccounts

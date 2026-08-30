@@ -30,9 +30,9 @@ namespace ForexExchange.Authorization
                 return;
             }
 
-            // TODO: TEMPORARY BYPASS - Remove after fixing user permissions
-            context.Succeed(requirement);
-            return;
+            // // TODO: TEMPORARY BYPASS - Remove after fixing user permissions
+            // context.Succeed(requirement);
+            // return;
 
             if (await _permissionService.HasPermissionAsync(user, requirement.PermissionName))
             {

@@ -17,7 +17,6 @@ namespace ForexExchange.Controllers
     /// Admin Management Controller
     /// کنترلر مدیریت ادمین
     /// </summary>
-    [HasPermission(Permissions.Advance_Management)]
     public class AdminManagementController : Controller
     {
         private readonly AdminActivityService _adminActivityService;
@@ -158,12 +157,12 @@ namespace ForexExchange.Controllers
                     .ToList();
             }
             // For custom roles that aren't in the UserRole enum, also check users
-            // whose role name matches the roleName string (case-insensitive) in the ApplicationUser.Role property
+            // whose role name matches the roleName string (case-sensitive) in the ApplicationUser.Role property
             else if (!Enum.TryParse<UserRole>(roleName, out _))
             {
                 var usersByAppRole = await _userManager.Users
                     .Where(u => u.Role != UserRole.Customer &&
-                                u.Role.ToString().Equals(roleName, StringComparison.OrdinalIgnoreCase))
+                                u.Role.ToString() == roleName)
                     .ToListAsync();
 
                 users = users
