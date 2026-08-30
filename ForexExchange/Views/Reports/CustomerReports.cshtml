@@ -530,8 +530,8 @@
                     }
                     </td>
                     <td class="text-center">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(currency) : currency}</td>
-                    <td class="text-center ltr-direction skip-auto-format ${transaction.amount >= 0 ? 'text-success' : 'text-danger'}" data-debug-amount="${transaction.amount}" data-debug-formatted="${formattedAmount}" data-no-format="true" data-skip-format="true">${formattedAmount}</td>
-                    <td class="text-center ltr-direction skip-auto-format fw-bold ${balanceSignClass}" data-debug-balance="${transaction.runningBalance}" data-debug-formatted="${formattedBalance}" data-no-format="true" data-skip-format="true">${formattedBalance}</td>
+                    <td class="text-center ltr-direction skip-auto-format ${transaction.amount >= 0 ? 'text-success' : 'text-danger'}" data-debug-amount="${transaction.amount}" data-debug-formatted="${transaction.amount}" data-no-format="true" data-skip-format="true">${formattedAmount}</td>
+                    <td class="text-center ltr-direction skip-auto-format fw-bold ${balanceSignClass}" data-debug-balance="${transaction.runningBalance}" data-debug-formatted="${transaction.runningBalance}" data-no-format="true" data-skip-format="true">${transaction.runningBalance}</td>
                     <td class="text-start">
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">${transaction.description || '-'}</small>
