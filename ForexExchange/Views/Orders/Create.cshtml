@@ -252,11 +252,28 @@
         }
 
         function getCalcDirection() {
-            const fromPriority = getRatePriorityById(document.getElementById('fromCurrencySelect').value);
-            const toPriority = getRatePriorityById(document.getElementById('toCurrencySelect').value);
-            if (fromPriority < toPriority) return 'multiply';
-            if (fromPriority > toPriority) return 'divide';
-            return 'multiply';
+            const fromId = document.getElementById('fromCurrencySelect').value;
+            const toId = document.getElementById('toCurrencySelect').value;
+            const fromCode = getCurrencyCodeById(fromId, 'fromCurrencySelect') || '';
+            const toCode = getCurrencyCodeById(toId, 'toCurrencySelect') || '';
+
+            // If either currency is IRR, use original behavior (don't invert)
+            const isIrr = fromCode.toUpperCase() === 'IRR' || toCode.toUpperCase() === 'IRR';
+
+            const fromPriority = getRatePriorityById(fromId);
+            const toPriority = getRatePriorityById(toId);
+
+            if (isIrr) {
+                // Original behavior for IRR pairs
+                if (fromPriority < toPriority) return 'multiply';
+                if (fromPriority > toPriority) return 'divide';
+                return 'multiply';
+            } else {
+                // Inverted behavior for non-IRR pairs
+                if (fromPriority < toPriority) return 'divide';
+                if (fromPriority > toPriority) return 'multiply';
+                return 'multiply';
+            }
         }
 
         function showCurrencyPoolInfo(fromCurrencyId, toCurrencyId) {
