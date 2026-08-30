@@ -515,7 +515,8 @@
 
                 // DEBUGGING: Log formatted values
                 const formattedAmount = formatCurrency(transaction.amount, currency);
-                const effectiveBalance = (transaction.runningBalance > -1 && transaction.runningBalance < 1) ? 0 : transaction.runningBalance;
+                // Use raw running balance directly (truncated from DB)
+                const effectiveBalance = transaction.runningBalance;
                 const balanceSignClass = effectiveBalance > 0 ? 'text-success' : effectiveBalance < 0 ? 'text-danger' : 'text-secondary';
                 const formattedBalance = formatCurrency(Math.abs(effectiveBalance), currency);
 
@@ -531,7 +532,9 @@
                     </td>
                     <td class="text-center">${typeof renderCurrencyCode === 'function' ? renderCurrencyCode(currency) : currency}</td>
                     <td class="text-center ltr-direction skip-auto-format ${transaction.amount >= 0 ? 'text-success' : 'text-danger'}" data-debug-amount="${transaction.amount}" data-debug-formatted="${transaction.amount}" data-no-format="true" data-skip-format="true">${formattedAmount}</td>
-                    <td class="text-center ltr-direction skip-auto-format fw-bold ${balanceSignClass}" data-debug-balance="${transaction.runningBalance}" data-debug-formatted="${transaction.runningBalance}" data-no-format="true" data-skip-format="true">${transaction.runningBalance}</td>
+                    <td class="text-center ltr-direction skip-auto-format fw-bold ${balanceSignClass}" data-debug-balance="${transaction.runningBalance}" data-debug-formatted="${transaction.runningBalance}" data-no-format="true" data-skip-format="true">
+                        ${formatCurrency(Math.abs(transaction.runningBalance), currency)}
+                    </td>
                     <td class="text-start">
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">${transaction.description || '-'}</small>
@@ -589,8 +592,8 @@
         let balanceHtml = '';
         Object.entries(balances).forEach(([currency, amount]) => {
             const numericAmount = Number(amount);
-            // Treat anything between -1 and 1 as zero — no بس/بد badge
-            const effectiveAmount = (numericAmount > -1 && numericAmount < 1) ? 0 : numericAmount;
+            // Use raw DB value directly (truncated, NOT rounded - matches database)
+            const effectiveAmount = numericAmount;
             const isZero = effectiveAmount === 0;
             const isPositive = effectiveAmount > 0;
             const colorClass = isZero ? 'secondary' : (isPositive ? 'success' : 'danger');

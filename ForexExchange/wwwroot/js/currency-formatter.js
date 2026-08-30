@@ -47,12 +47,12 @@ window.ForexCurrencyFormatter = (function() {
                 maximumFractionDigits: 0
             }).format(truncatedValue);
         } else {
-            // Non-IRR: round to 2 decimal places (standard rounding: 1.569 → 1.57, 1.564 → 1.56)
-            const rounded = Math.round(numAmount * 100) / 100;
+            // Non-IRR: TRUNCATE to 2 decimal places (NO rounding: 0.9 → 0.9, 23.4567 → 23.45)
+            const truncated = Math.trunc(numAmount * 100) / 100;
             result = new Intl.NumberFormat('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-            }).format(rounded);
+            }).format(truncated);
             
             // Remove trailing zeros after decimal point: 23.60 → 23.6, 23.00 → 23
             if (result.includes('.')) {
@@ -92,13 +92,13 @@ window.ForexCurrencyFormatter = (function() {
         const numAmount = parseFloat(amount);
         const isIRR = currencyCode && currencyCode.toUpperCase() === 'IRR';
         
-        if (isIRR) {
+                if (isIRR) {
             // IRR: truncate all decimal places
             return Math.trunc(numAmount).toString();
         } else {
-            // Non-IRR: round to 2 decimal places
-            const rounded = Math.round(numAmount * 100) / 100;
-            return rounded.toString();
+            // Non-IRR: TRUNCATE to 2 decimal places (NO rounding)
+            const truncated = Math.trunc(numAmount * 100) / 100;
+            return truncated.toString();
         }
     }
 
