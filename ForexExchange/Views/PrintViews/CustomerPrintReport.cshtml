@@ -609,7 +609,7 @@
                         <div class="balance-item">
                             <div class="balance-currency">@Html.CurrencyCodeWithSymbol(balance.Key)</div>
                             <div class="balance-amount @(effectiveValue > 0 ? "positive" : effectiveValue < 0 ? "negative" : "zero")">
-                                @Math.Abs(effectiveValue).FormatCurrency(balance.Key)
+                                @Math.Abs(effectiveValue).FormatCurrencyTruncate(balance.Key)
                             </div>
                             @if (effectiveValue > 0)
                             {
@@ -708,13 +708,13 @@
                                         <td style="text-align: right;">@transaction.Note</td>
                                         <td class="amount-cell">
                                             <span class="@(transaction.Amount >= 0 ? "positive" : "negative")">
-                                                @transaction.Amount.FormatCurrency(transaction.CurrencyCode)
+                                                @transaction.Amount.FormatCurrencyTruncate(transaction.CurrencyCode)
                                             </span>
                                         </td>
                                         <td class="amount-cell">
                                             @{ var effBal = (transaction.RunningBalance > -1m && transaction.RunningBalance < 1m) ? 0m : transaction.RunningBalance; }
                                             <span class="@(effBal > 0 ? "positive" : effBal < 0 ? "negative" : "zero")">
-                                                @Math.Abs(effBal).FormatCurrency(transaction.CurrencyCode)
+                                                @Math.Abs(effBal).FormatCurrencyTruncate(transaction.CurrencyCode)
                                             </span>
                                         </td>
                                     </tr>

@@ -514,10 +514,10 @@
                 }
 
                 // DEBUGGING: Log formatted values
-                const formattedAmount = formatCurrency(transaction.amount, currency);
+                const formattedAmount = formatCurrencyTruncate(transaction.amount, currency);
                 const effectiveBalance = (transaction.runningBalance > -1 && transaction.runningBalance < 1) ? 0 : transaction.runningBalance;
                 const balanceSignClass = effectiveBalance > 0 ? 'text-success' : effectiveBalance < 0 ? 'text-danger' : 'text-secondary';
-                const formattedBalance = formatCurrency(Math.abs(effectiveBalance), currency);
+                const formattedBalance = formatCurrencyTruncate(Math.abs(effectiveBalance), currency);
 
                 const rowType = isManualTransaction ? 'manual' : (isOrderTransaction ? 'order' : 'document');
                 timelineHtml += `
@@ -597,8 +597,8 @@
             const iconClass = isZero ? 'fa-minus' : (isPositive ? 'fa-arrow-up' : 'fa-arrow-down');
             const statusLabel = isZero ? '' : `<small class="text-muted d-block text-center">${isPositive ? 'بس' : 'بد'}</small>`;
             const displayAmount = Math.abs(effectiveAmount);
-            const formattedAmount = typeof window.formatCurrency === 'function'
-                ? window.formatCurrency(displayAmount, currency)
+            const formattedAmount = typeof window.formatCurrencyTruncate === 'function'
+                ? window.formatCurrencyTruncate(displayAmount, currency)
                 : formatNumber(displayAmount);
 
             balanceHtml += `

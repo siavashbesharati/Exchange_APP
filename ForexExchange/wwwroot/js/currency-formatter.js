@@ -79,6 +79,55 @@ window.ForexCurrencyFormatter = (function() {
     }
 
     /**
+     * Format currency with TRUNCATION (no rounding) for print/report pages.
+     * Use this on pages where rounding should be avoided (e.g. customer reports, print views).
+     * - IRR: Drop all decimal places (truncate) - Example: 234000.534 → 234,000
+     * - Non-IRR: Truncate (NOT round) to 2 decimal places - Example: 2.367 → 2.36, 1.999 → 1.99
+     * - Trailing zeros removed: 23.60 → 23.6, 23.00 → 23
+     *
+     * Usage: formatCurrencyTruncate(amount, currencyCode)
+     * Example: formatCurrencyTruncate(2.367, 'USD') → "2.36"
+     * Example: formatCurrencyTruncate(234000.534, 'IRR') → "234,000"
+     */
+    function formatCurrencyTruncate(amount, currencyCode = '') {
+        // Handle edge cases
+        if (amount === null || amount === undefined || isNaN(amount)) {
+            return '0';
+        }
+
+        // Convert to number if string
+        const numAmount = parseFloat(amount);
+
+        // Check if currency is IRR
+        const isIRR = currencyCode && currencyCode.toUpperCase() === 'IRR';
+
+        let result;
+        if (isIRR) {
+            // IRR: truncate all decimal places (no rounding)
+            const truncatedValue = Math.trunc(numAmount);
+            result = new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(truncatedValue);
+        } else {
+            // Non-IRR: TRUNCATE (do NOT round) to 2 decimal places
+            // Examples: 2.367 → 2.36, 1.999 → 1.99, 2.36 → 2.36
+            const truncated = Math.trunc(numAmount * 100) / 100;
+            result = new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(truncated);
+
+            // Remove trailing zeros after decimal point: 23.60 → 23.6, 23.00 → 23
+            if (result.includes('.')) {
+                result = result.replace(/\.?0+$/, '');
+            }
+        }
+
+        return result;
+    }
+
+    /**
      * Format currency for input fields (clean numeric values)
      * @param {number} amount - The numeric amount
      * @param name="currencyCode">The currency code
@@ -142,18 +191,20 @@ window.ForexCurrencyFormatter = (function() {
     // Public API
     return {
         format: formatCurrency,
+        formatTruncate: formatCurrencyTruncate,
         formatWithCode: formatCurrencyWithCode,
         formatForInput: formatCurrencyForInput,
         parse: parseCurrency,
         isValid: isValidCurrencyAmount,
-        
+
         // Alias for backward compatibility
         formatNumber: formatCurrency
     };
 })();
 
-// Global convenience function
+// Global convenience functions
 window.formatCurrency = window.ForexCurrencyFormatter.format;
+window.formatCurrencyTruncate = window.ForexCurrencyFormatter.formatTruncate;
 window.formatCurrencyWithCode = window.ForexCurrencyFormatter.formatWithCode;
 
 /**

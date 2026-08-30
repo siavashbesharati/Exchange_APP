@@ -32,6 +32,32 @@ namespace ForexExchange.Extensions
 
             return formatted;
         }
+        /// <summary>
+        /// Format decimal value with thousand separators, truncating (NOT rounding) decimal places.
+        /// Used for print/report pages where rounding is not desired.
+        /// IRR = no decimals (truncate integer). Non-IRR = truncate to 2 decimal places (no rounding).
+        /// Trailing zeros after decimal point are removed: 23.60 → 23.6, 23.00 → 23
+        /// Examples: 2.367 USD → "2.36"  |  2.360 USD → "2.36"  |  55000 IRR → "55,000"
+        /// </summary>
+        public static string FormatCurrencyTruncate(this decimal value, string? currencyCode = null)
+        {
+            if (currencyCode == "IRR")
+            {
+                return Math.Truncate(value).ToString("N0", CultureInfo.InvariantCulture);
+            }
+
+            var truncated = Math.Truncate(value * 100) / 100;
+            var formatted = truncated.ToString("N2", CultureInfo.InvariantCulture);
+
+            // Remove trailing zeros: 23.60 → 23.6, 23.00 → 23
+            if (formatted.Contains('.'))
+            {
+                formatted = formatted.TrimEnd('0').TrimEnd('.');
+            }
+
+            return formatted;
+        }
+
 
         /// <summary>
         /// Round amount to display precision for sign/badge checks.
