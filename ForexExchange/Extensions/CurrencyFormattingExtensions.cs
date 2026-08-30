@@ -60,16 +60,55 @@ namespace ForexExchange.Extensions
 
 
         /// <summary>
-        /// Round amount to display precision for sign/badge checks.
-        /// IRR = integer truncation. Non-IRR = round to 2 decimal places.
-        /// Keeps badge logic consistent with what FormatCurrency displays.
+        /// Truncate amount to display precision for sign/badge checks.
+        /// IRR = integer truncation. Non-IRR = truncate to 2 decimal places (NO rounding).
+        /// Keeps badge logic consistent with database-stored values (truncated, not rounded).
         /// </summary>
         public static decimal TruncateCurrencyAmount(this decimal value, string? currencyCode = null)
         {
             if (currencyCode == "IRR")
                 return Math.Truncate(value);
 
-            return Math.Round(value, 2, MidpointRounding.AwayFromZero);
+            return Math.Truncate(value * 100) / 100;
+        }
+
+        /// <summary>
+        /// Format currency value EXACTLY as stored in database (truncated, NOT rounded).
+        /// IRR = truncate all decimals (e.g., 1234.567 → "1,234").
+        /// Non-IRR = truncate to 2 decimals (e.g., 123.4567 → "123.45", 0.9 → "0.9").
+        /// Use this for displaying values that must match what's in the database.
+        /// This ensures 0.9 shows as "0.9", not "1".
+        /// </summary>
+        public static string FormatCurrencyRaw(this decimal value, string? currencyCode = null)
+        {
+            if (currencyCode == "IRR")
+            {
+                // IRR: truncate all decimal places
+                var truncated = Math.Truncate(value);
+                return truncated.ToString("N0", CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                // Non-IRR: truncate to 2 decimal places (matching DB storage), NOT rounding
+                var truncated = Math.Truncate(value * 100) / 100;
+                var formatted = truncated.ToString("N2", CultureInfo.InvariantCulture);
+
+                // Remove trailing zeros: 23.60 → 23.6, 23.00 → 23
+                if (formatted.Contains('.'))
+                {
+                    formatted = formatted.TrimEnd('0').TrimEnd('.');
+                }
+
+                return formatted;
+            }
+        }
+
+        /// <summary>
+        /// Nullable overload for FormatCurrencyRaw.
+        /// </summary>
+        public static string FormatCurrencyRaw(this decimal? value, string? currencyCode = null)
+        {
+            return value?.FormatCurrencyRaw(currencyCode) ?? string.Empty;
         }
 
         /// <summary>
