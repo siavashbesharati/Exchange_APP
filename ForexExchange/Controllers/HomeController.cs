@@ -9,7 +9,7 @@ using System.Text.Json;
 
 namespace ForexExchange.Controllers;
 
-
+[Authorize]
 public class HomeController : Controller
 {
     private readonly ILogger<HomeController> _logger;
@@ -76,7 +76,7 @@ public class HomeController : Controller
         var customerDebtCredits = await _debtCreditService.GetCustomerDebtCreditSummaryAsync();
         return View(customerDebtCredits);
 
-       
+
     }
 
 

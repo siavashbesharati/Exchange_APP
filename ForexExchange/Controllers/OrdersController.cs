@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ForexExchange.Controllers
 {
+    [Authorize]
     public class OrdersController : Controller
     {
         private readonly ForexDbContext _context;
@@ -51,7 +52,7 @@ namespace ForexExchange.Controllers
 
         // POST: Orders/PreviewOrderEffects
         [HttpPost]
-        
+
         [HasPermission(Permissions.Order_Create)]
         public async Task<IActionResult> PreviewOrderEffects([FromBody] OrderFormDataDto dto)
         {
@@ -361,7 +362,7 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Orders/Details/5
-        [HasPermission(Permissions.Order_Detail)] 
+        [HasPermission(Permissions.Order_Detail)]
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -399,7 +400,7 @@ namespace ForexExchange.Controllers
 
         // GET: Orders/GetOrderDetails/5 (for AJAX popup)
         [HttpGet]
-        [HasPermission(Permissions.Order_Detail)] 
+        [HasPermission(Permissions.Order_Detail)]
         public async Task<IActionResult> GetOrderDetails(int id)
         {
             try
@@ -440,7 +441,7 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Orders/Create
-        [HasPermission(Permissions.Order_Create)] 
+        [HasPermission(Permissions.Order_Create)]
         public async Task<IActionResult> Create(int? customerId = null)
         {
             // Load only essential data with minimal queries
@@ -459,7 +460,7 @@ namespace ForexExchange.Controllers
         // POST: Orders/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Order_Create)] 
+        [HasPermission(Permissions.Order_Create)]
         public async Task<IActionResult> Create([FromBody] Order order)
         {
             // Debug: Log received order data first
@@ -564,7 +565,7 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Orders/Delete/5
-        [HasPermission(Permissions.Order_Delete)] 
+        [HasPermission(Permissions.Order_Delete)]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -693,7 +694,7 @@ namespace ForexExchange.Controllers
         // POST: Orders/Delete/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HasPermission(Permissions.Order_Delete)] 
+        [HasPermission(Permissions.Order_Delete)]
         public async Task<IActionResult> Delete(int id)
         {
             try

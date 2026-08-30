@@ -57,6 +57,10 @@ namespace ForexExchange.Models
         //ExchangeRates
         public const string Exchange_Rates_Management = "مدیریت نرخ‌های ارز";
 
+        //Currencies 
+        public const string Currency_Management = "مدیریت ارزها";
+      
+
         //Profile
         public const string Profile_View = "مشاهده پروفایل";
 

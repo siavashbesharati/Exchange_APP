@@ -7,7 +7,9 @@ using ForexExchange.Helpers;
 
 namespace ForexExchange.Controllers
 {
-    
+    [Authorize]
+    [HasPermission(Permissions.Currency_Management)]
+
     public class CurrenciesController : Controller
     {
         private const int MaxLogoBytes = 100 * 1024; // 100 KB
@@ -31,6 +33,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Currencies
+
+
         public async Task<IActionResult> Index(bool? onlyActive)
         {
             var query = _context.Currencies.AsQueryable();
