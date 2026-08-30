@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = Model.ReportTitle;
     Layout = null; // No layout for print-friendly page
-    
+
     // Get dynamic branding data directly from service
     var websiteName = await SettingsService.GetWebsiteNameAsync();
     var companyName = await SettingsService.GetCompanyNameAsync();
@@ -19,509 +19,509 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - @websiteName</title>
-    
+
     <!-- Dynamic Favicon -->
     <link rel="icon" type="image/png" href="@logoDataUrl">
     <link rel="shortcut icon" href="@logoDataUrl">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-            direction: rtl;
-            background-color: #f8f9fa;
-            color: #333;
-            line-height: 1.4;
-            font-size: 12px;
-        }
-
-        .receipt-container {
-            max-width: 800px;
-            margin: 20px auto;
-            background: white;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-            border: 2px solid #ddd;
-        }
-
-        .receipt-header {
-            background: #001f4d;
-            color: white;
-            padding: 15px 20px;
-            text-align: right;
-            border-bottom: 2px solid #001a3a;
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .company-logo {
-            width: 40px;
-            height: 40px;
-            background: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            flex-shrink: 0;
-        }
-
-        .company-logo img {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-        }
-
-        .company-info {
-            flex: 1;
-        }
-
-        .company-name {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 3px;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-        }
-
-        .company-website {
-            font-size: 12px;
-            opacity: 0.9;
-        }
-
-        .report-title {
-            font-size: 18px;
-            font-weight: bold;
-            background: rgba(255, 255, 255, 0.15);
-            padding: 6px 12px;
-            border-radius: 15px;
-            display: inline-block;
-            margin-right: auto;
-        }
-
-        .currency-table {
-            page-break-before: auto;
-            page-break-after: always;
-            page-break-inside: avoid;
-        }
-
-        .currency-table:last-child {
-            page-break-after: auto;
-        }
-
-        .print-header {
-            display: none;
-            margin-top: 20px;
-            background: #001f4d;
-        }
-
-        .receipt-info {
-            padding: 20px;
-            background: #f8f9fa;
-            border-bottom: 2px dashed #ddd;
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .info-item {
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
-            border-left: 4px solid #3498db;
-        }
-
-        .info-label {
-            font-weight: bold;
-            color: #2c3e50;
-            font-size: 11px;
-            margin-bottom: 3px;
-        }
-
-        .info-value {
-            font-size: 13px;
-            color: #333;
-        }
-
-        .balance-summary {
-            background: #e8f5e8;
-            border: 2px solid #27ae60;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 20px;
-        }
-
-        .balance-title {
-            text-align: center;
-            font-weight: bold;
-            color: #27ae60;
-            margin-bottom: 15px;
-            font-size: 14px;
-        }
-
-        .balance-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-        }
-
-        .balance-item {
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-            border: 1px solid #27ae60;
-        }
-
-        .balance-currency {
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 5px;
-        }
-
-        .balance-amount {
-            font-size: 14px;
-            font-weight: bold;
-            direction: ltr;
-        }
-
-        .balance-status-badge {
-            display: inline-block;
-            margin-top: 6px;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: bold;
-        }
-
-        .balance-status-badge.credit {
-            background: #d5f5e3;
-            color: #1e8449;
-            border: 1px solid #27ae60;
-        }
-
-        .balance-status-badge.debt {
-            background: #fadbd8;
-            color: #c0392b;
-            border: 1px solid #e74c3c;
-        }
-
-        .positive {
-            color: #27ae60;
-        }
-
-        .negative {
-            color: #e74c3c;
-        }
-
-        .zero {
-            color: #95a5a6;
-        }
-
-        .transactions-section {
-            padding: 20px;
-        }
-
-        .section-title {
-            background: #34495e;
-            color: white;
-            padding: 10px 15px;
-            margin: -20px -20px 20px -20px;
-            font-weight: bold;
-            text-align: center;
-            font-size: 14px;
-        }
-
-        .transaction-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-            font-size: 11px;
-        }
-
-        .transaction-table th {
-            background: #2c3e50;
-            color: white;
-            padding: 8px 5px;
-            text-align: center;
-            font-weight: bold;
-            border: 1px solid #34495e;
-        }
-
-        .transaction-table td {
-            padding: 6px 5px;
-            text-align: center;
-            border: 1px solid #ddd;
-            vertical-align: middle;
-        }
-
-        .transaction-table tbody tr:nth-child(even) {
-            background: #f8f9fa;
-        }
-
-        .transaction-table tbody tr:hover {
-            background: #e3f2fd;
-        }
-
-        .currency-group-header {
-            background: #3498db !important;
-            color: white !important;
-            font-weight: bold;
-            text-align: center;
-        }
-
-        .transaction-type {
-            font-size: 10px;
-            padding: 4px 14px;
-            border-radius: 12px;
-            display: inline-block;
-            font-weight: bold;
-            color: white !important;
-            text-align: center;
-            min-width: 45px;
-        }
-
-        .type-buy {
-            background: #155724 !important;
-        }
-
-        .type-sell {
-            background: #a70a0a !important;
-        }
-
-        .type-payment {
-            background: #b5c4d4 !important;
-        }
-
-        .type-receipt {
-            background: #69a508 !important;
-        }
-
-        .type-order {
-            background: #3498db;
-            color: white;
-        }
-
-        .type-document {
-            background: #9b59b6;
-            color: white;
-        }
-
-        .type-manual {
-            background: #ffc107 !important;
-            color: #000 !important;
-        }
-
-        .amount-cell {
-            direction: ltr;
-            font-weight: bold;
-        }
-
-        .receipt-footer {
-            background: #2c3e50;
-            color: white;
-            padding: 15px 20px;
-            text-align: center;
-            font-size: 11px;
-        }
-
-        .print-info {
-            margin-bottom: 10px;
-        }
-
-        .disclaimer {
-            font-size: 10px;
-            color: #bdc3c7;
-            font-style: italic;
-        }
-
-        .no-transactions {
-            text-align: center;
-            color: #7f8c8d;
-            font-style: italic;
-            padding: 40px;
-            background: #f8f9fa;
-            border: 2px dashed #bdc3c7;
-            border-radius: 8px;
-            margin: 20px;
-        }
-
-        /* Print styles */
-        @@media print {
             body {
-                background: white;
-                font-size: 10px;
+                font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+                direction: rtl;
+                background-color: #f8f9fa;
+                color: #333;
+                line-height: 1.4;
+                font-size: 12px;
             }
 
             .receipt-container {
-                box-shadow: none;
-                border: 1px solid #000;
-                margin: 0;
-                max-width: none;
-            }
-
-            .transaction-table thead {
-                display: table-header-group;
-            }
-
-            .no-print {
-                display: none !important;
-            }
-
-            .transaction-table {
-                font-size: 9px;
-            }
-
-            .transaction-table th,
-            .transaction-table td {
-                padding: 3px 2px;
-            }
-
-            .transaction-type {
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .type-buy {
-                background: #155724 !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .type-sell {
-                background: #fd7e14 !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .type-payment {
-                background: #007bff !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .type-receipt {
-                background: #17a2b8 !important;
-                color: white !important;
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .type-manual {
-                background: #ffc107 !important;
-                color: #000 !important;
-                -webkit-print-color-adjust: exact !important;
-                color-adjust: exact !important;
-                print-color-adjust: exact !important;
+                max-width: 800px;
+                margin: 20px auto;
+                background: white;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+                border: 2px solid #ddd;
             }
 
             .receipt-header {
-                background: #001f4d !important;
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
+                background: #001f4d;
+                color: white;
+                padding: 15px 20px;
+                text-align: right;
+                border-bottom: 2px solid #001a3a;
+                position: relative;
+                display: flex;
+                align-items: center;
+                gap: 15px;
             }
 
-            .balance-summary {
-                background: #f0f0f0 !important;
-                border: 1px solid #000 !important;
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
-                padding: 10px !important;
-                margin: 10px 10px -5px 10px !important;
-                border-radius: 0 !important;
+            .company-logo {
+                width: 40px;
+                height: 40px;
+                background: white;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                flex-shrink: 0;
             }
 
-            .print-header {
-                display: flex !important;
-                background: #001f4d !important;
-                color: white !important;
-                padding: 10px 15px !important;
-                align-items: center !important;
-                gap: 10px !important;
-                margin-bottom: 10px !important;
-                margin-top: 20px !important;
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
+            .company-logo img {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
             }
 
-            .receipt-footer {
-                background: #2c3e50 !important;
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
+            .company-info {
+                flex: 1;
             }
 
-            .receipt-info {
-                padding: 10px !important;
+            .company-name {
+                font-size: 20px;
+                font-weight: bold;
+                margin-bottom: 3px;
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
             }
 
-            .balance-summary {
-                padding: 10px !important;
-                margin: 10px 10px 0 10px !important;
+            .company-website {
+                font-size: 12px;
+                opacity: 0.9;
             }
 
-            .info-grid {
-                gap: 10px !important;
-                margin-bottom: 10px !important;
-            }
-
-            .balance-title {
-                margin-bottom: 10px !important;
-            }
-
-            .transactions-section {
-                padding-top: 0 !important;
+            .report-title {
+                font-size: 18px;
+                font-weight: bold;
+                background: rgba(255, 255, 255, 0.15);
+                padding: 6px 12px;
+                border-radius: 15px;
+                display: inline-block;
+                margin-right: auto;
             }
 
             .currency-table {
-                page-break-inside: avoid;
-                page-break-before: never;
-            }
-
-            .currency-table:not(:first-child) {
+                page-break-before: auto;
                 page-break-after: always;
-            }
-
-            .currency-table:first-child .print-header {
-                margin-top: 0 !important;
+                page-break-inside: avoid;
             }
 
             .currency-table:last-child {
                 page-break-after: auto;
             }
-        }
 
-        /* RTL adjustments */
-        .ltr {
-            direction: ltr;
-        }
+            .print-header {
+                display: none;
+                margin-top: 20px;
+                background: #001f4d;
+            }
 
-        .text-left {
-            text-align: left;
-        }
+            .receipt-info {
+                padding: 20px;
+                background: #f8f9fa;
+                border-bottom: 2px dashed #ddd;
+            }
 
-        .text-right {
-            text-align: right;
-        }
+            .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin-bottom: 15px;
+            }
 
-        .text-center {
-            text-align: center;
-        }
+            .info-item {
+                background: white;
+                padding: 10px;
+                border-radius: 5px;
+                border-left: 4px solid #3498db;
+            }
+
+            .info-label {
+                font-weight: bold;
+                color: #2c3e50;
+                font-size: 11px;
+                margin-bottom: 3px;
+            }
+
+            .info-value {
+                font-size: 13px;
+                color: #333;
+            }
+
+            .balance-summary {
+                background: #e8f5e8;
+                border: 2px solid #27ae60;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 20px;
+            }
+
+            .balance-title {
+                text-align: center;
+                font-weight: bold;
+                color: #27ae60;
+                margin-bottom: 15px;
+                font-size: 14px;
+            }
+
+            .balance-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 10px;
+            }
+
+            .balance-item {
+                background: white;
+                padding: 10px;
+                border-radius: 5px;
+                text-align: center;
+                border: 1px solid #27ae60;
+            }
+
+            .balance-currency {
+                font-weight: bold;
+                color: #2c3e50;
+                margin-bottom: 5px;
+            }
+
+            .balance-amount {
+                font-size: 14px;
+                font-weight: bold;
+                direction: ltr;
+            }
+
+            .balance-status-badge {
+                display: inline-block;
+                margin-top: 6px;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+
+            .balance-status-badge.credit {
+                background: #d5f5e3;
+                color: #1e8449;
+                border: 1px solid #27ae60;
+            }
+
+            .balance-status-badge.debt {
+                background: #fadbd8;
+                color: #c0392b;
+                border: 1px solid #e74c3c;
+            }
+
+            .positive {
+                color: #27ae60;
+            }
+
+            .negative {
+                color: #e74c3c;
+            }
+
+            .zero {
+                color: #95a5a6;
+            }
+
+            .transactions-section {
+                padding: 20px;
+            }
+
+            .section-title {
+                background: #34495e;
+                color: white;
+                padding: 10px 15px;
+                margin: -20px -20px 20px -20px;
+                font-weight: bold;
+                text-align: center;
+                font-size: 14px;
+            }
+
+            .transaction-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+                font-size: 11px;
+            }
+
+            .transaction-table th {
+                background: #2c3e50;
+                color: white;
+                padding: 8px 5px;
+                text-align: center;
+                font-weight: bold;
+                border: 1px solid #34495e;
+            }
+
+            .transaction-table td {
+                padding: 6px 5px;
+                text-align: center;
+                border: 1px solid #ddd;
+                vertical-align: middle;
+            }
+
+            .transaction-table tbody tr:nth-child(even) {
+                background: #f8f9fa;
+            }
+
+            .transaction-table tbody tr:hover {
+                background: #e3f2fd;
+            }
+
+            .currency-group-header {
+                background: #3498db !important;
+                color: white !important;
+                font-weight: bold;
+                text-align: center;
+            }
+
+            .transaction-type {
+                font-size: 10px;
+                padding: 4px 14px;
+                border-radius: 12px;
+                display: inline-block;
+                font-weight: bold;
+                color: white !important;
+                text-align: center;
+                min-width: 45px;
+            }
+
+            .type-buy {
+                background: #155724 !important;
+            }
+
+            .type-sell {
+                background: #a70a0a !important;
+            }
+
+            .type-payment {
+                background: #b5c4d4 !important;
+            }
+
+            .type-receipt {
+                background: #69a508 !important;
+            }
+
+            .type-order {
+                background: #3498db;
+                color: white;
+            }
+
+            .type-document {
+                background: #9b59b6;
+                color: white;
+            }
+
+            .type-manual {
+                background: #ffc107 !important;
+                color: #000 !important;
+            }
+
+            .amount-cell {
+                direction: ltr;
+                font-weight: bold;
+            }
+
+            .receipt-footer {
+                background: #2c3e50;
+                color: white;
+                padding: 15px 20px;
+                text-align: center;
+                font-size: 11px;
+            }
+
+            .print-info {
+                margin-bottom: 10px;
+            }
+
+            .disclaimer {
+                font-size: 10px;
+                color: #bdc3c7;
+                font-style: italic;
+            }
+
+            .no-transactions {
+                text-align: center;
+                color: #7f8c8d;
+                font-style: italic;
+                padding: 40px;
+                background: #f8f9fa;
+                border: 2px dashed #bdc3c7;
+                border-radius: 8px;
+                margin: 20px;
+            }
+
+            /* Print styles */
+            @@media print {
+                body {
+                    background: white;
+                    font-size: 10px;
+                }
+
+                .receipt-container {
+                    box-shadow: none;
+                    border: 1px solid #000;
+                    margin: 0;
+                    max-width: none;
+                }
+
+                .transaction-table thead {
+                    display: table-header-group;
+                }
+
+                .no-print {
+                    display: none !important;
+                }
+
+                .transaction-table {
+                    font-size: 9px;
+                }
+
+                .transaction-table th,
+                .transaction-table td {
+                    padding: 3px 2px;
+                }
+
+                .transaction-type {
+                    -webkit-print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+
+                .type-buy {
+                    background: #155724 !important;
+                    color: white !important;
+                    -webkit-print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+
+                .type-sell {
+                    background: #fd7e14 !important;
+                    color: white !important;
+                    -webkit-print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+
+                .type-payment {
+                    background: #007bff !important;
+                    color: white !important;
+                    -webkit-print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+
+                .type-receipt {
+                    background: #17a2b8 !important;
+                    color: white !important;
+                    -webkit-print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+
+                .type-manual {
+                    background: #ffc107 !important;
+                    color: #000 !important;
+                    -webkit-print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+
+                .receipt-header {
+                    background: #001f4d !important;
+                    -webkit-print-color-adjust: exact;
+                    color-adjust: exact;
+                }
+
+                .balance-summary {
+                    background: #f0f0f0 !important;
+                    border: 1px solid #000 !important;
+                    -webkit-print-color-adjust: exact;
+                    color-adjust: exact;
+                    padding: 10px !important;
+                    margin: 10px 10px -5px 10px !important;
+                    border-radius: 0 !important;
+                }
+
+                .print-header {
+                    display: flex !important;
+                    background: #001f4d !important;
+                    color: white !important;
+                    padding: 10px 15px !important;
+                    align-items: center !important;
+                    gap: 10px !important;
+                    margin-bottom: 10px !important;
+                    margin-top: 20px !important;
+                    -webkit-print-color-adjust: exact;
+                    color-adjust: exact;
+                }
+
+                .receipt-footer {
+                    background: #2c3e50 !important;
+                    -webkit-print-color-adjust: exact;
+                    color-adjust: exact;
+                }
+
+                .receipt-info {
+                    padding: 10px !important;
+                }
+
+                .balance-summary {
+                    padding: 10px !important;
+                    margin: 10px 10px 0 10px !important;
+                }
+
+                .info-grid {
+                    gap: 10px !important;
+                    margin-bottom: 10px !important;
+                }
+
+                .balance-title {
+                    margin-bottom: 10px !important;
+                }
+
+                .transactions-section {
+                    padding-top: 0 !important;
+                }
+
+                .currency-table {
+                    page-break-inside: avoid;
+                    page-break-before: never;
+                }
+
+                .currency-table:not(:first-child) {
+                    page-break-after: always;
+                }
+
+                .currency-table:first-child .print-header {
+                    margin-top: 0 !important;
+                }
+
+                .currency-table:last-child {
+                    page-break-after: auto;
+                }
+            }
+
+            /* RTL adjustments */
+            .ltr {
+                direction: ltr;
+            }
+
+            .text-left {
+                text-align: left;
+            }
+
+            .text-right {
+                text-align: right;
+            }
+
+            .text-center {
+                text-align: center;
+            }
     </style>
 </head>
 
@@ -544,242 +544,249 @@
             <div class="info-grid">
                 <div class="info-item">
                     <div class="info-label">@(Model.ReportType == "Customer" ? "نام مشتری:" : Model.ReportType ==
-                                                "BankAccount" ? "حساب بانکی:" : "ارز:")</div>
-                    <div class="info-value">@Model.EntityName</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">کد مشتری </div>
-                    <div class="info-value">@Model.EntityId</div>
-                </div>
-                
-                <div class="info-item">
-                    <div class="info-label">از تاریخ:</div>
-                    <div class="info-value">
-                        @if (Model.FromDate.Date == DateTime.MinValue.Date)
-                        {
-                            if (Model.Transactions != null && Model.Transactions.Any())
-                            {
-                                @(Model.Transactions.Min(t => t.TransactionDate).ToString("yyyy/MM/dd"))
-                            }
-                            else
-                            {
-                                <span>-</span>
-                            }
-                        }
-                        else
-                        {
-                            @(Model.FromDate.ToString("yyyy/MM/dd"))
-                        }
+                                                                                                "BankAccount" ? "حساب بانکی:" : "ارز:")</div>
+                        <div class="info-value">@Model.EntityName</div>
                     </div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">تا تاریخ:</div>
-                    <div class="info-value">
-                        @if (Model.ToDate.Date == DateTime.MaxValue.Date)
-                        {
-                            if (Model.Transactions != null && Model.Transactions.Any())
-                            {
-                                @(Model.Transactions.Max(t => t.TransactionDate).ToString("yyyy/MM/dd"))
-                            }
-                            else
-                            {
-                                <span>-</span>
-                            }
-                        }
-                        else
-                        {
-                            @(Model.ToDate.ToString("yyyy/MM/dd"))
-                        }
+                    <div class="info-item">
+                        <div class="info-label">کد مشتری </div>
+                        <div class="info-value">@Model.EntityId</div>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Balance Summary -->
-        @if (Model.FinalBalances != null && Model.FinalBalances.Any())
-        {
-            <div class="balance-summary">
-                <div class="balance-title">موجودی نهایی @(Model.ReportType == "Customer" ? "حساب‌ها" : Model.ReportType ==
-                                    "BankAccount" ? "حساب بانکی" : "داشبورد")</div>
-                <div class="balance-grid">
-                    @foreach (var balance in Model.FinalBalances)
-                    {
-                        var rawValue = balance.Value;
-                        var effectiveValue = (rawValue > -1m && rawValue < 1m) ? 0m : rawValue;
-                        <div class="balance-item">
-                            <div class="balance-currency">@Html.CurrencyCodeWithSymbol(balance.Key)</div>
-                            <div class="balance-amount @(effectiveValue > 0 ? "positive" : effectiveValue < 0 ? "negative" : "zero")">
-                                @Math.Abs(effectiveValue).FormatCurrency(balance.Key)
-                            </div>
-                            @if (effectiveValue > 0)
+                    <div class="info-item">
+                        <div class="info-label">از تاریخ:</div>
+                        <div class="info-value">
+                            @if (Model.FromDate.Date == DateTime.MinValue.Date)
                             {
-                                <span class="balance-status-badge credit">بس</span>
-                            }
-                            else if (effectiveValue < 0)
-                            {
-                                <span class="balance-status-badge debt">بد</span>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-
-        <!-- Transactions -->
-        <div class="transactions-section">
-
-            @if (Model.Transactions != null && Model.Transactions.Any())
-            {
-                var currencyGroups = Model.Transactions.GroupBy(t => t.CurrencyCode).OrderBy(g => g.Key);
-
-                @foreach (var currencyGroup in currencyGroups)
-                {
-                    <div class="currency-table">
-                        <!-- Print Header for each page -->
-                        <div class="print-header">
-                            <div class="company-logo">
-                                <img src="@logoDataUrl" alt="لوگو @companyName" />
-                            </div>
-                            <div class="company-info">
-                                <div class="company-name">@companyName</div>
-                                <div class="company-website">@companyWebsite</div>
-                            </div>
-                            <div class="report-title">@Model.ReportTitle - @Html.CurrencyCodeWithSymbol(currencyGroup.First().CurrencyCode)</div>
-                        </div>
-
-                        <table class="transaction-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 13%;">تاریخ</th>
-                                    <th style="width: 13%;">نوع</th>
-                                    <th style="width: 13%;">ارز</th>
-                                    <th style="width: 13%;">شناسه تراکنش</th>
-                                    <th style="width: 33%;">یادداشت</th>
-                                    <th style="width: 15%;">مبلغ</th>
-                                    <th style="width: 15%;">موجودی</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var transaction in currencyGroup.OrderBy(t => t.TransactionDate))
+                                if (Model.Transactions != null && Model.Transactions.Any())
                                 {
-                                    <tr>
-                                        <td>@transaction.TransactionDate.ToString("yyyy/MM/dd")</td>
-                                        <td>
-                                            @{
-                                                string typeClass = "transaction-type";
-                                                string transactionType = transaction.TransactionType.ToLower();
-
-                                                if (transactionType.Contains("خرید"))
-                                                {
-                                                    typeClass = "transaction-type type-buy";
-                                                }
-                                                else if (transactionType.Contains("فروش"))
-                                                {
-                                                    typeClass = "transaction-type type-sell";
-                                                }
-                                                else if (transactionType.Contains("پرداخت"))
-                                                {
-                                                    typeClass = "transaction-type type-payment";
-                                                }
-                                                else if (transactionType.Contains("دریافت"))
-                                                {
-                                                    typeClass = "transaction-type type-receipt";
-                                                }
-                                                else if (transactionType.Contains("order") || transactionType.Contains("سفارش"))
-                                                {
-                                                    typeClass = "transaction-type type-order";
-                                                }
-                                                else if (transactionType.Contains("document") || transactionType.Contains("سند"))
-                                                {
-                                                    typeClass = "transaction-type type-document";
-                                                }
-                                                else if (transactionType.Contains("manual") || transactionType.Contains("دستی"))
-                                                {
-                                                    typeClass = "transaction-type type-manual";
-                                                }
-                                            }
-                                            <span class="@typeClass">@transaction.TransactionType</span>
-                                        </td>
-
-                                        <td style="text-align: center;">@Html.CurrencyCodeWithSymbol(transaction.CurrencyCode)</td>
-                                        <td style="text-align: center;">@(transaction.TransactionNumber ?? (transaction.ReferenceId.HasValue ? transaction.ReferenceId.Value.ToString() : "-"))</td>
-
-
-                                        <td style="text-align: right;">@transaction.Note</td>
-                                        <td class="amount-cell">
-                                            <span class="@(transaction.Amount >= 0 ? "positive" : "negative")">
-                                                @transaction.Amount.FormatCurrency(transaction.CurrencyCode)
-                                            </span>
-                                        </td>
-                                        <td class="amount-cell">
-                                            @{ var effBal = (transaction.RunningBalance > -1m && transaction.RunningBalance < 1m) ? 0m : transaction.RunningBalance; }
-                                            <span class="@(effBal > 0 ? "positive" : effBal < 0 ? "negative" : "zero")">
-                                                @Math.Abs(effBal).FormatCurrency(transaction.CurrencyCode)
-                                            </span>
-                                        </td>
-                                    </tr>
+                                    @(Model.Transactions.Min(t => t.TransactionDate).ToString("yyyy/MM/dd"))
                                 }
-                            </tbody>
-                        </table>
+                                else
+                                {
+                                    <span>-</span>
+                                }
+                            }
+                            else
+                            {
+                                @(Model.FromDate.ToString("yyyy/MM/dd"))
+                            }
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">تا تاریخ:</div>
+                        <div class="info-value">
+                            @if (Model.ToDate.Date == DateTime.MaxValue.Date)
+                            {
+                                if (Model.Transactions != null && Model.Transactions.Any())
+                                {
+                                    @(Model.Transactions.Max(t => t.TransactionDate).ToString("yyyy/MM/dd"))
+                                }
+                                else
+                                {
+                                    <span>-</span>
+                                }
+                            }
+                            else
+                            {
+                                @(Model.ToDate.ToString("yyyy/MM/dd"))
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Balance Summary -->
+            @if (Model.FinalBalances != null && Model.FinalBalances.Any())
+            {
+                <div class="balance-summary">
+                    <div class="balance-title">موجودی نهایی @(Model.ReportType == "Customer" ? "حساب‌ها" : Model.ReportType ==
+                                                                                    "BankAccount" ? "حساب بانکی" : "داشبورد")</div>
+                        <div class="balance-grid">
+                            @foreach (var balance in Model.FinalBalances)
+                            {
+                                var rawValue = balance.Value;
+                                var isPositive = rawValue > 0;
+                                var isNegative = rawValue < 0;
+                                <div class="balance-item">
+                                    <div class="balance-currency">@Html.CurrencyCodeWithSymbol(balance.Key)</div>
+                                    <div class="balance-amount @(isPositive? "positive" : isNegative?"negative" : "zero")">
+                                        @rawValue.FormatCurrencyRaw(balance.Key)
+                                    </div>
+                                    @if (isPositive)
+                                    {
+                                        <span class="balance-status-badge credit">بس</span>
+                                    }
+                                    else if (isNegative)
+                                    {
+                                        <span class="balance-status-badge debt">بد</span>
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
                 }
-            }
+
+                <!-- Transactions -->
+                <div class="transactions-section">
+
+                    @if (Model.Transactions != null && Model.Transactions.Any())
+                    {
+                        var currencyGroups = Model.Transactions.GroupBy(t => t.CurrencyCode).OrderBy(g => g.Key);
+
+                        @foreach (var currencyGroup in currencyGroups)
+                        {
+                            <div class="currency-table">
+                                <!-- Print Header for each page -->
+                                <div class="print-header">
+                                    <div class="company-logo">
+                                        <img src="@logoDataUrl" alt="لوگو @companyName" />
+                                    </div>
+                                    <div class="company-info">
+                                        <div class="company-name">@companyName</div>
+                                        <div class="company-website">@companyWebsite</div>
+                                    </div>
+                                    <div class="report-title">@Model.ReportTitle -
+                                        @Html.CurrencyCodeWithSymbol(currencyGroup.First().CurrencyCode)</div>
+                                    </div>
+
+                                    <table class="transaction-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 13%;">تاریخ</th>
+                                                <th style="width: 13%;">نوع</th>
+                                                <th style="width: 13%;">ارز</th>
+                                                <th style="width: 13%;">شناسه تراکنش</th>
+                                                <th style="width: 33%;">یادداشت</th>
+                                                <th style="width: 15%;">مبلغ</th>
+                                                <th style="width: 15%;">موجودی</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var transaction in currencyGroup.OrderBy(t => t.TransactionDate))
+                                            {
+                                                <tr>
+                                                    <td>@transaction.TransactionDate.ToString("yyyy/MM/dd")</td>
+                                                    <td>
+                                                        @{
+                                                            string typeClass = "transaction-type";
+                                                            string transactionType = transaction.TransactionType.ToLower();
+
+                                                            if (transactionType.Contains("خرید"))
+                                                            {
+                                                                typeClass = "transaction-type type-buy";
+                                                            }
+                                                            else if (transactionType.Contains("فروش"))
+                                                            {
+                                                                typeClass = "transaction-type type-sell";
+                                                            }
+                                                            else if (transactionType.Contains("پرداخت"))
+                                                            {
+                                                                typeClass = "transaction-type type-payment";
+                                                            }
+                                                            else if (transactionType.Contains("دریافت"))
+                                                            {
+                                                                typeClass = "transaction-type type-receipt";
+                                                            }
+                                                            else if (transactionType.Contains("order") || transactionType.Contains("سفارش"))
+                                                            {
+                                                                typeClass = "transaction-type type-order";
+                                                            }
+                                                            else if (transactionType.Contains("document") || transactionType.Contains("سند"))
+                                                            {
+                                                                typeClass = "transaction-type type-document";
+                                                            }
+                                                            else if (transactionType.Contains("manual") || transactionType.Contains("دستی"))
+                                                            {
+                                                                typeClass = "transaction-type type-manual";
+                                                            }
+                                                        }
+                                                        <span class="@typeClass">@transaction.TransactionType</span>
+                                                    </td>
+
+                                                    <td style="text-align: center;">@Html.CurrencyCodeWithSymbol(transaction.CurrencyCode)</td>
+                                                    <td style="text-align: center;">@(transaction.TransactionNumber ??
+                                                                                                                                                (transaction.ReferenceId.HasValue ? transaction.ReferenceId.Value.ToString() : "-"))
+                                                    </td>
+
+
+                                                    <td style="text-align: right;">@transaction.Note</td>
+                                                    <td class="amount-cell">
+                                                        <span class="@(transaction.Amount >= 0 ? "positive" : "negative")">
+                                                            @transaction.Amount.FormatCurrency(transaction.CurrencyCode)
+                                                        </span>
+                                                    </td>
+                                                    <td class="amount-cell">
+                                                        @{
+                                                            var rawBal = transaction.RunningBalance; var balIsPositive = rawBal > 0; var
+                               balIsNegative = rawBal < 0;
+                                                        }
+                                                        <span class="@(balIsPositive ? "positive" : balIsNegative ? "negative" : "zero")">
+                                                            @Math.Abs(rawBal).FormatCurrencyRaw(transaction.CurrencyCode)
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
             else
-            {
-                <div class="no-transactions">
-                    <strong>هیچ تراکنشی در بازه زمانی انتخاب شده یافت نشد</strong>
-                    <br />
-                    <small>لطفاً بازه زمانی دیگری را انتخاب کنید</small>
+                        {
+                            <div class="no-transactions">
+                                <strong>هیچ تراکنشی در بازه زمانی انتخاب شده یافت نشد</strong>
+                                <br />
+                                <small>لطفاً بازه زمانی دیگری را انتخاب کنید</small>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="receipt-footer">
+                        <div class="print-info">
+                            <strong>تاریخ چاپ:</strong> @DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") |
+                            <strong>کاربر:</strong> @(User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "نامشخص")
+                        </div>
+                        <div class="disclaimer">
+                            این گزارش به صورت خودکار تولید شده و نیاز به امضا ندارد •
+                            صحت اطلاعات با @companyName قابل بررسی است •
+                            @companyWebsite
+                        </div>
+                    </div>
                 </div>
-            }
-        </div>
 
-        <!-- Footer -->
-        <div class="receipt-footer">
-            <div class="print-info">
-                <strong>تاریخ چاپ:</strong> @DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") |
-                <strong>کاربر:</strong> @(User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "نامشخص")
-            </div>
-            <div class="disclaimer">
-                این گزارش به صورت خودکار تولید شده و نیاز به امضا ندارد •
-                صحت اطلاعات با @companyName قابل بررسی است •
-                @companyWebsite
-            </div>
-        </div>
-    </div>
+                <!-- Print and Close Buttons -->
+                <div style="text-align: center; margin: 20px; padding: 20px;" class="no-print">
+                    <button onclick="window.print()"
+                            style="background: #27ae60; color: white; border: none; padding: 12px 30px; border-radius: 25px; font-size: 14px; cursor: pointer; margin: 0 10px;">
+                        🖨️ چاپ گزارش
+                    </button>
+                    <button onclick="window.close()"
+                            style="background: #e74c3c; color: white; border: none; padding: 12px 30px; border-radius: 25px; font-size: 14px; cursor: pointer; margin: 0 10px;">
+                        ✖️ بستن
+                    </button>
+                </div>
 
-    <!-- Print and Close Buttons -->
-    <div style="text-align: center; margin: 20px; padding: 20px;" class="no-print">
-        <button onclick="window.print()"
-            style="background: #27ae60; color: white; border: none; padding: 12px 30px; border-radius: 25px; font-size: 14px; cursor: pointer; margin: 0 10px;">
-            🖨️ چاپ گزارش
-        </button>
-        <button onclick="window.close()"
-            style="background: #e74c3c; color: white; border: none; padding: 12px 30px; border-radius: 25px; font-size: 14px; cursor: pointer; margin: 0 10px;">
-            ✖️ بستن
-        </button>
-    </div>
+                <script>
+                        // Auto-focus for printing
+                        window.addEventListener('load', function () {
+                            // Optional: Auto-print when page loads
+                            // window.print();
+                        });
 
-    <script>
-        // Auto-focus for printing
-        window.addEventListener('load', function () {
-            // Optional: Auto-print when page loads
-            // window.print();
-        });
+                        // Keyboard shortcuts
+                        document.addEventListener('keydown', function (e) {
+                            // Ctrl+P for print
+                            if (e.ctrlKey && e.key === 'p') {
+                                e.preventDefault();
+                                window.print();
+                            }
+                            // Escape to close
+                            if (e.key === 'Escape') {
+                                window.close();
+                            }
+                        });
+                </script>
+            </body>
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function (e) {
-            // Ctrl+P for print
-            if (e.ctrlKey && e.key === 'p') {
-                e.preventDefault();
-                window.print();
-            }
-            // Escape to close
-            if (e.key === 'Escape') {
-                window.close();
-            }
-        });
-    </script>
-</body>
-
-</html>
+        </html>
