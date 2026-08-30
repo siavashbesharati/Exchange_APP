@@ -10,9 +10,7 @@ using ForexExchange.Extensions;
 
 namespace ForexExchange.Controllers
 {
-    [Staff]
-    [HasPermission(Permissions.Reports)] 
-
+    
     public class ReportsController : Controller
     {
         private readonly ForexDbContext _context;
@@ -72,6 +70,7 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Reports
+        [HasPermission(Permissions.Reports)] 
         public IActionResult Index()
         {
             return View();

@@ -13,7 +13,7 @@ namespace ForexExchange.Controllers
     /// Bank Account Management Controller
     /// کنترلر مدیریت حساب‌های بانکی
     /// </summary>
-    //[Staff] // Temporarily commented for debugging
+    // // Temporarily commented for debugging
     public class BankAccountController : Controller
     {
         private readonly ForexDbContext _context;
@@ -224,6 +224,7 @@ namespace ForexExchange.Controllers
         /// View bank account details
         /// نمایش جزئیات حساب بانکی
         /// </summary>
+         [HasPermission(Permissions.Bank_Accounts_Detail)]
         public async Task<IActionResult> Details(int id)
         {
             var bankAccount = await _context.BankAccounts

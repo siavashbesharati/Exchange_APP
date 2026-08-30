@@ -371,7 +371,7 @@ namespace ForexExchange.Controllers
         }
 
         /// <summary>
-        /// Ensures staff users have a matching AspNetUserRoles row so [Staff] / permissions work.
+        /// Ensures staff users have a matching AspNetUserRoles row so  / permissions work.
         /// </summary>
         private async Task EnsureIdentityRoleSyncedAsync(ApplicationUser user)
         {

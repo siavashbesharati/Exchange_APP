@@ -366,7 +366,7 @@ namespace ForexExchange.Controllers
         /// Get push notification statistics
         /// </summary>
         [HttpGet("stats")]
-        [Staff]
+        
         public async Task<IActionResult> GetPushStats()
         {
             if (!WebPushEnabled)

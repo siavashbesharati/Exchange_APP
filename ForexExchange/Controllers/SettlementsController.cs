@@ -7,7 +7,7 @@ using ForexExchange.Services;
 
 namespace ForexExchange.Controllers
 {
-    [Staff]
+    
     public class SettlementsController : Controller
     {
         private readonly ForexDbContext _context;

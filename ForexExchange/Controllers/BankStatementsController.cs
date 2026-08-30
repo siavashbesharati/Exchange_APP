@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 
 namespace ForexExchange.Controllers
 {
-    [Staff]
+    
     public class BankStatementsController : Controller
     {
         private readonly ForexDbContext _context;

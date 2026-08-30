@@ -10,7 +10,7 @@ using System.Globalization;
 
 namespace ForexExchange.Controllers
 {
-    [Staff]
+    
     public class CustomersController : Controller
     {
         private readonly ForexDbContext _context;
@@ -40,7 +40,12 @@ namespace ForexExchange.Controllers
             _adminNotificationService = adminNotificationService;
             _centralFinancialService = centralFinancialService;
             _notificationHub = notificationHub;
-        }        // GET: Customers
+        }
+
+
+        // GET: Customers
+        [HasPermission(Permissions.Customers_View)]
+
         public async Task<IActionResult> Index()
         {
             var customers = await _context.Customers
@@ -53,6 +58,8 @@ namespace ForexExchange.Controllers
 
 
         // GET: Customers/Create
+        [HasPermission(Permissions.Customers_Create)]
+
         public IActionResult Create()
         {
             return View();
@@ -61,6 +68,8 @@ namespace ForexExchange.Controllers
         // POST: Customers/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Customers_Create)]
+
         public async Task<IActionResult> Create(CustomerCreateViewModel model)
         {
             if (ModelState.IsValid)
@@ -142,6 +151,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Customers/Edit/5
+        [HasPermission(Permissions.Customers_Edit)]
+
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -168,6 +179,8 @@ namespace ForexExchange.Controllers
         // POST: Customers/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Customers_Edit)]
+
         public async Task<IActionResult> Edit(int id, CustomerEditViewModel model)
         {
             if (id != model.Id)
@@ -246,6 +259,8 @@ namespace ForexExchange.Controllers
         }
 
         // GET: Customers/Delete/5
+        [HasPermission(Permissions.Customers_Delete)]
+
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -259,6 +274,8 @@ namespace ForexExchange.Controllers
         // POST: Customers/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
+        [HasPermission(Permissions.Documents_Delete)]
+
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var customer = await _context.Customers.FindAsync(id);

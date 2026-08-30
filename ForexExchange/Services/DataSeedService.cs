@@ -292,7 +292,7 @@ namespace ForexExchange.Services
                 {
                     _logger.LogInformation($"Admin user {adminData.Phone} already exists");
 
-                    // Ensure existing admins are in AspNetUserRoles (needed for [Staff])
+                    // Ensure existing admins are in AspNetUserRoles (needed for )
                     var roleName = adminData.Role.ToString();
                     if (!await _userManager.IsInRoleAsync(adminUser, roleName)
                         && await _roleManager.RoleExistsAsync(roleName))

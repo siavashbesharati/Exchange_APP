@@ -7,7 +7,7 @@ using ForexExchange.Helpers;
 
 namespace ForexExchange.Controllers
 {
-    [Staff]
+    
     public class CurrenciesController : Controller
     {
         private const int MaxLogoBytes = 100 * 1024; // 100 KB

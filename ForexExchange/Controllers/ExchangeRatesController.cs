@@ -77,7 +77,7 @@ namespace ForexExchange.Controllers
         }
 
         // GET: ExchangeRates/Manage
-        [Staff]
+        
         public async Task<IActionResult> Manage(long? refresh)
         {
             // Force fresh query to avoid EF tracking cache issues
@@ -102,7 +102,7 @@ namespace ForexExchange.Controllers
         // POST: ExchangeRates/UpdateAll
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Staff]
+        
         public async Task<IActionResult> UpdateAll(Dictionary<int, decimal> rates)
         {
             if (rates == null)
@@ -286,7 +286,7 @@ namespace ForexExchange.Controllers
         // POST: ExchangeRates/UpdateFromWeb
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Staff]
+        
         public IActionResult UpdateFromWeb()
         {
             // DISABLED: Web scraping functionality
