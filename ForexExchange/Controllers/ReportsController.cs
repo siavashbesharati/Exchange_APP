@@ -245,11 +245,11 @@ namespace ForexExchange.Controllers
 
         // GET: Reports/GetAllCustomersBalances
         [HttpGet]
-        public async Task<IActionResult> GetAllCustomersBalances(int? currencyId = null, string? customerFilter = null)
+        public async Task<IActionResult> GetAllCustomersBalances(string? currencyFilter = null, string? customerFilter = null)
         {
             try
             {
-                _logger.LogInformation("Starting GetAllCustomersBalances with currency filter: {CurrencyId}, customer filter: {CustomerFilter}", currencyId, customerFilter);
+                _logger.LogInformation("Starting GetAllCustomersBalances with currency filter: {CurrencyFilter}, customer filter: {CustomerFilter}", currencyFilter, customerFilter);
 
                 // First, let's test if basic customers query works
                 var customersCount = await _context.Customers
@@ -283,7 +283,7 @@ namespace ForexExchange.Controllers
                         createdAt = c.CreatedAt,
                         isActive = c.IsActive,
                         balances = c.Balances
-                            .Where(b => !currencyId.HasValue || b.CurrencyId == currencyId.Value)
+                            .Where(b => string.IsNullOrEmpty(currencyFilter) || b.CurrencyCode == currencyFilter)
                             .Where(b => b.Balance != 0) // Only show non-zero balances
                             .Select(b => new
                             {
@@ -295,8 +295,12 @@ namespace ForexExchange.Controllers
                                 absoluteBalance = b.Balance < 0 ? -b.Balance : b.Balance // Use conditional instead of Math.Abs
                             }).ToList(),
                         hasBalances = c.Balances.Any(b => b.Balance != 0),
-                        totalDebt = c.Balances.Where(b => b.Balance < 0).Sum(b => -b.Balance), // Use negation instead of Math.Abs
-                        totalCredit = c.Balances.Where(b => b.Balance > 0).Sum(b => b.Balance)
+                        totalDebt = c.Balances
+                            .Where(b => (string.IsNullOrEmpty(currencyFilter) || b.CurrencyCode == currencyFilter) && b.Balance < 0)
+                            .Sum(b => -b.Balance),
+                        totalCredit = c.Balances
+                            .Where(b => (string.IsNullOrEmpty(currencyFilter) || b.CurrencyCode == currencyFilter) && b.Balance > 0)
+                            .Sum(b => b.Balance)
                     })
                     .OrderBy(c => c.fullName)
                     .ToListAsync();
@@ -304,7 +308,7 @@ namespace ForexExchange.Controllers
                 _logger.LogInformation("Successfully retrieved {Count} customers", customers.Count);
 
                 // Apply currency filter and only include customers with balances
-                if (currencyId.HasValue)
+                if (!string.IsNullOrEmpty(currencyFilter))
                 {
                     customers = customers.Where(c => c.balances.Any()).ToList();
                 }
@@ -325,7 +329,7 @@ namespace ForexExchange.Controllers
 
                 try
                 {
-                    if (!currencyId.HasValue)
+                    if (string.IsNullOrEmpty(currencyFilter))
                     {
                         // Get totals for all currencies - group by CurrencyId
                         var allCurrencies = await _context.CustomerBalances
@@ -358,12 +362,13 @@ namespace ForexExchange.Controllers
                     {
                         // Get totals for filtered currency
                         var currencyTotal = await _context.CustomerBalances
-                            .Where(cb => cb.CurrencyId == currencyId.Value && cb.Balance != 0)
-                            .GroupBy(cb => cb.CurrencyId.Value)
+                            .Include(cb => cb.Currency)
+                            .Where(cb => cb.CurrencyCode == currencyFilter && cb.Balance != 0)
+                            .GroupBy(cb => cb.CurrencyCode)
                             .Select(g => new
                             {
-                                currencyId = g.Key,
-                                currencyCode = g.First().Currency != null ? g.First().Currency.Code : g.First().CurrencyCode, // Display from navigation
+                                currencyId = g.Select(cb => cb.CurrencyId).FirstOrDefault(),
+                                currencyCode = g.Key,
                                 totalCredit = g.Where(cb => cb.Balance > 0).Sum(cb => cb.Balance),
                                 totalDebt = g.Where(cb => cb.Balance < 0).Sum(cb => -cb.Balance), // Use negation instead of Math.Abs
                                 customerCount = g.Select(cb => cb.CustomerId).Distinct().Count()
@@ -397,7 +402,7 @@ namespace ForexExchange.Controllers
                         totalCustomersWithBalances,
                         totalCustomersWithDebt,
                         totalCustomersWithCredit,
-                        currencyId,
+                        currencyFilter,
                         currencyTotals
                     }
                 };
@@ -407,7 +412,7 @@ namespace ForexExchange.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting all customers balances with currency filter: {CurrencyFilter}, customer filter: {CustomerFilter}", currencyId, customerFilter);
+                _logger.LogError(ex, "Error getting all customers balances with currency filter: {CurrencyFilter}, customer filter: {CustomerFilter}", currencyFilter, customerFilter);
                 return Json(new { error = $"خطا در دریافت موجودی مشتریان: {ex.Message}" });
             }
         }

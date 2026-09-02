@@ -473,7 +473,10 @@ function renderAllCustomersTable(customers) {
 function renderCurrencySpecificTable(customers, currencyCode) {
     const currencyTablesContent = document.getElementById('currencyTablesContent');
     
-    if (customers.length === 0) {
+    const filteredCustomers = customers.filter(customer =>
+        customer.balances.some(balance => balance.currencyCode === currencyCode));
+
+    if (filteredCustomers.length === 0) {
         currencyTablesContent.innerHTML = `
             <div class="card shadow-sm border-3">
                 <div class="card-header  d-flex justify-content-between align-items-center">
@@ -490,12 +493,17 @@ function renderCurrencySpecificTable(customers, currencyCode) {
         `;
         return;
     }
-    
-    const tableRows = customers.map((customer, index) => {
-        const balance = customer.balances[0]; // Should only have one currency when filtered
+
+    const tableRows = filteredCustomers
+        .map((customer, index) => {
+        const balance = customer.balances.find(b => b.currencyCode === currencyCode);
+        if (!balance) {
+            return '';
+        }
+
         const isPositive = balance.balance >= 0;
         const statusClass = isPositive ? 'text-success' : 'text-danger';
-        const formattedAmount = formatCurrency(Math.abs(balance.balance), balance.currencyCode);
+        const formattedAmount = formatCurrency(Math.abs(balance.balance), currencyCode);
         const statusSymbol = isPositive ? '' : '-';
         const statusText = isPositive ? 'بستانکار' : 'بدهکار';
         
@@ -515,13 +523,15 @@ function renderCurrencySpecificTable(customers, currencyCode) {
                 </td>
             </tr>
         `;
-    }).join('');
+    })
+        .filter(Boolean)
+        .join('');
     
     currencyTablesContent.innerHTML = `
         <div class="card shadow-sm border-3">
             <div class="card-header  d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-coins me-2"></i>تراز ${currencyCode}</h5>
-                <span class="badge bg-primary">${customers.length} مشتری</span>
+                <span class="badge bg-primary">${filteredCustomers.length} مشتری</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
