@@ -10,7 +10,7 @@ using System.Globalization;
 
 namespace ForexExchange.Controllers
 {
-    
+     [Authorize]
     public class CustomersController : Controller
     {
         private readonly ForexDbContext _context;
