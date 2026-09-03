@@ -72,7 +72,7 @@
                             <!-- Removed OrderType dropdown -->
                         </div>
 
-                        <div class="row mb-3">
+                        <div class="row mb-3 align-items-end">
                             <div class="col-md-4">
                                 <label asp-for="FromCurrencyId" class="form-label"> دریافت می کنیم </label>
                                 <select asp-for="FromCurrencyId" asp-items="ViewBag.FromCurrencies" class="form-select"
@@ -82,7 +82,14 @@
                                 <span asp-validation-for="FromCurrencyId" class="text-danger"></span>
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-1 d-flex justify-content-center pb-2">
+                                <button type="button" id="reverseDirectionBtn" class="btn btn-sm btn-outline-secondary"
+                                    title="معکوس کردن جهت محاسبه نرخ" aria-pressed="false">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                            </div>
+
+                            <div class="col-md-3">
                                 <label asp-for="ToCurrencyId" class="form-label"> پرداخت می کنیم </label>
                                 <select asp-for="ToCurrencyId" asp-items="ViewBag.ToCurrencies" class="form-select"
                                     id="toCurrencySelect" required>
@@ -251,28 +258,62 @@
             return opt.textContent.split(' - ')[0].trim();
         }
 
-        function getCalcDirection() {
+        // --- Helper ---
+        let directionReversed = false;
+
+        function getBaseCalcDirection() {
             const fromId = document.getElementById('fromCurrencySelect').value;
             const toId = document.getElementById('toCurrencySelect').value;
             const fromCode = getCurrencyCodeById(fromId, 'fromCurrencySelect') || '';
             const toCode = getCurrencyCodeById(toId, 'toCurrencySelect') || '';
 
-            // If either currency is IRR, use original behavior (don't invert)
-            const isIrr = fromCode.toUpperCase() === 'IRR' || toCode.toUpperCase() === 'IRR';
-
             const fromPriority = getRatePriorityById(fromId);
             const toPriority = getRatePriorityById(toId);
 
-            if (isIrr) {
-                // Original behavior for IRR pairs
-                if (fromPriority < toPriority) return 'multiply';
-                if (fromPriority > toPriority) return 'divide';
-                return 'multiply';
-            } else {
-                // Inverted behavior for non-IRR pairs
-                if (fromPriority < toPriority) return 'divide';
-                if (fromPriority > toPriority) return 'multiply';
-                return 'multiply';
+            if (fromPriority < toPriority) return 'multiply';
+            if (fromPriority > toPriority) return 'divide';
+            return 'multiply';
+        }
+
+        function getCalcDirection() {
+            const baseDirection = getBaseCalcDirection();
+            if (!directionReversed) {
+                return baseDirection;
+            }
+
+            return baseDirection === 'multiply' ? 'divide' : 'multiply';
+        }
+
+        function updateReverseDirectionButton() {
+            const btn = document.getElementById('reverseDirectionBtn');
+            if (!btn) return;
+
+            btn.classList.toggle('btn-outline-secondary', !directionReversed);
+            btn.classList.toggle('btn-primary', directionReversed);
+            btn.setAttribute('aria-pressed', directionReversed ? 'true' : 'false');
+            btn.title = directionReversed
+                ? 'جهت معکوس فعال است — کلیک برای بازگشت به حالت پیش‌فرض'
+                : 'معکوس کردن جهت محاسبه نرخ';
+        }
+
+        function resetDirectionReverse() {
+            directionReversed = false;
+            updateReverseDirectionButton();
+        }
+
+        function toggleDirectionReverse() {
+            directionReversed = !directionReversed;
+            updateReverseDirectionButton();
+
+            const fromAmount = document.getElementById('calcFromAmountInput').value;
+            const toAmount = document.getElementById('calcToAmountInput').value;
+
+            if (fromAmount) {
+                calculateFromAmountChange();
+            } else if (toAmount) {
+                calculateToAmountChange();
+            } else if (document.getElementById('calcRateInput').value) {
+                calculateFromAmountChange();
             }
         }
 
@@ -362,6 +403,8 @@
             }
 
             $('#fromCurrencySelect,#toCurrencySelect').on('select2:select', function () {
+                resetDirectionReverse();
+
                 $('#calcFromAmountLabel').text($("#fromCurrencySelect").select2('data')[0].text);
                 $('#calcToAmountLabel').text($("#toCurrencySelect").select2('data')[0].text);
                 
@@ -390,6 +433,8 @@
             document.getElementById('calcFromAmountInput')?.addEventListener('keyup', calculateFromAmountChange);
             document.getElementById('calcToAmountInput')?.addEventListener('keyup', calculateToAmountChange);
             document.getElementById('calcRateInput')?.addEventListener('keyup', calculateFromAmountChange);
+            document.getElementById('reverseDirectionBtn')?.addEventListener('click', toggleDirectionReverse);
+            updateReverseDirectionButton();
 
             // --- دکمه ثبت نهایی ایجکسی ---
             document.getElementById('finalSubmitBtn').addEventListener('click', function (e) {
